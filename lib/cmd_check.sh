@@ -1,16 +1,18 @@
+_check_level() {
+  # $1=current_exit $2=new_level(1=warn,2=fail)
+  [[ $2 -gt $1 ]] && echo $2 || echo $1
+}
+
 cmd_check() {
   hdr "Health check"
   local _exit=0   # 0=OK, 1=WARN, 2=FAIL
-
-  _check_level() {
-    # $1=current_exit $2=new_level(1=warn,2=fail)
-    [[ $2 -gt $1 ]] && echo $2 || echo $1
-  }
 
   # 1. 连接数占比
   local conn_used max_conn conn_pct
   conn_used=$(ksql_q "SELECT count(*) FROM sys_stat_activity;" | tr -d '[:space:]')
   max_conn=$(ksql_q "SELECT setting::int FROM sys_settings WHERE name='max_connections';" | tr -d '[:space:]')
+  conn_used=${conn_used:-0}
+  max_conn=${max_conn:-1}
   conn_pct=$(( conn_used * 100 / max_conn ))
   if [[ $conn_pct -ge $KB_FAIL_CONN ]]; then
     fail "Connections: ${conn_pct}% (${conn_used}/${max_conn}) >= FAIL threshold ${KB_FAIL_CONN}%"
