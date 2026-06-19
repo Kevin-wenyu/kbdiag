@@ -1,0 +1,267 @@
+#!/usr/bin/env bash
+# kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
+set -euo pipefail
+
+# --- lib/core.sh ---
+# ─── config ──────────────────────────────────────────────────────────────────
+KB_BIN_DIR="${KB_BIN_DIR:-/home/kingbase/cluster/install/kingbase/bin}"
+KB_DATA_DIR="${KB_DATA_DIR:-/home/kingbase/cluster/install/kingbase/data}"
+KB_REPMGR_CONF="${KB_REPMGR_CONF:-/home/kingbase/cluster/install/kingbase/etc/repmgr.conf}"
+KB_PORT="${KB_PORT:-54321}"
+KB_SUPERUSER="${KB_SUPERUSER:-system}"
+KB_DB="${KB_DB:-test}"
+
+KSQL="$KB_BIN_DIR/ksql"
+REPMGR="$KB_BIN_DIR/repmgr"
+
+# 告警阈值（可通过环境变量覆盖）
+KB_WARN_CONN="${KB_WARN_CONN:-70}"
+KB_FAIL_CONN="${KB_FAIL_CONN:-90}"
+KB_WARN_LAG="${KB_WARN_LAG:-30}"
+KB_FAIL_LAG="${KB_FAIL_LAG:-300}"
+KB_WARN_TXN="${KB_WARN_TXN:-300}"
+KB_FAIL_TXN="${KB_FAIL_TXN:-1800}"
+KB_WARN_DEAD_TUPLES="${KB_WARN_DEAD_TUPLES:-100000}"
+KB_SLOW_THRESHOLD="${KB_SLOW_THRESHOLD:-5}"
+
+# ─── verbose ─────────────────────────────────────────────────────────────────
+VERBOSE="${VERBOSE:-}"
+
+# ─── color ───────────────────────────────────────────────────────────────────
+if [[ -t 1 ]]; then
+  RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
+  CYAN='\033[0;36m'; BOLD='\033[1m'; RESET='\033[0m'
+else
+  RED=''; GREEN=''; YELLOW=''; CYAN=''; BOLD=''; RESET=''
+fi
+
+ok()   { echo -e "${GREEN}[OK]${RESET}    $*"; }
+warn() { echo -e "${YELLOW}[WARN]${RESET}  $*"; }
+fail() { echo -e "${RED}[FAIL]${RESET}  $*"; }
+info() { echo -e "${CYAN}[INFO]${RESET}  $*"; }
+hdr()  { echo -e "\n${BOLD}==> $*${RESET}"; }
+
+# ─── helpers ─────────────────────────────────────────────────────────────────
+require_kingbase_user() {
+  if [[ "$(whoami)" != "kingbase" ]]; then
+    echo "Error: run as kingbase user  (sudo -i -u kingbase)" >&2
+    exit 1
+  fi
+}
+
+ksql_q() {
+  "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
+    -AXtc "$1" 2>/dev/null
+}
+
+repmgr_available() {
+  [[ -x "$REPMGR" && -f "$KB_REPMGR_CONF" ]]
+}
+
+# --- lib/cmd_status.sh ---
+cmd_status() {
+  hdr "Instance status"
+
+  local pid
+  pid=$(pgrep -U kingbase -f "kingbase.*-D $KB_DATA_DIR" | head -1 || true)
+  if [[ -n "$pid" ]]; then
+    ok "kingbase process running (pid $pid)"
+  else
+    fail "kingbase process not found"
+    return 1
+  fi
+
+  local ver
+  if ver=$(ksql_q "SELECT version();" 2>&1); then
+    ok "DB connectable — $ver"
+  else
+    fail "Cannot connect to DB on port $KB_PORT"
+    return 1
+  fi
+
+  local is_standby
+  is_standby=$(ksql_q "SELECT pg_is_in_recovery()::text;" | tr -d '[:space:]')
+  if [[ "$is_standby" == "false" ]]; then
+    ok "Role: PRIMARY"
+  else
+    ok "Role: STANDBY"
+  fi
+
+  local uptime
+  uptime=$(ksql_q "SELECT date_trunc('second', now() - pg_postmaster_start_time())::text;")
+  info "Uptime: $uptime"
+}
+
+# --- lib/cmd_cluster.sh ---
+cmd_cluster() {
+  hdr "Cluster status (repmgr)"
+
+  if ! repmgr_available; then
+    warn "repmgr not found — standalone instance"
+    return 0
+  fi
+
+  "$REPMGR" -f "$KB_REPMGR_CONF" cluster show
+}
+
+# --- lib/cmd_replication.sh ---
+cmd_replication() {
+  hdr "Replication"
+
+  local is_standby
+  is_standby=$(ksql_q "SELECT pg_is_in_recovery()::text;" | tr -d '[:space:]')
+
+  if [[ "$is_standby" == "false" ]]; then
+    info "Standby connections:"
+    if [[ -n "$VERBOSE" ]]; then
+      ksql_q "
+        SELECT client_addr, state, sync_state,
+               pg_size_pretty(sent_lsn - replay_lsn) AS replay_lag
+        FROM sys_stat_replication;
+      " | column -t -s '|' || true
+    fi
+
+    local cnt
+    cnt=$(ksql_q "SELECT count(*) FROM sys_stat_replication;" | tr -d '[:space:]')
+    if [[ "$cnt" -eq 0 ]]; then
+      warn "No standbys connected"
+    else
+      ok "$cnt standby(s) connected"
+    fi
+  else
+    local wal_status
+    wal_status=$(ksql_q "SELECT status FROM sys_stat_wal_receiver LIMIT 1;" | tr -d '[:space:]')
+    if [[ -z "$wal_status" ]]; then
+      warn "WAL receiver not running"
+    else
+      ok "WAL receiver: $wal_status"
+    fi
+
+    local replay_delay receive_lsn replay_lsn
+    replay_delay=$(ksql_q "SELECT date_trunc('second', now() - pg_last_xact_replay_timestamp())::text;" | tr -d '[:space:]')
+    receive_lsn=$(ksql_q "SELECT pg_last_wal_receive_lsn()::text;" | tr -d '[:space:]')
+    replay_lsn=$(ksql_q "SELECT pg_last_wal_replay_lsn()::text;" | tr -d '[:space:]')
+    info "Replay delay : $replay_delay"
+    info "Receive LSN  : $receive_lsn"
+    info "Replay  LSN  : $replay_lsn"
+  fi
+}
+
+# --- lib/cmd_sessions.sh ---
+cmd_sessions() {
+  hdr "Active sessions"
+
+  local cnt
+  cnt=$(ksql_q "SELECT count(*) FROM sys_stat_activity WHERE state <> 'idle' AND pid <> sys_backend_pid();" | tr -d '[:space:]')
+  info "Non-idle sessions: $cnt"
+
+  if [[ -n "$VERBOSE" || "$cnt" -gt 0 ]]; then
+    ksql_q "
+      SELECT pid, usename, application_name, client_addr, state,
+             date_trunc('second', now() - query_start)::text AS duration,
+             left(query, 80) AS query
+      FROM sys_stat_activity
+      WHERE state <> 'idle' AND pid <> sys_backend_pid()
+      ORDER BY query_start;
+    " | column -t -s '|' || true
+  fi
+}
+
+# --- lib/cmd_locks.sh ---
+cmd_locks() {
+  hdr "Waiting locks"
+
+  local cnt
+  cnt=$(ksql_q "SELECT count(*) FROM sys_locks WHERE NOT granted;" | tr -d '[:space:]')
+
+  if [[ "$cnt" -eq 0 ]]; then
+    ok "No waiting locks"
+    return 0
+  fi
+
+  warn "$cnt waiting lock(s)"
+  ksql_q "
+    SELECT
+      w.pid        AS wait_pid,
+      w.usename    AS wait_user,
+      left(w.query, 60) AS wait_query,
+      b.pid        AS block_pid,
+      b.usename    AS block_user,
+      left(b.query, 60) AS block_query
+    FROM sys_stat_activity w
+    JOIN sys_locks lw ON lw.pid = w.pid AND NOT lw.granted
+    JOIN sys_locks lb ON lb.locktype = lw.locktype
+                      AND lb.relation IS NOT DISTINCT FROM lw.relation
+                      AND lb.granted
+    JOIN sys_stat_activity b ON b.pid = lb.pid
+    LIMIT 20;
+  " | column -t -s '|' || true
+}
+
+# --- lib/cmd_check.sh ---
+
+# --- lib/cmd_perf.sh ---
+
+# --- lib/cmd_space.sh ---
+
+# ─── dispatch ────────────────────────────────────────────────────────────────
+require_kingbase_user
+
+# parse -v / --verbose anywhere in args
+ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    -v|--verbose) VERBOSE=1 ;;
+    *) ARGS+=("$arg") ;;
+  esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
+CMD="${1:-}"
+SUBCMD="${2:-}"
+
+case "$CMD" in
+  status)      cmd_status      ;;
+  cluster)     cmd_cluster     ;;
+  replication) cmd_replication ;;
+  sessions)    cmd_sessions    ;;
+  locks)       cmd_locks       ;;
+  check)       cmd_check       ;;
+  perf)        cmd_perf "$SUBCMD" ;;
+  space)       cmd_space       ;;
+  all)
+    cmd_status; cmd_cluster; cmd_replication
+    cmd_sessions; cmd_locks; cmd_check; cmd_perf ""; cmd_space
+    ;;
+  -h|--help|help|"")
+    cat <<'USAGE'
+Usage: kbdiag [-v] <command> [subcommand]
+
+Commands:
+  status       Instance process, connectivity, role, uptime
+  cluster      Repmgr cluster topology (skipped if standalone)
+  replication  Standby connections (primary) or lag (standby)
+  sessions     Non-idle sessions
+  locks        Waiting lock chains
+  check        Health threshold checks (exit 0=OK 1=WARN 2=FAIL)
+  perf         Performance: [slow|bloat|vacuum|index] (default: all)
+  space        Storage: disk, tables, WAL, archive
+  all          Run all checks above
+
+Flags:
+  -v, --verbose    Show full underlying data (default: summary only)
+
+Connection overrides:
+  KB_PORT KB_BIN_DIR KB_DATA_DIR KB_REPMGR_CONF KB_SUPERUSER KB_DB
+
+Threshold overrides:
+  KB_WARN_CONN KB_FAIL_CONN   connection % (default 70/90)
+  KB_WARN_LAG  KB_FAIL_LAG   replication lag seconds (default 30/300)
+  KB_WARN_TXN  KB_FAIL_TXN   long transaction seconds (default 300/1800)
+  KB_WARN_DEAD_TUPLES         dead tuple count (default 100000)
+  KB_SLOW_THRESHOLD           slow query seconds (default 5)
+USAGE
+    ;;
+  *)
+    echo "Unknown command: $CMD" >&2; exit 1 ;;
+esac
