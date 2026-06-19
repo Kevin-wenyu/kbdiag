@@ -41,7 +41,7 @@ case "$CMD" in
   replication) cmd_replication ;;
   sessions)    cmd_sessions    ;;
   locks)       cmd_locks       ;;
-  check)       cmd_check       ;;
+  check)       (cmd_check); exit $? ;;
   perf)        cmd_perf "$SUBCMD" ;;
   space)       cmd_space       ;;
   all)
