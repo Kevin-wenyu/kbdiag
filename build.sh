@@ -46,7 +46,7 @@ case "$CMD" in
   space)       cmd_space       ;;
   all)
     cmd_status; cmd_cluster; cmd_replication
-    cmd_sessions; cmd_locks; cmd_check; cmd_perf ""; cmd_space
+    cmd_sessions; cmd_locks; cmd_check || true; cmd_perf ""; cmd_space
     ;;
   -h|--help|help|"")
     cat <<'USAGE'
