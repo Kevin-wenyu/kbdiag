@@ -65,6 +65,24 @@ sudo -i -u kingbase /tmp/kbdiag all
 
 ---
 
+## Verbose Mode
+
+所有命令支持 `-v` / `--verbose` 标志，控制输出层次：
+
+- **默认（运维视角）**：结论摘要，OK/WARN/FAIL + 关键数字
+- **`-v`（DBA 视角）**：结论 + 底层完整查询结果
+
+`core.sh` 中解析全局 `VERBOSE` 变量，各 `cmd_*.sh` 用 `if [[ $VERBOSE ]]; then` 控制详细输出块。`check` 命令在 `-v` 下每项检查附带触发该状态的原始行数据。
+
+```bash
+kbdiag check          # 运维：只看 OK/WARN/FAIL
+kbdiag check -v       # DBA：结论 + 底层数据
+kbdiag perf slow -v   # DBA：慢查询完整信息
+kbdiag all -v         # DBA：全量诊断
+```
+
+---
+
 ## Feature Spec
 
 ### P1 — `check`（健康告警）
