@@ -97,10 +97,9 @@ cmd_check() {
   fi
 
   # 5. 归档失败
-  local arch_status
-  arch_status=$(ksql_q "SELECT archived_count, failed_count, last_failed_wal FROM sys_stat_archiver;" | tr -d '\n')
-  local arch_failed
+  local arch_failed arch_status
   arch_failed=$(ksql_q "SELECT failed_count FROM sys_stat_archiver;" | tr -d '[:space:]')
+  arch_status=$(ksql_q "SELECT 'archived='||archived_count||' failed='||failed_count||' last_failed='||coalesce(last_failed_wal,'none') FROM sys_stat_archiver;")
   if [[ ${arch_failed:-0} -gt 0 ]]; then
     warn "Archiver: ${arch_failed} failed file(s)"
     _exit=$(_check_level $_exit 1)
