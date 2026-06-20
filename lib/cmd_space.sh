@@ -1,4 +1,32 @@
-cmd_space() {
+_space_frag() {
+  hdr "Table fragmentation (dead tuple ratio > 10%)"
+
+  local cnt
+  cnt=$(ksql_q "
+    SELECT count(*) FROM sys_stat_user_tables
+    WHERE n_live_tup+n_dead_tup > 1000
+      AND n_dead_tup::float/(n_live_tup+n_dead_tup+1) > 0.1;" | tr -d '[:space:]')
+
+  if [[ "${cnt:-0}" -eq 0 ]]; then
+    ok "No heavily fragmented tables"
+    return 0
+  fi
+
+  warn "$cnt fragmented table(s) — consider VACUUM"
+  ksql_q "
+    SELECT schemaname, relname,
+           pg_size_pretty(pg_relation_size(schemaname||'.'||relname)) AS size,
+           n_live_tup, n_dead_tup,
+           round(100.0*n_dead_tup/NULLIF(n_live_tup+n_dead_tup,0),1) AS dead_pct
+    FROM sys_stat_user_tables
+    WHERE n_live_tup+n_dead_tup > 1000
+      AND n_dead_tup::float/(n_live_tup+n_dead_tup+1) > 0.1
+    ORDER BY dead_pct DESC
+    LIMIT ${TOP_N};" \
+    | column -t -s '|' || true
+}
+
+_space_all() {
   hdr "Storage & space"
 
   # 1. 数据目录磁盘使用率
@@ -61,4 +89,16 @@ cmd_space() {
       info "Archiver: $arch_stat"
     fi
   fi
+}
+
+cmd_space() {
+  local subcmd="${1:-}"
+  case "$subcmd" in
+    frag) _space_frag ;;
+    "")   _space_all  ;;
+    *)
+      echo "Unknown space subcommand: $subcmd (frag)" >&2
+      return 1
+      ;;
+  esac
 }
