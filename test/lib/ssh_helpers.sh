@@ -41,3 +41,25 @@ setup_sql_node1() {
   scp -P 57103 -q "$file" kevin@127.0.0.1:/tmp/_kbdiag_setup.sql
   ssh_node1 "/home/kingbase/cluster/install/kingbase/bin/ksql -p 54321 -U system test -f /tmp/_kbdiag_setup.sql" || true
 }
+
+start_slow_query_bg() {
+  # 在 node1 后台运行慢查询，返回 ksql 的 PID
+  $NODE1_SSH "sudo -i -u kingbase bash -c 'nohup /home/kingbase/cluster/install/kingbase/bin/ksql -p 54321 -U system test -c \"SELECT pg_sleep(60);\" > /dev/null 2>&1 &'" || true
+  sleep 1  # 让查询起来
+}
+
+stop_slow_query_bg() {
+  ssh_node1 "/home/kingbase/cluster/install/kingbase/bin/ksql -p 54321 -U system test -c \"SELECT pg_terminate_backend(pid) FROM sys_stat_activity WHERE query LIKE '%pg_sleep%' AND pid <> sys_backend_pid();\"" || true
+}
+
+setup_test_table() {
+  setup_sql_node1 "$(dirname "${BASH_SOURCE[0]}")/../setup/make_test_table.sql"
+}
+
+setup_bloat_table() {
+  setup_sql_node1 "$(dirname "${BASH_SOURCE[0]}")/../setup/make_bloat.sql"
+}
+
+cleanup_test_state() {
+  setup_sql_node1 "$(dirname "${BASH_SOURCE[0]}")/../setup/cleanup.sql"
+}
