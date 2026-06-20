@@ -1260,10 +1260,116 @@ cmd_temp() {
 }
 
 # --- lib/cmd_watch.sh ---
+cmd_watch() {
+  local interval="${1:-5}"; shift
+  local subcmd="${1:-}"; [[ $# -gt 0 ]] && shift || true
+  local args=("$@")
+
+  while true; do
+    clear 2>/dev/null || printf '\033[2J\033[H'
+    echo "=== kbdiag watch — $(date) — every ${interval}s (Ctrl+C to stop) ==="
+    case "$subcmd" in
+      status)      cmd_status ;;
+      sessions)    cmd_sessions ;;
+      wait)        cmd_wait ;;
+      check)       cmd_check || true ;;
+      perf)        cmd_perf "${args[0]:-}" ;;
+      locks)       cmd_locks "${args[0]:-}" ;;
+      *)           echo "watch: unknown command '$subcmd'" >&2; return 1 ;;
+    esac
+    sleep "$interval"
+  done
+}
 
 # --- lib/cmd_conf.sh ---
+cmd_conf() {
+  local subcmd="${1:-}"
+  hdr "Configuration"
+
+  if [[ "$subcmd" == "diff" ]]; then
+    # Compare this node's parameters with the peer node
+    local peer="${KB_PEER_HOST:-}"
+    if [[ -z "$peer" ]]; then
+      # Infer peer from repmgr
+      peer=$(repmgr_available && "$REPMGR" -f "$KB_REPMGR_CONF" cluster show 2>/dev/null | \
+             awk '/standby|primary/ && !/\*/ {match($0,"host=([^ ]+)",a); if(a[1]) print a[1]; exit}' || true)
+    fi
+    if [[ -z "$peer" ]]; then
+      warn "Cannot determine peer node. Set KB_PEER_HOST=<ip> to enable diff."
+      return 0
+    fi
+    info "Comparing parameters with peer: $peer"
+    local local_params peer_params
+    local_params=$(ksql_q "SELECT name||'='||setting FROM sys_settings WHERE setting<>boot_val ORDER BY name;")
+    peer_params=$(ssh -o StrictHostKeyChecking=no "$peer" \
+      "sudo -i -u kingbase /home/kingbase/cluster/install/kingbase/bin/ksql -p 54321 -U system test -AXtc \
+      'SELECT name||chr(61)||setting FROM sys_settings WHERE setting<>boot_val ORDER BY name;'" 2>/dev/null) || true
+    diff <(echo "$local_params") <(echo "$peer_params") | head -40 || true
+    return 0
+  fi
+
+  # Default: show non-default parameters + pending restart
+  info "Non-default parameters:"
+  ksql_q "
+    SELECT name, setting, unit, boot_val,
+           CASE WHEN pending_restart = 'true' THEN '[RESTART NEEDED]' ELSE '' END AS note
+    FROM sys_settings WHERE setting <> boot_val ORDER BY name;" | column -t -s '|' || true
+
+  local restart_cnt
+  restart_cnt=$(ksql_q "SELECT count(*) FROM sys_settings WHERE pending_restart=true;" | tr -d '[:space:]')
+  [[ "${restart_cnt:-0}" -gt 0 ]] && warn "$restart_cnt parameter(s) pending restart" || ok "No restart-pending parameters"
+}
 
 # --- lib/cmd_audit.sh ---
+cmd_audit() {
+  hdr "Security Audit"
+
+  # Superusers
+  info "Superuser roles:"
+  ksql_q "SELECT rolname FROM sys_roles WHERE rolsuper=true ORDER BY rolname;" | column -t -s '|' || true
+
+  # Roles that can login without a password
+  info "Roles with login but no password:"
+  local no_pwd
+  no_pwd=$(ksql_q "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolpassword IS NULL ORDER BY rolname;" || true)
+  if [[ -n "$no_pwd" ]]; then
+    warn "Roles with no password set:"
+    echo "$no_pwd" | column -t -s '|'
+  else
+    ok "All login roles have passwords set"
+  fi
+
+  # PUBLIC schema write grants
+  info "PUBLIC write grants on public schema tables (top $TOP_N):"
+  local pub_grants
+  pub_grants=$(ksql_q "
+    SELECT grantee, table_name, privilege_type
+    FROM information_schema.role_table_grants
+    WHERE table_schema='public' AND privilege_type IN ('INSERT','UPDATE','DELETE')
+      AND grantee='PUBLIC'
+    LIMIT $TOP_N;" | column -t -s '|' || true)
+  if [[ -n "$pub_grants" ]]; then
+    warn "PUBLIC has write grants on these tables:"
+    echo "$pub_grants"
+  else
+    ok "No PUBLIC write grants on public schema tables"
+  fi
+
+  # Tables without primary keys
+  info "User tables without primary keys (top $TOP_N):"
+  local no_pk
+  no_pk=$(ksql_q "
+    SELECT schemaname, relname FROM sys_stat_user_tables
+    WHERE relname NOT IN (
+      SELECT conrelid::regclass::text FROM sys_constraint WHERE contype='p'
+    ) ORDER BY schemaname, relname LIMIT $TOP_N;" | column -t -s '|' || true)
+  if [[ -n "$no_pk" ]]; then
+    warn "Tables without primary keys:"
+    echo "$no_pk"
+  else
+    ok "All user tables have primary keys"
+  fi
+}
 
 # --- lib/cmd_logs.sh ---
 
