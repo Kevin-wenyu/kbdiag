@@ -55,3 +55,37 @@ Design rules:
 
 - Remote: `https://github.com/Kevin-wenyu/kbdiag.git`
 - Branch strategy: push directly to `main`
+
+## KingbaseES 特有行为（v2 开发中发现）
+
+- 布尔值返回 `true`/`false`（非 PostgreSQL 的 `t`/`f`）：比较前必须 `tr -d '[:space:]'`
+- 系统视图前缀 `sys_`：`sys_stat_activity`、`sys_locks`、`sys_stat_replication` 等
+- Size 函数保留 `pg_` 前缀：`pg_relation_size`、`pg_total_relation_size`、`pg_database_size`
+- WAL 目录：`$KB_DATA_DIR/sys_wal`（非 `pg_wal`），代码中需回退兼容
+- `pg_is_wal_receiver_up()` 不存在，用 `sys_stat_wal_receiver.status` 代替
+- `cmd_check || exit $?` — 非零 exit code 需显式传播（`set -e` 在 case 分支行为不一致）
+- `cmd_check || true` — 在 all 命令中允许 WARN 不中断流程
+
+## 代码结构
+
+- `lib/core.sh` — 配置、全局参数解析、颜色、输出函数、JSON helpers
+- `lib/cmd_*.sh` — 各命令实现，每文件一个 `cmd_*` 函数
+- `build.sh` — cat 拼接所有 lib/*.sh + dispatch → `dist/kbdiag`
+- `dist/kbdiag` — 单文件分发产物，不手动编辑
+- `test/` — 测试框架，本地 Mac 运行，通过 SSH 编排 VM
+
+## 开发工作流
+
+```bash
+# 修改 lib/cmd_xxx.sh
+bash build.sh                          # 重新打包
+bash test/run_tests.sh xxx             # 自动验证
+git add lib/cmd_xxx.sh dist/kbdiag && git commit
+```
+
+## 测试节点
+
+- node1 (primary): `ssh -p 57103 kevin@127.0.0.1` → `sudo -i -u kingbase`
+- node2 (standby): `ssh -p 57123 kevin@127.0.0.1` → `sudo -i -u kingbase`
+- DB 连接：`ksql test system`（本地 socket，免密）
+- 端口：54321
