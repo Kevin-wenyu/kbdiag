@@ -24,9 +24,16 @@ for case_file in "$SCRIPT_DIR/cases"/test_*.sh; do
   # Reset counters for this file
   TESTS_RUN=0; TESTS_PASSED=0; TESTS_FAILED=0; FAILURES=""
 
-  # Source and run all test_* functions
+  # Record functions before sourcing this case file
+  before=$(declare -F | awk '{print $3}' | grep '^test_' || true)
+
+  # Source and run only test_* functions defined by this case file
   source "$case_file"
-  for fn in $(declare -F | awk '{print $3}' | grep '^test_'); do
+  after=$(declare -F | awk '{print $3}' | grep '^test_' || true)
+
+  # Only run new functions defined by this case file
+  new_fns=$(comm -13 <(echo "$before" | sort) <(echo "$after" | sort))
+  for fn in $new_fns; do
     CURRENT_TEST="$fn"
     set +e
     $fn

@@ -12,14 +12,14 @@ ssh_node2() {
 
 ssh_node1_exit() {
   local result
-  result=$($NODE1_SSH "sudo -i -u kingbase bash -c $(printf '%q' "$1"); echo EXIT:\$?" 2>/dev/null)
-  echo "$result" | grep -o 'EXIT:[0-9]*' | cut -d: -f2
+  result=$($NODE1_SSH "sudo -i -u kingbase bash -c $(printf '%q' "$1"); echo __KBDIAG_EXIT__:\$?" 2>/dev/null)
+  echo "$result" | grep -o '__KBDIAG_EXIT__:[0-9]*' | cut -d: -f2
 }
 
 ssh_node2_exit() {
   local result
-  result=$($NODE2_SSH "sudo -i -u kingbase bash -c $(printf '%q' "$1"); echo EXIT:\$?" 2>/dev/null)
-  echo "$result" | grep -o 'EXIT:[0-9]*' | cut -d: -f2
+  result=$($NODE2_SSH "sudo -i -u kingbase bash -c $(printf '%q' "$1"); echo __KBDIAG_EXIT__:\$?" 2>/dev/null)
+  echo "$result" | grep -o '__KBDIAG_EXIT__:[0-9]*' | cut -d: -f2
 }
 
 # Run ksql on node1 as kingbase
