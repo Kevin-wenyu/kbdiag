@@ -1157,6 +1157,14 @@ cmd_obj() {
     schema="public"; table="$target"
   fi
 
+  # Check table exists
+  local exists
+  exists=$(ksql_q "SELECT count(*) FROM sys_stat_user_tables WHERE schemaname='$schema' AND relname='$table';" | tr -d '[:space:]')
+  if [[ "${exists:-0}" -eq 0 ]]; then
+    echo "Error: table '$schema.$table' not found in sys_stat_user_tables" >&2
+    return 1
+  fi
+
   hdr "Object analysis: $schema.$table"
 
   # 1. Size & tuples

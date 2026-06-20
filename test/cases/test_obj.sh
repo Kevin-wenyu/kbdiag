@@ -56,3 +56,8 @@ test_obj_verbose_shows_column_stats() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE -v obj kbdiag_test")
   assert_contains "$out" "Column statistics"
 }
+
+test_obj_nonexistent_table_returns_error() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE obj public.kbdiag_nonexistent_xyz")
+  assert_exit_code 1 "$code"
+}
