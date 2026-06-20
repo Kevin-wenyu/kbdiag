@@ -73,7 +73,7 @@ cmd_logs() {
   # Most frequent error messages
   info "Top $TOP_N error messages:"
   grep -E " ERROR:| FATAL:" "$target_file" 2>/dev/null | \
-    sed 's/.*\(ERROR\|FATAL\): //' | sort | uniq -c | sort -rn | head -"$TOP_N" || true
+    sed 's/.*ERROR: //; s/.*FATAL: //' | sort | uniq -c | sort -rn | head -"$TOP_N" || true
 
   # Cleanup temp file
   [[ -n "$tmp_file" && -f "$tmp_file" ]] && rm -f "$tmp_file" || true
