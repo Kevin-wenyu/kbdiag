@@ -53,7 +53,7 @@ case "$CMD" in
   watch)       cmd_watch "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   conf)        cmd_conf "$SUBCMD" ;;
   audit)       cmd_audit ;;
-  logs)        cmd_logs "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
+  logs)        cmd_logs ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   remote)      cmd_remote "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
