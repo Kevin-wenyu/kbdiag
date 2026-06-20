@@ -85,7 +85,10 @@ kbdiag sql 1234 -v       # 加上 EXPLAIN ANALYZE（需 DBA 谨慎用）
 - 等待事件（wait_event_type + wait_event）
 - `EXPLAIN` 执行计划（默认）；`-v` 时用 `EXPLAIN (ANALYZE, BUFFERS)`
 
-实现：`sys_stat_activity` 取 SQL 文本和 pid，通过 `ksql -c "EXPLAIN ..."` 执行计划查询（不对正在运行的语句执行 ANALYZE，避免干扰）。
+实现：`sys_stat_activity` 取 SQL 文本和 pid，通过 `ksql -c "EXPLAIN ..."` 查询执行计划。
+- 默认：`EXPLAIN` 只查计划，安全无副作用
+- `-v`：`EXPLAIN (VERBOSE, COSTS)` 加详细节点信息
+- `--analyze`：`EXPLAIN (ANALYZE, BUFFERS)` 实际执行，**有真实 IO，DBA 需知情后使用**
 
 ---
 
@@ -274,7 +277,7 @@ kbdiag remote node2 sql all             # 查 node2 的活跃 SQL
 
 ## 扩展现有命令
 
-### `check` 新增 6 项
+### `check` 新增 8 项
 
 | 检查项 | WARN | FAIL | 环境变量 |
 |--------|------|------|----------|
@@ -284,6 +287,11 @@ kbdiag remote node2 sql all             # 查 node2 的活跃 SQL
 | 死锁计数（自上次重置） | >0 | — | — |
 | 复制槽延迟 | lag >100MB | >1GB | `KB_WARN_SLOT` / `KB_FAIL_SLOT` |
 | bgwriter 压力 | buffers_backend/total >30% | >60% | `KB_WARN_BGW` / `KB_FAIL_BGW` |
+| **XID 年龄 / Wraparound 风险** | age >10亿 | age >19亿 | `KB_WARN_XID` / `KB_FAIL_XID` |
+| **最老活跃事务年龄** | >1h | >4h | `KB_WARN_OLDEST_TXN` / `KB_FAIL_OLDEST_TXN` |
+
+XID 数据源：`sys_class.relfrozenxid`（表级）、`sys_database.datfrozenxid`（库级），取最大值。
+最老活跃事务：`sys_stat_activity` 中 `xact_start` 最早的非 idle 会话。
 
 ### `perf` 新增子命令
 
@@ -291,6 +299,9 @@ kbdiag remote node2 sql all             # 查 node2 的活跃 SQL
 - `perf io` — 表/索引 I/O 热点（`sys_statio_user_tables`、`sys_statio_user_indexes`）
 - `perf wal` — WAL 生成速率、checkpoint 统计、bgwriter 统计
 - `perf top [buffers|reads|writes|cpu|temp]` — 当前 Top SQL 按维度排序
+- `perf vacuum` 增强：每张表显示距 autovacuum 触发阈值的进度
+  - 公式：`threshold = autovacuum_vacuum_threshold + autovacuum_vacuum_scale_factor × reltuples`
+  - 输出示例：`dead tuples: 45,000 / threshold: 50,200 (89%) — 即将触发`
 
 ### `locks` 新增子命令
 
@@ -326,11 +337,82 @@ kbdiag remote node2 sql all             # 查 node2 的活跃 SQL
 
 ---
 
+## 命令分层：OPS / DBA
+
+`usage` 输出中明确标注，运维无需理解 DBA 命令：
+
+```
+[OPS]  status       实例进程、连通性、角色、运行时长
+[OPS]  cluster      repmgr 集群拓扑
+[OPS]  replication  复制延迟 / standby 连接
+[OPS]  check        健康阈值，输出 OK/WARN/FAIL，exit 0/1/2
+[OPS]  space        磁盘 / 表大小 / WAL
+[DBA]  sessions     非 idle 会话详情
+[DBA]  locks        等待锁链 / 持锁分析
+[DBA]  perf         性能诊断（慢查询/bloat/vacuum/wait/io/wal）
+[DBA]  sql <pid>    SQL 深度分析 + 执行计划
+[DBA]  wait         等待事件分布
+[DBA]  progress     长时间操作进度
+[DBA]  params       实例参数查询
+[DBA]  stat         吞吐量速率指标（TPS/命中率）
+[DBA]  obj <table>  对象级全面分析
+[DBA]  temp         临时文件 / 排序溢出
+[DBA]  conf         配置审计 / 节点参数对比
+[DBA]  audit        安全合规审计
+[DBA]  watch        周期刷新执行任意命令
+[DBA]  logs         日志文件分析
+[DBA]  remote       多节点批量诊断
+[ALL]  all          运行全部检查
+```
+
+---
+
+## 验证框架（Test Task 0）
+
+**原则：测试脚本跑在本地 Mac，通过 SSH 编排 VM，VM 上零依赖。**
+
+```
+test/
+├── run_tests.sh              # 主入口：bash test/run_tests.sh [command]
+├── lib/
+│   ├── assert.sh             # assert_contains / assert_exit_code / assert_json_valid
+│   └── ssh_helpers.sh        # ssh_node1 / ssh_node2 / deploy_to_nodes
+├── setup/
+│   ├── make_slow_query.sql   # pg_sleep 制造慢查询
+│   ├── make_lock.sql         # LOCK TABLE 制造锁竞争
+│   ├── make_bloat.sql        # 批量 DELETE 制造 bloat
+│   └── cleanup.sql           # 清理所有测试状态
+└── cases/
+    ├── test_status.sh
+    ├── test_check.sh
+    ├── test_replication.sh
+    ├── test_sessions.sh
+    ├── test_locks.sh
+    ├── test_perf.sh
+    ├── test_space.sh
+    ├── test_sql.sh
+    ├── test_wait.sh
+    ├── test_obj.sh
+    ├── test_params.sh
+    ├── test_stat.sh
+    ├── test_progress.sh
+    ├── test_temp.sh
+    ├── test_conf.sh
+    └── test_audit.sh
+```
+
+每个 test case 必须覆盖：happy path、empty path、exit code、`-v`/`-q`/`--top`、两节点差异、`--format json` 合法性。
+
+每个功能 Task 的完成标准：**`bash test/run_tests.sh <cmd>` 全部 PASS 才 commit**。
+
+---
+
 ## 实现优先级
 
 | 优先级 | 内容 | 理由 |
 |--------|------|------|
-| P0 | 全局参数解析增强（core.sh） | 所有命令的基础，必须先做 |
+| P0 | **测试框架**（test/ 目录） | 所有功能的验证基础，必须先做 |
+| P0 | 全局参数解析增强（core.sh） | 所有命令共用，先于功能实现 |
 | P1 | `check` 6 项新增 | 巡检核心，直接补现有命令 |
 | P1 | `perf` 新增 wait/io/wal/top | 扩展现有框架 |
 | P1 | `locks` 新增 hold/wait/deadlock | 扩展现有框架 |
