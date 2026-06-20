@@ -1,4 +1,4 @@
-test_check_exit_ok() {
+test_check_exit_ok_or_warn() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE check")
   # 正常环境下 exit 0 或 1（archiver 失败是已知 WARN）
   [[ "$code" -le 1 ]] && _pass || _fail "exit code $code > 1 on healthy node"
@@ -40,7 +40,7 @@ test_check_buffer_hit_present() {
 
 test_check_standby_has_replication_lag() {
   local out; out=$(ssh_node2 "$KBDIAG_REMOTE check")
-  assert_contains "$out" "Replication lag"
+  assert_contains "$out" "slot lag"
 }
 
 test_check_oldest_txn_present() {

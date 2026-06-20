@@ -24,9 +24,9 @@ KB_WARN_TXN="${KB_WARN_TXN:-300}"
 KB_FAIL_TXN="${KB_FAIL_TXN:-1800}"
 KB_WARN_DEAD_TUPLES="${KB_WARN_DEAD_TUPLES:-100000}"
 KB_SLOW_THRESHOLD="${KB_SLOW_THRESHOLD:-5}"
-KB_WARN_HIT="${KB_WARN_HIT:-95}"
+KB_WARN_HIT="${KB_WARN_HIT:-95}"   # hit ratio: WARN < 95%, FAIL < 90% (higher is better)
 KB_FAIL_HIT="${KB_FAIL_HIT:-90}"
-KB_WARN_CKPT="${KB_WARN_CKPT:-5}"
+KB_WARN_CKPT="${KB_WARN_CKPT:-1}"
 KB_FAIL_CKPT="${KB_FAIL_CKPT:-1}"
 KB_WARN_TEMP="${KB_WARN_TEMP:-104857600}"    # 100MB in bytes
 KB_FAIL_TEMP="${KB_FAIL_TEMP:-1073741824}"   # 1GB in bytes
@@ -59,8 +59,20 @@ _init_colors() {
 _init_colors
 
 ok()   { [[ -n "$QUIET" || "$OUTPUT_FMT" == "json" ]] && return; echo -e "${GREEN}[OK]${RESET}    $*"; }
-warn() { [[ "$OUTPUT_FMT" == "json" ]] && echo -e "${YELLOW}[WARN]${RESET}  $*" >&2 && return; echo -e "${YELLOW}[WARN]${RESET}  $*"; }
-fail() { [[ "$OUTPUT_FMT" == "json" ]] && echo -e "${RED}[FAIL]${RESET}  $*" >&2 && return; echo -e "${RED}[FAIL]${RESET}  $*"; }
+warn() {
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    echo -e "${YELLOW}[WARN]${RESET}  $*" >&2
+    return
+  fi
+  echo -e "${YELLOW}[WARN]${RESET}  $*"
+}
+fail() {
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    echo -e "${RED}[FAIL]${RESET}  $*" >&2
+    return
+  fi
+  echo -e "${RED}[FAIL]${RESET}  $*"
+}
 info() { [[ -n "$QUIET" || "$OUTPUT_FMT" == "json" ]] && return; echo -e "${CYAN}[INFO]${RESET}  $*"; }
 hdr()  { [[ -n "$QUIET" || "$OUTPUT_FMT" == "json" ]] && return; echo -e "\n${BOLD}==> $*${RESET}"; }
 
