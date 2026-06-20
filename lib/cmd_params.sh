@@ -14,6 +14,6 @@ cmd_params() {
 
   ksql_q "
     SELECT name, setting, unit, boot_val,
-           CASE WHEN pending_restart THEN '[RESTART]' ELSE '' END AS note
+           CASE WHEN pending_restart = 'true' THEN '[RESTART NEEDED]' ELSE '' END AS note
     FROM sys_settings WHERE $where ORDER BY name LIMIT $TOP_N;" | column -t -s '|' || true
 }
