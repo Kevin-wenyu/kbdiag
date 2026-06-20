@@ -1540,48 +1540,45 @@ case "$CMD" in
     ;;
   -h|--help|help|"")
     cat <<'USAGE'
-Usage: kbdiag [-v] [-q] [--no-color] [-n N] [--format text|json|csv] [--timeout S] <command> [subcommand]
+Usage: kbdiag [global-flags] <command> [subcommand] [command-flags]
 
-Commands:
-  status       Instance process, connectivity, role, uptime
-  cluster      Repmgr cluster topology (skipped if standalone)
-  replication  Standby connections (primary) or lag (standby)
-  sessions     Non-idle sessions
-  locks        Waiting lock chains
-  check        Health threshold checks (exit 0=OK 1=WARN 2=FAIL)
-  perf         Performance: [slow|bloat|vacuum|index] (default: all)
-  space        Storage: disk, tables, WAL, archive
-  sql          SQL utilities
-  wait         Wait event analysis
-  progress     Long-running operation progress
-  params       GUC parameter management
-  stat         pg_stat snapshots
-  obj          Object DDL inspection
-  temp         Temp file usage
-  watch        Continuous monitoring
-  conf         Config file management
-  audit        Audit log review
-  logs         Log analysis
-  remote       Remote node diagnostics
-  all          Run status/cluster/replication/sessions/locks/check/perf/space
+Global flags:
+  -v, --verbose       Show full underlying data
+  -q, --quiet         Only show WARN/FAIL (suppress OK/INFO)
+  -n N, --top N       Limit result rows (default: 10)
+  --format text|json  Output format (default: text)
+  --no-color          Disable ANSI colors
+  --timeout N         DB query timeout seconds (default: 10)
 
-Flags:
-  -v, --verbose        Show full underlying data (default: summary only)
-  -q, --quiet          Show only WARN/FAIL output
-  --no-color           Disable color output
-  -n N, --top N        Limit results to top N rows (default: 10)
-  --format text|json|csv  Output format (default: text)
-  --timeout S          Query timeout in seconds (default: 10)
+[OPS] Commands (no DBA context required):
+  status              Instance process, connectivity, role, uptime
+  cluster             Repmgr cluster topology
+  replication         Replication lag / standby connections
+  check               14-item health check, exit 0=OK 1=WARN 2=FAIL
+  space [frag]        Disk, tables, WAL, archive, fragmentation
 
-Connection overrides:
-  KB_PORT KB_BIN_DIR KB_DATA_DIR KB_REPMGR_CONF KB_SUPERUSER KB_DB
+[DBA] Commands (requires interpretation):
+  sessions            Non-idle sessions
+  locks [hold|wait|deadlock]   Lock analysis
+  perf [slow|bloat|vacuum|wait|io|wal|top]   Performance diagnostics
+  sql [pid|all]       SQL text + EXPLAIN for a session
+  wait                Wait event distribution
+  progress            Long-running operation progress
+  params [pattern]    Instance parameters
+  stat                Throughput metrics (TPS, buffer hit rate)
+  obj <schema.table>  Object deep-dive (size, indexes, constraints)
+  temp                Temp file and sort spill analysis
+  watch <N> <cmd>     Repeat any command every N seconds
+  conf [diff]         Configuration audit / node comparison
+  audit               Security and compliance checks
+  logs                Log file analysis (slow queries, errors)
+  remote <nodes> <cmd>  Multi-node batch diagnostics
 
-Threshold overrides:
-  KB_WARN_CONN KB_FAIL_CONN   connection % (default 70/90)
-  KB_WARN_LAG  KB_FAIL_LAG   replication lag seconds (default 30/300)
-  KB_WARN_TXN  KB_FAIL_TXN   long transaction seconds (default 300/1800)
-  KB_WARN_DEAD_TUPLES         dead tuple count (default 100000)
-  KB_SLOW_THRESHOLD           slow query seconds (default 5)
+[ALL]
+  all                 Run all checks
+
+Connection overrides: KB_PORT KB_BIN_DIR KB_DATA_DIR KB_REPMGR_CONF KB_SUPERUSER KB_DB
+Threshold overrides: KB_WARN_CONN KB_FAIL_CONN KB_WARN_LAG KB_FAIL_LAG KB_WARN_XID KB_FAIL_XID ...
 USAGE
     ;;
   *)
