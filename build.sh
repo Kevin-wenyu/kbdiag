@@ -47,7 +47,7 @@ case "$CMD" in
   wait)        cmd_wait ;;
   progress)    cmd_progress ;;
   params)      cmd_params "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
-  stat)        cmd_stat "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
+  stat)        cmd_stat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   obj)         cmd_obj "$SUBCMD" ;;
   temp)        cmd_temp ;;
   watch)       cmd_watch "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
