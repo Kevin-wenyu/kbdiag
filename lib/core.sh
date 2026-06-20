@@ -137,7 +137,7 @@ require_kingbase_user() {
 }
 
 ksql_q() {
-  "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
+  timeout "$KB_QUERY_TIMEOUT" "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
     -AXtc "$1" 2>/dev/null
 }
 

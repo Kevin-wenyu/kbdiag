@@ -17,12 +17,15 @@ cmd_check() {
   conn_pct=$(( conn_used * 100 / max_conn ))
   if [[ $conn_pct -ge $KB_FAIL_CONN ]]; then
     fail "Connections: ${conn_pct}% (${conn_used}/${max_conn}) >= FAIL threshold ${KB_FAIL_CONN}%"
+    json_item "connections" "fail" "${conn_used}/${max_conn} (${conn_pct}%)" ">= FAIL threshold ${KB_FAIL_CONN}%"
     _exit=$(_check_level $_exit 2)
   elif [[ $conn_pct -ge $KB_WARN_CONN ]]; then
     warn "Connections: ${conn_pct}% (${conn_used}/${max_conn}) >= WARN threshold ${KB_WARN_CONN}%"
+    json_item "connections" "warn" "${conn_used}/${max_conn} (${conn_pct}%)" ">= WARN threshold ${KB_WARN_CONN}%"
     _exit=$(_check_level $_exit 1)
   else
     ok "Connections: ${conn_pct}% (${conn_used}/${max_conn})"
+    json_item "connections" "ok" "${conn_used}/${max_conn} (${conn_pct}%)" ""
   fi
   if [[ -n "$VERBOSE" ]]; then
     ksql_q "SELECT usename, count(*) FROM sys_stat_activity GROUP BY usename ORDER BY 2 DESC LIMIT 10;" \
@@ -38,13 +41,18 @@ cmd_check() {
     lag_sec=${lag_sec:-0}
     if [[ $lag_sec -ge $KB_FAIL_LAG ]]; then
       fail "Replication lag: ${lag_sec}s >= FAIL threshold ${KB_FAIL_LAG}s"
+      json_item "replication_lag" "fail" "${lag_sec}s" ">= FAIL threshold ${KB_FAIL_LAG}s"
       _exit=$(_check_level $_exit 2)
     elif [[ $lag_sec -ge $KB_WARN_LAG ]]; then
       warn "Replication lag: ${lag_sec}s >= WARN threshold ${KB_WARN_LAG}s"
+      json_item "replication_lag" "warn" "${lag_sec}s" ">= WARN threshold ${KB_WARN_LAG}s"
       _exit=$(_check_level $_exit 1)
     else
       ok "Replication lag: ${lag_sec}s"
+      json_item "replication_lag" "ok" "${lag_sec}s" ""
     fi
+  else
+    json_item "replication_lag" "ok" "N/A" "primary node"
   fi
 
   # 3. 长事务
@@ -59,12 +67,15 @@ cmd_check() {
       AND now() - xact_start > interval '${KB_WARN_TXN} seconds';" | tr -d '[:space:]')
   if [[ ${long_fail:-0} -gt 0 ]]; then
     fail "Long transactions: ${long_fail} exceeding FAIL threshold ${KB_FAIL_TXN}s"
+    json_item "long_transactions" "fail" "${long_fail}" "exceeding FAIL threshold ${KB_FAIL_TXN}s"
     _exit=$(_check_level $_exit 2)
   elif [[ ${long_warn:-0} -gt 0 ]]; then
     warn "Long transactions: ${long_warn} exceeding WARN threshold ${KB_WARN_TXN}s"
+    json_item "long_transactions" "warn" "${long_warn}" "exceeding WARN threshold ${KB_WARN_TXN}s"
     _exit=$(_check_level $_exit 1)
   else
     ok "Long transactions: none"
+    json_item "long_transactions" "ok" "0" ""
   fi
   if [[ -n "$VERBOSE" && ${long_warn:-0} -gt 0 ]]; then
     ksql_q "
@@ -82,6 +93,7 @@ cmd_check() {
   lock_cnt=$(ksql_q "SELECT count(*) FROM sys_locks WHERE NOT granted;" | tr -d '[:space:]')
   if [[ ${lock_cnt:-0} -gt 0 ]]; then
     warn "Waiting locks: ${lock_cnt}"
+    json_item "waiting_locks" "warn" "${lock_cnt}" "sessions waiting on locks"
     _exit=$(_check_level $_exit 1)
     if [[ -n "$VERBOSE" ]]; then
       ksql_q "
@@ -97,6 +109,7 @@ cmd_check() {
     fi
   else
     ok "Waiting locks: none"
+    json_item "waiting_locks" "ok" "0" ""
   fi
 
   # 5. 归档失败
@@ -105,10 +118,12 @@ cmd_check() {
   arch_status=$(ksql_q "SELECT 'archived='||archived_count||' failed='||failed_count||' last_failed='||coalesce(last_failed_wal,'none') FROM sys_stat_archiver;")
   if [[ ${arch_failed:-0} -gt 0 ]]; then
     warn "Archiver: ${arch_failed} failed file(s)"
+    json_item "archiver" "warn" "${arch_failed}" "failed WAL file(s)"
     _exit=$(_check_level $_exit 1)
     [[ -n "$VERBOSE" ]] && info "$arch_status"
   else
     ok "Archiver: no failures"
+    json_item "archiver" "ok" "${arch_failed:-0}" ""
   fi
 
   # 6. autovacuum 积压
@@ -118,6 +133,7 @@ cmd_check() {
     WHERE n_dead_tup > ${KB_WARN_DEAD_TUPLES};" | tr -d '[:space:]')
   if [[ ${vac_cnt:-0} -gt 0 ]]; then
     warn "Autovacuum backlog: ${vac_cnt} table(s) with dead tuples > ${KB_WARN_DEAD_TUPLES}"
+    json_item "autovacuum_backlog" "warn" "${vac_cnt}" "tables with dead_tup > ${KB_WARN_DEAD_TUPLES}"
     _exit=$(_check_level $_exit 1)
     if [[ -n "$VERBOSE" ]]; then
       ksql_q "
@@ -129,6 +145,7 @@ cmd_check() {
     fi
   else
     ok "Autovacuum backlog: none"
+    json_item "autovacuum_backlog" "ok" "0" ""
   fi
 
   # 7. 缓冲命中率
