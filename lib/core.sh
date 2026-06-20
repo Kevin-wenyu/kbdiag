@@ -53,11 +53,11 @@ _init_colors() {
 }
 _init_colors
 
-ok()   { [[ -n "$QUIET" ]] && return; echo -e "${GREEN}[OK]${RESET}    $*"; }
-warn() { echo -e "${YELLOW}[WARN]${RESET}  $*"; }
-fail() { echo -e "${RED}[FAIL]${RESET}  $*"; }
-info() { [[ -n "$QUIET" ]] && return; echo -e "${CYAN}[INFO]${RESET}  $*"; }
-hdr()  { [[ -n "$QUIET" ]] && return; echo -e "\n${BOLD}==> $*${RESET}"; }
+ok()   { [[ -n "$QUIET" || "$OUTPUT_FMT" == "json" ]] && return; echo -e "${GREEN}[OK]${RESET}    $*"; }
+warn() { [[ "$OUTPUT_FMT" == "json" ]] && echo -e "${YELLOW}[WARN]${RESET}  $*" >&2 && return; echo -e "${YELLOW}[WARN]${RESET}  $*"; }
+fail() { [[ "$OUTPUT_FMT" == "json" ]] && echo -e "${RED}[FAIL]${RESET}  $*" >&2 && return; echo -e "${RED}[FAIL]${RESET}  $*"; }
+info() { [[ -n "$QUIET" || "$OUTPUT_FMT" == "json" ]] && return; echo -e "${CYAN}[INFO]${RESET}  $*"; }
+hdr()  { [[ -n "$QUIET" || "$OUTPUT_FMT" == "json" ]] && return; echo -e "\n${BOLD}==> $*${RESET}"; }
 
 # ─── global arg parser ────────────────────────────────────────────────────────
 parse_global_args() {

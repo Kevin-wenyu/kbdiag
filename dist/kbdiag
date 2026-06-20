@@ -58,11 +58,11 @@ _init_colors() {
 }
 _init_colors
 
-ok()   { [[ -n "$QUIET" ]] && return; echo -e "${GREEN}[OK]${RESET}    $*"; }
-warn() { echo -e "${YELLOW}[WARN]${RESET}  $*"; }
-fail() { echo -e "${RED}[FAIL]${RESET}  $*"; }
-info() { [[ -n "$QUIET" ]] && return; echo -e "${CYAN}[INFO]${RESET}  $*"; }
-hdr()  { [[ -n "$QUIET" ]] && return; echo -e "\n${BOLD}==> $*${RESET}"; }
+ok()   { [[ -n "$QUIET" || "$OUTPUT_FMT" == "json" ]] && return; echo -e "${GREEN}[OK]${RESET}    $*"; }
+warn() { [[ "$OUTPUT_FMT" == "json" ]] && echo -e "${YELLOW}[WARN]${RESET}  $*" >&2 && return; echo -e "${YELLOW}[WARN]${RESET}  $*"; }
+fail() { [[ "$OUTPUT_FMT" == "json" ]] && echo -e "${RED}[FAIL]${RESET}  $*" >&2 && return; echo -e "${RED}[FAIL]${RESET}  $*"; }
+info() { [[ -n "$QUIET" || "$OUTPUT_FMT" == "json" ]] && return; echo -e "${CYAN}[INFO]${RESET}  $*"; }
+hdr()  { [[ -n "$QUIET" || "$OUTPUT_FMT" == "json" ]] && return; echo -e "\n${BOLD}==> $*${RESET}"; }
 
 # ─── global arg parser ────────────────────────────────────────────────────────
 parse_global_args() {
@@ -285,6 +285,7 @@ _check_level() {
 }
 
 cmd_check() {
+  [[ "$OUTPUT_FMT" == "json" ]] && json_begin "check"
   hdr "Health check"
   local _exit=0   # 0=OK, 1=WARN, 2=FAIL
 
@@ -411,6 +412,138 @@ cmd_check() {
     ok "Autovacuum backlog: none"
   fi
 
+  # 7. 缓冲命中率
+  local hit_rate hit_rate_int
+  hit_rate=$(ksql_q "SELECT CASE WHEN (blks_hit + blks_read) = 0 THEN 100 ELSE round(100.0 * blks_hit / (blks_hit + blks_read), 1) END FROM sys_stat_database WHERE datname = current_database();" | tr -d '[:space:]')
+  hit_rate=${hit_rate:-100}
+  hit_rate_int=$(echo "$hit_rate" | cut -d. -f1)
+  if [[ $hit_rate_int -lt $KB_FAIL_HIT ]]; then
+    fail "Buffer hit rate: ${hit_rate}% < FAIL threshold ${KB_FAIL_HIT}%"
+    _exit=$(_check_level $_exit 2)
+    json_item "buffer_hit" "fail" "${hit_rate}%" "< FAIL threshold ${KB_FAIL_HIT}%"
+  elif [[ $hit_rate_int -lt $KB_WARN_HIT ]]; then
+    warn "Buffer hit rate: ${hit_rate}% < WARN threshold ${KB_WARN_HIT}%"
+    _exit=$(_check_level $_exit 1)
+    json_item "buffer_hit" "warn" "${hit_rate}%" "< WARN threshold ${KB_WARN_HIT}%"
+  else
+    ok "Buffer hit rate: ${hit_rate}%"
+    json_item "buffer_hit" "ok" "${hit_rate}%" ""
+  fi
+
+  # 8. Checkpoint 频率（checkpoints_req > KB_FAIL_CKPT 即 WARN）
+  local ckpt_req
+  ckpt_req=$(ksql_q "SELECT checkpoints_req FROM sys_stat_bgwriter;" | tr -d '[:space:]')
+  ckpt_req=${ckpt_req:-0}
+  if [[ $ckpt_req -ge $KB_WARN_CKPT ]]; then
+    warn "Checkpoint pressure: ${ckpt_req} requested checkpoints >= WARN threshold ${KB_WARN_CKPT}"
+    _exit=$(_check_level $_exit 1)
+    json_item "checkpoint" "warn" "${ckpt_req}" ">= WARN threshold ${KB_WARN_CKPT}"
+  else
+    ok "Checkpoint pressure: ${ckpt_req} requested checkpoints"
+    json_item "checkpoint" "ok" "${ckpt_req}" ""
+  fi
+
+  # 9. 临时文件使用（当前累计字节数）
+  local temp_bytes
+  temp_bytes=$(ksql_q "SELECT temp_bytes FROM sys_stat_database WHERE datname = current_database();" | tr -d '[:space:]')
+  temp_bytes=${temp_bytes:-0}
+  if [[ $temp_bytes -ge $KB_FAIL_TEMP ]]; then
+    fail "Temp file usage: ${temp_bytes} bytes >= FAIL threshold ${KB_FAIL_TEMP}"
+    _exit=$(_check_level $_exit 2)
+    json_item "temp_files" "fail" "${temp_bytes}" ">= FAIL threshold ${KB_FAIL_TEMP}"
+  elif [[ $temp_bytes -ge $KB_WARN_TEMP ]]; then
+    warn "Temp file usage: ${temp_bytes} bytes >= WARN threshold ${KB_WARN_TEMP}"
+    _exit=$(_check_level $_exit 1)
+    json_item "temp_files" "warn" "${temp_bytes}" ">= WARN threshold ${KB_WARN_TEMP}"
+  else
+    ok "Temp file usage: ${temp_bytes} bytes"
+    json_item "temp_files" "ok" "${temp_bytes}" ""
+  fi
+
+  # 10. 死锁计数
+  local deadlocks
+  deadlocks=$(ksql_q "SELECT deadlocks FROM sys_stat_database WHERE datname = current_database();" | tr -d '[:space:]')
+  deadlocks=${deadlocks:-0}
+  if [[ $deadlocks -gt 0 ]]; then
+    warn "Deadlocks: ${deadlocks} since last reset"
+    _exit=$(_check_level $_exit 1)
+    json_item "deadlocks" "warn" "${deadlocks}" "since last reset"
+  else
+    ok "Deadlocks: none"
+    json_item "deadlocks" "ok" "0" ""
+  fi
+
+  # 11. 复制槽延迟（最大 slot lag）
+  local slot_lag_pretty slot_lag_bytes
+  slot_lag_bytes=$(ksql_q "SELECT COALESCE(max(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)), 0) FROM sys_replication_slots WHERE active = false OR restart_lsn IS NOT NULL;" | tr -d '[:space:]')
+  slot_lag_bytes=${slot_lag_bytes:-0}
+  slot_lag_pretty=$(ksql_q "SELECT pg_size_pretty(COALESCE(max(pg_wal_lsn_diff(pg_current_wal_lsn(), restart_lsn)), 0)) FROM sys_replication_slots WHERE active = false OR restart_lsn IS NOT NULL;" | tr -d '[:space:]')
+  slot_lag_pretty=${slot_lag_pretty:-0}
+  if [[ $slot_lag_bytes -ge $KB_FAIL_SLOT ]]; then
+    fail "Replication slot lag: ${slot_lag_pretty} >= FAIL threshold $(( KB_FAIL_SLOT / 1048576 ))MB"
+    _exit=$(_check_level $_exit 2)
+    json_item "slot_lag" "fail" "${slot_lag_pretty}" ">= FAIL threshold"
+  elif [[ $slot_lag_bytes -ge $KB_WARN_SLOT ]]; then
+    warn "Replication slot lag: ${slot_lag_pretty} >= WARN threshold $(( KB_WARN_SLOT / 1048576 ))MB"
+    _exit=$(_check_level $_exit 1)
+    json_item "slot_lag" "warn" "${slot_lag_pretty}" ">= WARN threshold"
+  else
+    ok "Replication slot lag: ${slot_lag_pretty}"
+    json_item "slot_lag" "ok" "${slot_lag_pretty}" ""
+  fi
+
+  # 12. bgwriter 压力（backend 直写 buffer 占比）
+  local bgw_pct
+  bgw_pct=$(ksql_q "SELECT CASE WHEN (buffers_clean + buffers_backend + buffers_checkpoint) = 0 THEN 0 ELSE round(100.0 * buffers_backend / (buffers_clean + buffers_backend + buffers_checkpoint)) END FROM sys_stat_bgwriter;" | tr -d '[:space:]')
+  bgw_pct=${bgw_pct:-0}
+  if [[ $bgw_pct -ge $KB_FAIL_BGW ]]; then
+    fail "BGWriter pressure: ${bgw_pct}% backend writes >= FAIL threshold ${KB_FAIL_BGW}%"
+    _exit=$(_check_level $_exit 2)
+    json_item "bgwriter" "fail" "${bgw_pct}%" ">= FAIL threshold ${KB_FAIL_BGW}%"
+  elif [[ $bgw_pct -ge $KB_WARN_BGW ]]; then
+    warn "BGWriter pressure: ${bgw_pct}% backend writes >= WARN threshold ${KB_WARN_BGW}%"
+    _exit=$(_check_level $_exit 1)
+    json_item "bgwriter" "warn" "${bgw_pct}%" ">= WARN threshold ${KB_WARN_BGW}%"
+  else
+    ok "BGWriter pressure: ${bgw_pct}% backend writes"
+    json_item "bgwriter" "ok" "${bgw_pct}%" ""
+  fi
+
+  # 13. XID age（最大表级 frozen xid age）
+  local xid_age
+  xid_age=$(ksql_q "SELECT max(age(relfrozenxid)) FROM sys_class WHERE relkind IN ('r','t') AND relfrozenxid != 0;" | tr -d '[:space:]')
+  xid_age=${xid_age:-0}
+  if [[ $xid_age -ge $KB_FAIL_XID ]]; then
+    fail "XID age: ${xid_age} >= FAIL threshold ${KB_FAIL_XID}"
+    _exit=$(_check_level $_exit 2)
+    json_item "xid_age" "fail" "${xid_age}" ">= FAIL threshold ${KB_FAIL_XID}"
+  elif [[ $xid_age -ge $KB_WARN_XID ]]; then
+    warn "XID age: ${xid_age} >= WARN threshold ${KB_WARN_XID}"
+    _exit=$(_check_level $_exit 1)
+    json_item "xid_age" "warn" "${xid_age}" ">= WARN threshold ${KB_WARN_XID}"
+  else
+    ok "XID age: ${xid_age}"
+    json_item "xid_age" "ok" "${xid_age}" ""
+  fi
+
+  # 14. 最老活跃事务年龄（秒）
+  local oldest_txn
+  oldest_txn=$(ksql_q "SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(xact_start)))::int, 0) FROM sys_stat_activity WHERE state <> 'idle' AND xact_start IS NOT NULL AND pid <> sys_backend_pid();" | tr -d '[:space:]')
+  oldest_txn=${oldest_txn:-0}
+  if [[ $oldest_txn -ge $KB_FAIL_OLDEST_TXN ]]; then
+    fail "oldest active transaction: ${oldest_txn}s >= FAIL threshold ${KB_FAIL_OLDEST_TXN}s"
+    _exit=$(_check_level $_exit 2)
+    json_item "oldest_txn" "fail" "${oldest_txn}s" ">= FAIL threshold ${KB_FAIL_OLDEST_TXN}s"
+  elif [[ $oldest_txn -ge $KB_WARN_OLDEST_TXN ]]; then
+    warn "oldest active transaction: ${oldest_txn}s >= WARN threshold ${KB_WARN_OLDEST_TXN}s"
+    _exit=$(_check_level $_exit 1)
+    json_item "oldest_txn" "warn" "${oldest_txn}s" ">= WARN threshold ${KB_WARN_OLDEST_TXN}s"
+  else
+    ok "oldest active transaction: ${oldest_txn}s"
+    json_item "oldest_txn" "ok" "${oldest_txn}s" ""
+  fi
+
+  [[ "$OUTPUT_FMT" == "json" ]] && json_end
   return $_exit
 }
 
