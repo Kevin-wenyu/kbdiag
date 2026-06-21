@@ -4,8 +4,10 @@ KingbaseES 命令行诊断工具。不进交互界面，直接输出实例状态
 
 ## 安装
 
+从源码直接获取打包文件（单文件，无依赖）：
+
 ```bash
-curl -fsSL https://github.com/Kevin-wenyu/kbdiag/releases/latest/download/kbdiag \
+curl -fsSL https://raw.githubusercontent.com/Kevin-wenyu/kbdiag/main/dist/kbdiag \
   -o /tmp/kbdiag && chmod +x /tmp/kbdiag
 ```
 
