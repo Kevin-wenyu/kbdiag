@@ -1,6 +1,6 @@
 # kbdiag
 
-KingbaseES 命令行诊断工具。不进交互界面，直接输出实例状态、集群拓扑、复制延迟、性能瓶颈和存储空间，支持单机和主备集群（repmgr）。
+KingbaseES 命令行 DBA 专家工具箱（v1.4）。不进交互界面，直接输出实例状态、集群拓扑、复制延迟、性能瓶颈和存储空间；深度分析索引健康、列统计信息，提供优化建议。支持单机和主备集群（repmgr）。
 
 ## 安装
 
@@ -73,6 +73,10 @@ kbdiag [global-flags] <command> [subcommand] [command-flags]
 | `audit` | 安全与合规检查 |
 | `logs` | 日志文件分析（慢查询、错误） |
 | `remote <nodes> <cmd>` | 多节点批量诊断 |
+| `kill [--terminate] [pid\|--long N\|--idle-txn N] [--dry-run] [--force]` | 取消/终止查询或会话 |
+| `idx [unused\|dup\|bloat\|missing]` | 索引健康分析 |
+| `colstat <schema.table> [--col <col>]` | 列统计信息深度分析（n_distinct、相关性、MCV）|
+| `advisor [index\|vacuum\|params\|analyze] [--fix]` | 综合优化建议；`--fix` 输出可执行 SQL |
 
 ### [ALL]
 
