@@ -2245,6 +2245,51 @@ _advisor_index() {
     else
       echo "-- (no unused indexes to drop)"
     fi
+
+    echo ""
+    echo "-- Fix: Duplicate indexes (drop lower-scanned duplicate)"
+    local dup_sql
+    dup_sql=$(ksql_q "
+      SELECT 'DROP INDEX CONCURRENTLY ' ||
+        CASE WHEN a.idx_scan <= b.idx_scan THEN a.schemaname || '.' || a.indexrelname
+             ELSE b.schemaname || '.' || b.indexrelname
+        END || ';'
+      FROM sys_stat_user_indexes a
+      JOIN sys_stat_user_indexes b
+        ON a.schemaname = b.schemaname AND a.relname = b.relname AND a.indexrelid < b.indexrelid
+      JOIN sys_index ia ON ia.indexrelid = a.indexrelid
+      JOIN sys_index ib ON ib.indexrelid = b.indexrelid
+      WHERE ia.indkey = ib.indkey AND ia.indpred IS NULL AND ib.indpred IS NULL
+      LIMIT ${TOP_N};" 2>/dev/null || true)
+    if [[ -n "$dup_sql" ]]; then
+      echo "$dup_sql"
+    else
+      echo "-- (no duplicate indexes to drop)"
+    fi
+
+    echo ""
+    echo "-- Fix: Missing FK indexes (create index on unindexed FK column)"
+    local missing_sql
+    missing_sql=$(ksql_q "
+      SELECT DISTINCT 'CREATE INDEX CONCURRENTLY ON ' || n.nspname || '.' || c.relname ||
+        ' (' || a.attname || ');'
+      FROM sys_constraint con
+      JOIN sys_class c ON c.oid = con.conrelid
+      JOIN sys_namespace n ON n.oid = c.relnamespace
+      JOIN sys_attribute a ON a.attrelid = c.oid AND a.attnum = con.conkey[1]
+      JOIN sys_stat_user_tables sut ON sut.schemaname = n.nspname AND sut.relname = c.relname
+      WHERE con.contype = 'f' AND sut.n_live_tup > 10000
+        AND n.nspname NOT IN ('sys_catalog','information_schema','sys_toast')
+        AND NOT EXISTS (
+          SELECT 1 FROM sys_index i
+          WHERE i.indrelid = c.oid AND i.indkey[0] = con.conkey[1]
+        )
+      LIMIT ${TOP_N};" 2>/dev/null || true)
+    if [[ -n "$missing_sql" ]]; then
+      echo "$missing_sql"
+    else
+      echo "-- (no missing FK indexes found)"
+    fi
   fi
 
   return $_exit
@@ -2284,12 +2329,13 @@ _advisor_vacuum() {
   # Freeze risk: xid_age > 500M
   local freeze_rows
   freeze_rows=$(ksql_q "
-    SELECT schemaname, relname,
-           age(relfrozenxid) AS xid_age
-    FROM sys_stat_user_tables
-    JOIN sys_class ON sys_class.relname = sys_stat_user_tables.relname
-    WHERE age(relfrozenxid) > 500000000
-    ORDER BY age(relfrozenxid) DESC
+    SELECT sut.schemaname, sut.relname,
+           age(sc.relfrozenxid) AS xid_age
+    FROM sys_stat_user_tables sut
+    JOIN sys_class sc ON sc.relname = sut.relname
+    JOIN sys_namespace ns ON ns.oid = sc.relnamespace AND ns.nspname = sut.schemaname
+    WHERE age(sc.relfrozenxid) > 500000000
+    ORDER BY age(sc.relfrozenxid) DESC
     LIMIT ${TOP_N};" 2>/dev/null || true)
 
   local freeze_cnt; freeze_cnt=$(echo "$freeze_rows" | grep -c '.' 2>/dev/null || echo 0)
