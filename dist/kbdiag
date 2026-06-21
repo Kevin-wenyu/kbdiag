@@ -2017,6 +2017,7 @@ cmd_colstat() {
       ORDER BY attname;" 2>/dev/null || true)
 
     local first=1
+    local json_warnings=()
     while IFS='|' read -r col ndist null_pct corr mcv_raw mcf_raw; do
       [[ -z "$(echo "$col" | tr -d '[:space:]')" ]] && continue
       col="$(echo "$col" | tr -d '[:space:]')"
@@ -2032,15 +2033,39 @@ cmd_colstat() {
       else
         cols_json="${cols_json},{\"name\":\"${col}\",\"n_distinct\":\"${ndist}\",\"null_pct\":\"${null_pct}\",\"correlation\":\"${corr}\",\"mcv_top3\":\"${mcv_escaped}\"}"
       fi
+      # Check correlation warning
+      if [[ "$corr" != "N/A" ]]; then
+        local abs_corr_json="${corr#-}"
+        if awk "BEGIN{exit !(${abs_corr_json} < 0.3)}" 2>/dev/null; then
+          json_warnings+=("\"${col}: correlation=${corr}, range scans may be slow\"")
+        fi
+      fi
     done <<< "$col_rows"
 
+    # Check drift warning
     local abs_drift="${drift_pct#-}"
-    local warn_drift=""
     if awk "BEGIN{exit !(${abs_drift} > 10.0)}" 2>/dev/null; then
-      warn_drift=",\"drift_warning\":\"drift ${drift_pct}% since last ANALYZE\""
+      json_warnings+=("\"drift ${drift_pct}% since last ANALYZE\"")
     fi
 
-    echo "{\"table\":\"${schema}.${table}\",\"last_analyze\":\"${last_analyze}\",\"row_drift_pct\":${drift_pct},\"columns\":[${cols_json}]${warn_drift}}"
+    # Build warnings JSON array
+    local warnings_json=""
+    local wi=0
+    for w in "${json_warnings[@]}"; do
+      if [[ $wi -eq 0 ]]; then
+        warnings_json="${w}"
+      else
+        warnings_json="${warnings_json},${w}"
+      fi
+      wi=$(( wi + 1 ))
+    done
+
+    echo "{\"table\":\"${schema}.${table}\",\"last_analyze\":\"${last_analyze}\",\"row_drift_pct\":${drift_pct},\"columns\":[${cols_json}],\"warnings\":[${warnings_json}]}"
+
+    # Return 1 if any warnings exist
+    if [[ ${#json_warnings[@]} -gt 0 ]]; then
+      return 1
+    fi
     return 0
   fi
 
