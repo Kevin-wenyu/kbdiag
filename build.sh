@@ -15,7 +15,11 @@ mkdir -p dist
             lib/cmd_sql.sh lib/cmd_wait.sh lib/cmd_progress.sh \
             lib/cmd_params.sh lib/cmd_stat.sh lib/cmd_obj.sh \
             lib/cmd_temp.sh lib/cmd_watch.sh lib/cmd_conf.sh \
-            lib/cmd_audit.sh lib/cmd_logs.sh lib/cmd_remote.sh; do
+            lib/cmd_audit.sh lib/cmd_logs.sh lib/cmd_remote.sh \
+            lib/cmd_kill.sh \
+            lib/cmd_idx.sh \
+            lib/cmd_colstat.sh \
+            lib/cmd_advisor.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
     grep -v '^#!' "$f" || true
@@ -55,6 +59,7 @@ case "$CMD" in
   audit)       cmd_audit ;;
   logs)        cmd_logs ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   remote)      cmd_remote "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
+  kill)        cmd_kill "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""

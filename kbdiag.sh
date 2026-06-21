@@ -25,7 +25,11 @@ for _f in \
   "$SCRIPT_DIR"/lib/cmd_conf.sh \
   "$SCRIPT_DIR"/lib/cmd_audit.sh \
   "$SCRIPT_DIR"/lib/cmd_logs.sh \
-  "$SCRIPT_DIR"/lib/cmd_remote.sh; do
+  "$SCRIPT_DIR"/lib/cmd_remote.sh \
+  "$SCRIPT_DIR"/lib/cmd_kill.sh \
+  "$SCRIPT_DIR"/lib/cmd_idx.sh \
+  "$SCRIPT_DIR"/lib/cmd_colstat.sh \
+  "$SCRIPT_DIR"/lib/cmd_advisor.sh; do
   [[ -f "$_f" ]] && source "$_f"
 done
 
@@ -60,6 +64,7 @@ case "$CMD" in
   audit)       cmd_audit ;;
   logs)        cmd_logs ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   remote)      cmd_remote "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
+  kill)        cmd_kill "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
