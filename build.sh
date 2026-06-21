@@ -62,6 +62,7 @@ case "$CMD" in
   kill)        cmd_kill "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   idx)         cmd_idx "$SUBCMD" ;;
   colstat)     cmd_colstat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
+  advisor)     cmd_advisor "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
@@ -102,6 +103,7 @@ Global flags:
   audit               Security and compliance checks
   logs                Log file analysis (slow queries, errors)
   remote <nodes> <cmd>  Multi-node batch diagnostics
+  advisor [index|vacuum|params|analyze] [--fix]  Consolidated DBA recommendations
 
 [ALL]
   all                 Run all checks
