@@ -61,6 +61,7 @@ case "$CMD" in
   remote)      cmd_remote "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   kill)        cmd_kill "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   idx)         cmd_idx "$SUBCMD" ;;
+  colstat)     cmd_colstat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
@@ -94,6 +95,7 @@ Global flags:
   params [pattern]    Instance parameters
   stat                Throughput metrics (TPS, buffer hit rate)
   obj <schema.table>  Object deep-dive (size, indexes, constraints)
+  colstat <schema.table> [--col <col>]  Column statistics deep-dive (n_distinct, MCV, correlation)
   temp                Temp file and sort spill analysis
   watch <N> <cmd>     Repeat any command every N seconds
   conf [diff]         Configuration audit / node comparison
