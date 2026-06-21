@@ -126,6 +126,7 @@ cmd_kill() {
       return 1
     fi
 
+    local _exit=0
     [[ "$OUTPUT_FMT" == "json" ]] && json_begin "kill"
     while IFS='|' read -r pid user db dur query; do
       pid=$(echo "$pid" | tr -d '[:space:]')
@@ -138,10 +139,11 @@ cmd_kill() {
       else
         warn "pid $pid already gone"
         json_row "pid=$pid" "action=cancel_attempted" "result=not_found"
+        _exit=1
       fi
     done <<< "$rows"
     [[ "$OUTPUT_FMT" == "json" ]] && json_end
-    return 0
+    return $_exit
   fi
 
   # ── batch mode: --idle-txn ───────────────────────────────────────────────
@@ -183,6 +185,7 @@ cmd_kill() {
       return 1
     fi
 
+    local _exit=0
     [[ "$OUTPUT_FMT" == "json" ]] && json_begin "kill"
     while IFS='|' read -r pid user db idle_s query; do
       pid=$(echo "$pid" | tr -d '[:space:]')
@@ -195,10 +198,11 @@ cmd_kill() {
       else
         warn "pid $pid already gone"
         json_row "pid=$pid" "action=terminate_attempted" "result=not_found"
+        _exit=1
       fi
     done <<< "$rows"
     [[ "$OUTPUT_FMT" == "json" ]] && json_end
-    return 0
+    return $_exit
   fi
 
   # ── no actionable args ────────────────────────────────────────────────────
