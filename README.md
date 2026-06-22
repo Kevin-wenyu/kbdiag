@@ -14,7 +14,7 @@ Single-file, no dependencies:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Kevin-wenyu/kbdiag/main/dist/kbdiag \
-  -o /tmp/kbdiag && chmod +x /tmp/kbdiag
+  -o ~/kbdiag && chmod +x ~/kbdiag
 ```
 
 ## Quick Start
@@ -24,15 +24,15 @@ curl -fsSL https://raw.githubusercontent.com/Kevin-wenyu/kbdiag/main/dist/kbdiag
 sudo -i -u kingbase
 
 # Full scan (daily health check)
-/tmp/kbdiag all
+~/kbdiag all
 
 # Health gate (suitable for monitoring scripts)
-/tmp/kbdiag check
+~/kbdiag check
 echo $?   # 0=all OK  1=WARN  2=FAIL
 
 # Verbose DBA view
-/tmp/kbdiag check -v
-/tmp/kbdiag perf slow -v
+~/kbdiag check -v
+~/kbdiag perf slow -v
 ```
 
 ## Global Flags
@@ -119,7 +119,7 @@ KingbaseES 命令行 DBA 工具集。非交互式——直接对运行实例查�
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Kevin-wenyu/kbdiag/main/dist/kbdiag \
-  -o /tmp/kbdiag && chmod +x /tmp/kbdiag
+  -o ~/kbdiag && chmod +x ~/kbdiag
 ```
 
 ## 快速开始
@@ -129,15 +129,15 @@ curl -fsSL https://raw.githubusercontent.com/Kevin-wenyu/kbdiag/main/dist/kbdiag
 sudo -i -u kingbase
 
 # 全量扫描（每日巡检）
-/tmp/kbdiag all
+~/kbdiag all
 
 # 健康状态门控（适合监控脚本）
-/tmp/kbdiag check
+~/kbdiag check
 echo $?   # 0=全部正常  1=告警  2=故障
 
 # DBA 详细模式
-/tmp/kbdiag check -v
-/tmp/kbdiag perf slow -v
+~/kbdiag check -v
+~/kbdiag perf slow -v
 ```
 
 ## 全局参数
