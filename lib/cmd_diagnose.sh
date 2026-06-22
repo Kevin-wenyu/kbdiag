@@ -433,11 +433,11 @@ _diag_render() {
     return
   fi
 
-  echo -e "\n${BOLD}==> Diagnose  [${mode_label}，耗时 ${elapsed}s]${RESET}"
+  printf "\n${BOLD}==> Diagnose  [${mode_label}，耗时 ${elapsed}s]${RESET}\n"
   echo ""
 
   if [[ $critical -eq 0 && $warn_ct -eq 0 && $info_ct -eq 0 ]]; then
-    echo -e "${GREEN}● 未发现异常${RESET}"
+    printf "${GREEN}● 未发现异常${RESET}\n"
     [[ "$full_mode" -eq 0 ]] && echo "  加 --full 可运行完整检查（预计约 90s）"
     return
   fi
