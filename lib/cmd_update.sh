@@ -16,6 +16,7 @@ cmd_update() {
 
   local tmp
   tmp=$(mktemp)
+  trap 'rm -f "$tmp"' EXIT
   if curl -fsSL "$url" -o "$tmp" 2>/dev/null; then
     local new_ver
     new_ver=$(grep 'KBDIAG_VERSION=' "$tmp" | head -1 | sed 's/.*="\(.*\)"/\1/')

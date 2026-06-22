@@ -39,7 +39,7 @@ while IFS= read -r entry || [[ -n "$entry" ]]; do
   [[ -z "$entry" || "$entry" == \#* ]] && continue
   printf "  %-40s" "$entry"
   if scp -q -P "$SSH_PORT" "$KBDIAG" "${entry}:${DEST}.tmp" 2>/dev/null \
-     && ssh -p "$SSH_PORT" "$entry" "mv ${DEST}.tmp ${DEST} && chmod +x ${DEST} && ${DEST} --version" 2>/dev/null; then
+     && ssh -p "$SSH_PORT" "$entry" "mv '${DEST}.tmp' '${DEST}' && chmod +x '${DEST}' && '${DEST}' --version" 2>/dev/null; then
     ok=$(( ok + 1 ))
   else
     printf "  FAIL\n"
