@@ -87,10 +87,10 @@ Global flags:
 
 [OPS] Commands (no DBA context required):
   status              Instance process, connectivity, role, uptime
-  license             License 授权状态（有效期、正式/试用）
+  license             License validity and expiry
   cluster             Repmgr cluster topology
   replication         Replication lag / standby connections
-  diagnose [--full]   RCA 根因诊断（快速 <15s；--full 完整约 90s）
+  diagnose [--full]   Root-cause diagnostic report (fast <15s; --full ~90s)
   check               14-item health check, exit 0=OK 1=WARN 2=FAIL
   space [frag]        Disk, tables, WAL, archive, fragmentation
 
@@ -99,7 +99,7 @@ Global flags:
   locks [hold|wait|deadlock]   Lock analysis
   perf [slow|bloat|vacuum|wait|io|wal|top]   Performance diagnostics
   sql [pid|all]       SQL text + EXPLAIN for a session
-  stmt [queryid]      SQL 历史统计 AWR 报告（Top N by mean/total/IO/calls）
+  stmt [queryid]      SQL history statistics — Top N by mean/total/IO/calls (AWR-style)
   wait                Wait event distribution
   progress            Long-running operation progress
   params [pattern]    Instance parameters
