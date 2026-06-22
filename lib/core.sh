@@ -129,6 +129,43 @@ json_end() {
   _JSON_ITEMS=""; _JSON_ROWS=""
 }
 
+# ─── diagnose findings infrastructure ────────────────────────────────────────
+FINDINGS_LEVEL=()
+FINDINGS_CATEGORY=()
+FINDINGS_BODY=()
+
+_finding() {
+  FINDINGS_LEVEL+=("$1")
+  FINDINGS_CATEGORY+=("$2")
+  FINDINGS_BODY+=("$3")
+}
+
+_JSON_FINDINGS=""
+
+json_finding() {
+  local level="$1" category="$2" body="$3"
+  local escaped
+  escaped=$(printf '%s' "$body" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" 2>/dev/null)
+  local entry="{\"level\":\"$level\",\"category\":\"$category\",\"body\":$escaped}"
+  _JSON_FINDINGS="${_JSON_FINDINGS:+${_JSON_FINDINGS},}${entry}"
+}
+
+json_diagnose_end() {
+  local mode="${1:-fast}"
+  local ts; ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local critical=0 warn_ct=0 info_ct=0
+  local i
+  for (( i=0; i<${#FINDINGS_LEVEL[@]}; i++ )); do
+    case "${FINDINGS_LEVEL[$i]}" in
+      CRITICAL) critical=$(( critical + 1 )) ;;
+      WARN)     warn_ct=$(( warn_ct + 1 )) ;;
+      INFO)     info_ct=$(( info_ct + 1 )) ;;
+    esac
+  done
+  echo "{\"command\":\"diagnose\",\"mode\":\"$mode\",\"timestamp\":\"$ts\",\"summary\":{\"critical\":$critical,\"warn\":$warn_ct,\"info\":$info_ct},\"findings\":[${_JSON_FINDINGS}]}"
+  _JSON_FINDINGS=""
+}
+
 # ─── helpers ─────────────────────────────────────────────────────────────────
 require_kingbase_user() {
   if [[ "$(whoami)" != "kingbase" ]]; then
