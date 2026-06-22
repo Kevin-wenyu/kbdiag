@@ -183,6 +183,11 @@ ksql_q() {
     -AXtc "$1" 2>/dev/null
 }
 
+ksql_qh() {
+  timeout "$KB_QUERY_TIMEOUT" "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
+    -AXc "$1" 2>/dev/null
+}
+
 repmgr_available() {
   [[ -x "$REPMGR" && -f "$KB_REPMGR_CONF" ]]
 }

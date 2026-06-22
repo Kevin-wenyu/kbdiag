@@ -105,7 +105,7 @@ _perf_io() {
 
 _perf_wal() {
   hdr "WAL and checkpoint statistics"
-  ksql_q "
+  ksql_qh "
     SELECT checkpoints_timed, checkpoints_req,
            pg_size_pretty(buffers_checkpoint*8192::bigint) AS ckpt_bytes,
            pg_size_pretty(buffers_clean*8192::bigint) AS bgwriter_bytes,

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-6-ge1b36be-dirty"
+KBDIAG_VERSION="v1.0.0-7-gfc28ff1-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -188,6 +188,11 @@ require_kingbase_user() {
 ksql_q() {
   timeout "$KB_QUERY_TIMEOUT" "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
     -AXtc "$1" 2>/dev/null
+}
+
+ksql_qh() {
+  timeout "$KB_QUERY_TIMEOUT" "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
+    -AXc "$1" 2>/dev/null
 }
 
 repmgr_available() {
@@ -790,7 +795,7 @@ _perf_io() {
 
 _perf_wal() {
   hdr "WAL and checkpoint statistics"
-  ksql_q "
+  ksql_qh "
     SELECT checkpoints_timed, checkpoints_req,
            pg_size_pretty(buffers_checkpoint*8192::bigint) AS ckpt_bytes,
            pg_size_pretty(buffers_clean*8192::bigint) AS bgwriter_bytes,
