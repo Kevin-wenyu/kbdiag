@@ -51,6 +51,21 @@ Design rules:
 - **Single-node + HA**: every check must degrade gracefully when repmgr is absent (standalone mode)
 - **No sudo assumed**: scripts run as `kingbase`; escalation must be explicit and documented
 
+### 三层命令设计哲学
+
+kbdiag 的命令按深度分三层，新命令设计前先确认它属于哪一层：
+
+| 层 | 名称 | 定位 | 深度要求 | 当前命令 |
+|----|------|------|----------|----------|
+| 看 | OPS 层 | 快速事实查询，给一个确定答案 | 无需深度，准确即可 | `status` `check` `cluster` `params` `license` `space` `version` |
+| 查 | DBA 层 | 单项精确深查，可独立使用，也可验证"断"层结论 | 深度，单维度 | `obj` `colstat` `locks` `perf` `sql` `wait` `slow` `bloat` `vacuum` |
+| 断 | 根因层 | 多维数据关联，输出完整诊断链（症状→证据→根因→建议） | 最深，多维综合 | `diagnose` `advisor` |
+
+**设计原则：**
+- 看层：不展开，不分析，用户要的是事实
+- 查层：单命令回答一个具体问题，输出结构化可机读；DBA 用它来验证"断层"的结论
+- 断层：输出是链路，不是 finding 列表——每个结论必须能追溯到证据，并指向"查层"验证路径
+
 ## Git / Deploy
 
 - Remote: `https://github.com/Kevin-wenyu/kbdiag.git`
