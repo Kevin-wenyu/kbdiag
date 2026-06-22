@@ -15,6 +15,7 @@ KB_WARN_CONN="${KB_WARN_CONN:-70}"
 KB_FAIL_CONN="${KB_FAIL_CONN:-90}"
 KB_WARN_LAG="${KB_WARN_LAG:-30}"
 KB_FAIL_LAG="${KB_FAIL_LAG:-300}"
+KB_LAG_SAMPLE_INTERVAL="${KB_LAG_SAMPLE_INTERVAL:-3}"
 KB_WARN_TXN="${KB_WARN_TXN:-300}"
 KB_FAIL_TXN="${KB_FAIL_TXN:-1800}"
 KB_WARN_DEAD_TUPLES="${KB_WARN_DEAD_TUPLES:-100000}"
@@ -148,8 +149,7 @@ json_finding() {
   # Escape for JSON string: backslash first, then double-quote, then literal \n -> \\n
   escaped=$(printf '%s' "$body" \
     | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/\\t/g' \
-    | awk '{printf "%s\\n", $0}' \
-    | sed '$ s/\\n$//')
+    | awk 'NR>1{printf "\\n"} {printf "%s", $0}')
   local entry="{\"level\":\"$level\",\"category\":\"$category\",\"body\":\"$escaped\"}"
   _JSON_FINDINGS="${_JSON_FINDINGS:+${_JSON_FINDINGS},}${entry}"
 }

@@ -47,10 +47,14 @@ _diag_long_txn() {
         local blocks_count
         blocks_count=$(ksql_q "
           SELECT count(*) FROM sys_locks lw
-          JOIN sys_locks lb ON lb.locktype=lw.locktype
-            AND lb.relation IS NOT DISTINCT FROM lw.relation
-            AND lb.granted AND lb.pid=${pid}
-          WHERE NOT lw.granted AND lw.pid <> ${pid};" 2>/dev/null | tr -d '[:space:]')
+          WHERE NOT lw.granted
+            AND lw.pid <> ${pid}
+            AND EXISTS (
+              SELECT 1 FROM sys_locks lb
+              WHERE lb.pid=${pid} AND lb.granted
+                AND lb.locktype=lw.locktype
+                AND lb.relation IS NOT DISTINCT FROM lw.relation
+            );" 2>/dev/null | tr -d '[:space:]')
         local has_excl
         has_excl=$(ksql_q "
           SELECT count(*) FROM sys_locks
@@ -207,7 +211,7 @@ _diag_replication() {
     FROM sys_stat_replication;" 2>/dev/null | tr -d '[:space:]')
   [[ "${lag1:-}" == "-1" || -z "$lag1" ]] && return
 
-  sleep 3
+  sleep "${KB_LAG_SAMPLE_INTERVAL:-3}"
 
   local lag2
   lag2=$(ksql_q "
@@ -259,7 +263,7 @@ _diag_disk() {
   [[ -z "$disk_info" ]] && return
 
   local used_pct
-  used_pct=$(echo "$disk_info" | awk '{gsub(/%/,""); print $5}')
+  used_pct=$(echo "$disk_info" | awk '{for(i=1;i<=NF;i++) if($i~/^[0-9]+%$/) {gsub(/%/,"",$i); print $i; exit}}')
   local db_size
   db_size=$(ksql_q "SELECT pg_size_pretty(pg_database_size(current_database()));" | tr -d '[:space:]')
 
@@ -375,9 +379,9 @@ _diag_buffer_hit() {
 
   [[ -z "$hit_rate" ]] && return
   if awk "BEGIN{exit !(${hit_rate} < ${KB_FAIL_HIT})}"; then
-    _finding "WARN" "buffer_hit" "Buffer 命中率低\n  症状：${hit_rate}% < ${KB_FAIL_HIT}%\n  建议:\n    · 增大 shared_buffers\n    · kbdiag advisor params --fix 生成建议"
+    _finding "CRITICAL" "buffer_hit" "Buffer 命中率低\n  症状：${hit_rate}% < ${KB_FAIL_HIT}%\n  建议:\n    · 增大 shared_buffers\n    · kbdiag advisor params --fix 生成建议"
   elif awk "BEGIN{exit !(${hit_rate} < ${KB_WARN_HIT})}"; then
-    _finding "INFO" "buffer_hit" "Buffer 命中率偏低\n  症状：${hit_rate}% < ${KB_WARN_HIT}%\n  建议:\n    · 考虑增大 shared_buffers"
+    _finding "WARN" "buffer_hit" "Buffer 命中率偏低\n  症状：${hit_rate}% < ${KB_WARN_HIT}%\n  建议:\n    · 考虑增大 shared_buffers"
   fi
 }
 
