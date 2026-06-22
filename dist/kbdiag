@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-2-g3da310d-dirty"
+KBDIAG_VERSION="v1.0.0-3-g6a930da-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -3527,6 +3527,38 @@ cmd_license() {
   fi
 }
 
+# --- lib/cmd_update.sh ---
+# cmd_update.sh — self-update from GitHub
+
+cmd_update() {
+  local url="https://raw.githubusercontent.com/Kevin-wenyu/kbdiag/main/dist/kbdiag"
+  local self
+  self=$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")
+
+  printf "Current : kbdiag %s\n" "$KBDIAG_VERSION"
+  printf "Source  : %s\n" "$url"
+  printf "Target  : %s\n\n" "$self"
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "Error: curl not found" >&2
+    exit 1
+  fi
+
+  local tmp
+  tmp=$(mktemp)
+  if curl -fsSL "$url" -o "$tmp" 2>&1; then
+    local new_ver
+    new_ver=$(grep 'KBDIAG_VERSION=' "$tmp" | head -1 | sed 's/.*="\(.*\)"/\1/')
+    chmod +x "$tmp"
+    mv "$tmp" "$self"
+    printf "Updated : kbdiag %s\n" "$new_ver"
+  else
+    rm -f "$tmp"
+    echo "Error: download failed" >&2
+    exit 1
+  fi
+}
+
 # ─── dispatch ────────────────────────────────────────────────────────────────
 require_kingbase_user
 
@@ -3566,6 +3598,7 @@ case "$CMD" in
   stmt)       cmd_stmt "$SUBCMD" ;;
   diagnose)   cmd_diagnose ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   license)     cmd_license ;;
+  update)      cmd_update ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
@@ -3593,6 +3626,7 @@ Global flags:
   diagnose [--full]   Root-cause diagnostic report (fast <15s; --full ~90s)
   check               14-item health check, exit 0=OK 1=WARN 2=FAIL
   space [frag]        Disk, tables, WAL, archive, fragmentation
+  update              Update kbdiag to the latest version from GitHub
 
 [DBA] Commands (requires interpretation):
   sessions            Non-idle sessions

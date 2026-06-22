@@ -26,7 +26,8 @@ KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
             lib/cmd_advisor.sh \
             lib/cmd_stmt.sh \
             lib/cmd_diagnose.sh \
-            lib/cmd_license.sh; do
+            lib/cmd_license.sh \
+            lib/cmd_update.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
     grep -v '^#!' "$f" || true
@@ -73,6 +74,7 @@ case "$CMD" in
   stmt)       cmd_stmt "$SUBCMD" ;;
   diagnose)   cmd_diagnose ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   license)     cmd_license ;;
+  update)      cmd_update ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
@@ -100,6 +102,7 @@ Global flags:
   diagnose [--full]   Root-cause diagnostic report (fast <15s; --full ~90s)
   check               14-item health check, exit 0=OK 1=WARN 2=FAIL
   space [frag]        Disk, tables, WAL, archive, fragmentation
+  update              Update kbdiag to the latest version from GitHub
 
 [DBA] Commands (requires interpretation):
   sessions            Non-idle sessions
