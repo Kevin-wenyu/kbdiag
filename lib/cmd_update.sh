@@ -16,9 +16,14 @@ cmd_update() {
 
   local tmp
   tmp=$(mktemp)
-  if curl -fsSL "$url" -o "$tmp" 2>&1; then
+  if curl -fsSL "$url" -o "$tmp" 2>/dev/null; then
     local new_ver
     new_ver=$(grep 'KBDIAG_VERSION=' "$tmp" | head -1 | sed 's/.*="\(.*\)"/\1/')
+    if [[ -z "$new_ver" ]]; then
+      rm -f "$tmp"
+      echo "Error: failed to extract version from downloaded file" >&2
+      exit 1
+    fi
     chmod +x "$tmp"
     mv "$tmp" "$self"
     printf "Updated : kbdiag %s\n" "$new_ver"
