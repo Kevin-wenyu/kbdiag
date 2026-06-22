@@ -33,6 +33,7 @@ KB_WARN_XID="${KB_WARN_XID:-1000000000}"     # 10亿
 KB_FAIL_XID="${KB_FAIL_XID:-1900000000}"     # 19亿
 KB_WARN_OLDEST_TXN="${KB_WARN_OLDEST_TXN:-3600}"   # 1h in seconds
 KB_FAIL_OLDEST_TXN="${KB_FAIL_OLDEST_TXN:-14400}"  # 4h in seconds
+KB_WARN_LICENSE_DAYS="${KB_WARN_LICENSE_DAYS:-30}"
 
 # ─── global flags (set by parse_global_args) ──────────────────────────────────
 VERBOSE="${VERBOSE:-}"
