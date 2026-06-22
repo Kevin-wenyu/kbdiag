@@ -10,8 +10,14 @@ _advisor_get_mem_mb() {
 }
 
 _advisor_index() {
-  local fix="${1:-0}"
-  hdr "Advisor: Index"
+  local fix=0 collect=0
+  for _arg in "$@"; do
+    case "$_arg" in
+      --collect) collect=1 ;;
+      1) fix=1 ;;
+    esac
+  done
+  [[ $collect -eq 0 ]] && hdr "Advisor: Index"
   local _exit=0
 
   # Unused indexes count + size
@@ -34,12 +40,18 @@ _advisor_index() {
         ON sut.schemaname=sui.schemaname AND sut.relname=sui.relname
       WHERE sui.idx_scan = 0 AND sut.n_live_tup > 1000
         AND si.indisunique = false AND si.indisprimary = false;" | tr -d '[:space:]')
-    warn "${unused_cnt} unused index(es) (total ${unused_size:-?}) — run 'kbdiag idx unused' for detail"
-    json_item "advisor_idx_unused" "warn" "$unused_cnt" "$unused_size wasted"
+    if [[ $collect -eq 1 ]]; then
+      _finding "WARN" "idx_unused" "${unused_cnt} unused index(es) (total ${unused_size:-?}) — run 'kbdiag idx unused' for detail"
+    else
+      warn "${unused_cnt} unused index(es) (total ${unused_size:-?}) — run 'kbdiag idx unused' for detail"
+      json_item "advisor_idx_unused" "warn" "$unused_cnt" "$unused_size wasted"
+    fi
     _exit=1
   else
-    ok "No unused non-unique indexes found"
-    json_item "advisor_idx_unused" "ok" "0" ""
+    if [[ $collect -eq 0 ]]; then
+      ok "No unused non-unique indexes found"
+      json_item "advisor_idx_unused" "ok" "0" ""
+    fi
   fi
 
   # Duplicate indexes
@@ -56,12 +68,18 @@ _advisor_index() {
   dup_cnt="${dup_cnt:-0}"
 
   if [[ $dup_cnt -gt 0 ]]; then
-    warn "${dup_cnt} duplicate index pair(s) — run 'kbdiag idx dup' for detail"
-    json_item "advisor_idx_dup" "warn" "$dup_cnt" ""
+    if [[ $collect -eq 1 ]]; then
+      _finding "WARN" "idx_dup" "${dup_cnt} duplicate index pair(s) — run 'kbdiag idx dup' for detail"
+    else
+      warn "${dup_cnt} duplicate index pair(s) — run 'kbdiag idx dup' for detail"
+      json_item "advisor_idx_dup" "warn" "$dup_cnt" ""
+    fi
     _exit=1
   else
-    ok "No duplicate indexes found"
-    json_item "advisor_idx_dup" "ok" "0" ""
+    if [[ $collect -eq 0 ]]; then
+      ok "No duplicate indexes found"
+      json_item "advisor_idx_dup" "ok" "0" ""
+    fi
   fi
 
   # Missing FK indexes
@@ -80,13 +98,21 @@ _advisor_index() {
   missing_cnt="${missing_cnt:-0}"
 
   if [[ $missing_cnt -gt 0 ]]; then
-    warn "${missing_cnt} unindexed FK column(s) on large table(s) — run 'kbdiag idx missing'"
-    json_item "advisor_idx_missing" "warn" "$missing_cnt" ""
+    if [[ $collect -eq 1 ]]; then
+      _finding "WARN" "idx_missing" "${missing_cnt} unindexed FK column(s) on large table(s) — run 'kbdiag idx missing'"
+    else
+      warn "${missing_cnt} unindexed FK column(s) on large table(s) — run 'kbdiag idx missing'"
+      json_item "advisor_idx_missing" "warn" "$missing_cnt" ""
+    fi
     _exit=1
   else
-    ok "No missing FK indexes on large tables"
-    json_item "advisor_idx_missing" "ok" "0" ""
+    if [[ $collect -eq 0 ]]; then
+      ok "No missing FK indexes on large tables"
+      json_item "advisor_idx_missing" "ok" "0" ""
+    fi
   fi
+
+  [[ $collect -eq 1 ]] && return $_exit
 
   # --fix: generate DROP INDEX SQL for unused indexes
   if [[ $fix -eq 1 ]]; then
@@ -235,8 +261,14 @@ _advisor_vacuum() {
 }
 
 _advisor_params() {
-  local fix="${1:-0}"
-  hdr "Advisor: Params"
+  local fix=0 collect=0
+  for _arg in "$@"; do
+    case "$_arg" in
+      --collect) collect=1 ;;
+      1) fix=1 ;;
+    esac
+  done
+  [[ $collect -eq 0 ]] && hdr "Advisor: Params"
   local _exit=0
   local fix_lines=()
 
@@ -251,13 +283,19 @@ _advisor_params() {
     local rec_sb_mb=$(( mem_mb * 25 / 100 ))
     local min_ok_mb=$(( mem_mb * 20 / 100 ))
     if [[ $sb_mb -lt $min_ok_mb ]]; then
-      warn "shared_buffers=${sb_mb}MB — recommend ${rec_sb_mb}MB (25% of ${mem_mb}MB RAM)"
-      json_item "advisor_param_shared_buffers" "warn" "${sb_mb}MB" "recommend ${rec_sb_mb}MB"
+      if [[ $collect -eq 1 ]]; then
+        _finding "WARN" "param_shared_buffers" "shared_buffers=${sb_mb}MB — recommend ${rec_sb_mb}MB (25% of ${mem_mb}MB RAM)"
+      else
+        warn "shared_buffers=${sb_mb}MB — recommend ${rec_sb_mb}MB (25% of ${mem_mb}MB RAM)"
+        json_item "advisor_param_shared_buffers" "warn" "${sb_mb}MB" "recommend ${rec_sb_mb}MB"
+      fi
       fix_lines+=("ALTER SYSTEM SET shared_buffers = '${rec_sb_mb}MB';")
       _exit=1
     else
-      ok "shared_buffers=${sb_mb}MB (${mem_mb}MB RAM) ok"
-      json_item "advisor_param_shared_buffers" "ok" "${sb_mb}MB" ""
+      if [[ $collect -eq 0 ]]; then
+        ok "shared_buffers=${sb_mb}MB (${mem_mb}MB RAM) ok"
+        json_item "advisor_param_shared_buffers" "ok" "${sb_mb}MB" ""
+      fi
     fi
   else
     info "shared_buffers=${sb_mb}MB (cannot read RAM on this OS)"
@@ -268,13 +306,19 @@ _advisor_params() {
   local ckpt_target
   ckpt_target=$(ksql_q "SELECT setting FROM sys_settings WHERE name='checkpoint_completion_target';" | tr -d '[:space:]')
   if awk "BEGIN{exit !(${ckpt_target:-0} < 0.7)}" 2>/dev/null; then
-    warn "checkpoint_completion_target=${ckpt_target} — recommend 0.9"
-    json_item "advisor_param_checkpoint_completion_target" "warn" "$ckpt_target" "recommend 0.9"
+    if [[ $collect -eq 1 ]]; then
+      _finding "WARN" "param_checkpoint_completion_target" "checkpoint_completion_target=${ckpt_target} — recommend 0.9"
+    else
+      warn "checkpoint_completion_target=${ckpt_target} — recommend 0.9"
+      json_item "advisor_param_checkpoint_completion_target" "warn" "$ckpt_target" "recommend 0.9"
+    fi
     fix_lines+=("ALTER SYSTEM SET checkpoint_completion_target = '0.9';")
     _exit=1
   else
-    ok "checkpoint_completion_target=${ckpt_target} ok"
-    json_item "advisor_param_checkpoint_completion_target" "ok" "$ckpt_target" ""
+    if [[ $collect -eq 0 ]]; then
+      ok "checkpoint_completion_target=${ckpt_target} ok"
+      json_item "advisor_param_checkpoint_completion_target" "ok" "$ckpt_target" ""
+    fi
   fi
 
   # work_mem — stored in KB
@@ -286,15 +330,23 @@ _advisor_params() {
   if [[ $mem_mb -gt 0 && ${max_conn:-0} -gt 0 ]]; then
     rec_wm_kb=$(( mem_mb * 1024 / ${max_conn} / 4 ))
     if [[ ${wm_kb:-0} -lt $(( rec_wm_kb / 2 )) ]]; then
-      warn "work_mem=${wm_mb}MB — recommend ~$(( rec_wm_kb / 1024 ))MB (RAM/${max_conn}conn/4)"
-      json_item "advisor_param_work_mem" "warn" "${wm_mb}MB" "recommend ~$(( rec_wm_kb / 1024 ))MB"
+      if [[ $collect -eq 1 ]]; then
+        _finding "WARN" "param_work_mem" "work_mem=${wm_mb}MB — recommend ~$(( rec_wm_kb / 1024 ))MB (RAM/${max_conn}conn/4)"
+      else
+        warn "work_mem=${wm_mb}MB — recommend ~$(( rec_wm_kb / 1024 ))MB (RAM/${max_conn}conn/4)"
+        json_item "advisor_param_work_mem" "warn" "${wm_mb}MB" "recommend ~$(( rec_wm_kb / 1024 ))MB"
+      fi
       fix_lines+=("ALTER SYSTEM SET work_mem = '${rec_wm_kb}kB';")
       _exit=1
     else
-      ok "work_mem=${wm_mb}MB ok"
-      json_item "advisor_param_work_mem" "ok" "${wm_mb}MB" ""
+      if [[ $collect -eq 0 ]]; then
+        ok "work_mem=${wm_mb}MB ok"
+        json_item "advisor_param_work_mem" "ok" "${wm_mb}MB" ""
+      fi
     fi
   fi
+
+  [[ $collect -eq 1 ]] && return $_exit
 
   if [[ $fix -eq 1 ]]; then
     echo ""
