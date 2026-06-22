@@ -20,6 +20,7 @@ mkdir -p dist
             lib/cmd_idx.sh \
             lib/cmd_colstat.sh \
             lib/cmd_advisor.sh \
+            lib/cmd_stmt.sh \
             lib/cmd_diagnose.sh \
             lib/cmd_license.sh; do
     [[ -f "$f" ]] || continue
@@ -65,6 +66,7 @@ case "$CMD" in
   idx)         cmd_idx "$SUBCMD" ;;
   colstat)     cmd_colstat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   advisor)     cmd_advisor "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
+  stmt)       cmd_stmt "$SUBCMD" ;;
   diagnose)   cmd_diagnose ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   license)     cmd_license ;;
   all)
@@ -97,6 +99,7 @@ Global flags:
   locks [hold|wait|deadlock]   Lock analysis
   perf [slow|bloat|vacuum|wait|io|wal|top]   Performance diagnostics
   sql [pid|all]       SQL text + EXPLAIN for a session
+  stmt [queryid]      SQL 历史统计 AWR 报告（Top N by mean/total/IO/calls）
   wait                Wait event distribution
   progress            Long-running operation progress
   params [pattern]    Instance parameters
