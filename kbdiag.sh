@@ -30,6 +30,7 @@ for _f in \
   "$SCRIPT_DIR"/lib/cmd_idx.sh \
   "$SCRIPT_DIR"/lib/cmd_colstat.sh \
   "$SCRIPT_DIR"/lib/cmd_advisor.sh \
+  "$SCRIPT_DIR"/lib/cmd_diagnose.sh \
   "$SCRIPT_DIR"/lib/cmd_license.sh; do
   [[ -f "$_f" ]] && source "$_f"
 done
@@ -69,6 +70,7 @@ case "$CMD" in
   idx)         cmd_idx "$SUBCMD" ;;
   colstat)     cmd_colstat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   advisor)     cmd_advisor "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
+  diagnose)   cmd_diagnose ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   license)     cmd_license ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions

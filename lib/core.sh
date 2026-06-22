@@ -145,8 +145,12 @@ _JSON_FINDINGS=""
 json_finding() {
   local level="$1" category="$2" body="$3"
   local escaped
-  escaped=$(printf '%s' "$body" | python3 -c "import json,sys; print(json.dumps(sys.stdin.read()))" 2>/dev/null)
-  local entry="{\"level\":\"$level\",\"category\":\"$category\",\"body\":$escaped}"
+  # Escape for JSON string: backslash first, then double-quote, then literal \n -> \\n
+  escaped=$(printf '%s' "$body" \
+    | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/\\t/g' \
+    | awk '{printf "%s\\n", $0}' \
+    | sed '$ s/\\n$//')
+  local entry="{\"level\":\"$level\",\"category\":\"$category\",\"body\":\"$escaped\"}"
   _JSON_FINDINGS="${_JSON_FINDINGS:+${_JSON_FINDINGS},}${entry}"
 }
 

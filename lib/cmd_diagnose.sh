@@ -336,11 +336,11 @@ _diag_vacuum_debt() {
 }
 
 _diag_indexes() {
-  _advisor_index --collect
+  _advisor_index --collect || true
 }
 
 _diag_params() {
-  _advisor_params --collect
+  _advisor_params --collect || true
 }
 
 _diag_bloat() {

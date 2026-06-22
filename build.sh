@@ -20,6 +20,7 @@ mkdir -p dist
             lib/cmd_idx.sh \
             lib/cmd_colstat.sh \
             lib/cmd_advisor.sh \
+            lib/cmd_diagnose.sh \
             lib/cmd_license.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
@@ -64,6 +65,7 @@ case "$CMD" in
   idx)         cmd_idx "$SUBCMD" ;;
   colstat)     cmd_colstat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   advisor)     cmd_advisor "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
+  diagnose)   cmd_diagnose ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   license)     cmd_license ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
@@ -86,6 +88,7 @@ Global flags:
   license             License 授权状态（有效期、正式/试用）
   cluster             Repmgr cluster topology
   replication         Replication lag / standby connections
+  diagnose [--full]   RCA 根因诊断（快速 <15s；--full 完整约 90s）
   check               14-item health check, exit 0=OK 1=WARN 2=FAIL
   space [frag]        Disk, tables, WAL, archive, fragmentation
 
