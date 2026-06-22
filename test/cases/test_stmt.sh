@@ -41,3 +41,13 @@ test_stmt_no_extension_graceful() {
   assert_not_contains "$out" ": line "
   assert_not_contains "$out" "command not found"
 }
+
+test_stmt_no_ext_shows_hint() {
+  # 如果扩展不可用，输出应包含 shared_preload_libraries
+  # 如果扩展可用，此测试直接 skip
+  local avail
+  avail=$(ssh_node1 "/home/kingbase/cluster/install/kingbase/bin/ksql -p 54321 -U system test -AXtc \"SELECT count(*) FROM sys_catalog.sys_class WHERE relname='sys_stat_statements';\"" 2>/dev/null | tr -d '[:space:]')
+  [[ "${avail:-0}" -gt 0 ]] && { _pass; return; }  # extension present, skip
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE stmt" || true)
+  assert_contains "$out" "shared_preload_libraries"
+}

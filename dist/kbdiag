@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-1-g5e501b2-dirty"
+KBDIAG_VERSION="v1.0.0-2-g3da310d-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -2660,6 +2660,24 @@ _stmt_check_ext() {
   [[ "${cnt:-0}" -gt 0 ]]
 }
 
+_stmt_install_hint() {
+  local current_val
+  current_val=$(ksql_q "SHOW shared_preload_libraries;" 2>/dev/null | tr -d '[:space:]')
+  warn "sys_stat_statements extension is not loaded"
+  printf "\n"
+  printf "  Current:  shared_preload_libraries = '%s'\n" "${current_val:-<empty>}"
+  printf "\n"
+  printf "  To enable:\n"
+  printf "    1. Edit \$KB_DATA_DIR/kingbase.conf\n"
+  printf "       Add 'sys_stat_statements' to shared_preload_libraries\n"
+  printf "    2. Restart KingbaseES\n"
+  printf "    3. Optional tuning:\n"
+  printf "         sys_stat_statements.max = 1000\n"
+  printf "         sys_stat_statements.track = all\n"
+  printf "\n"
+  printf "  Check current value:  kbdiag params shared_preload_libraries\n"
+}
+
 _stmt_overview() {
   local stats_reset
   stats_reset=$(ksql_q "SELECT coalesce(stats_reset::text, 'unknown') FROM sys_stat_bgwriter;" 2>/dev/null | tr -d '[:space:]')
@@ -2844,10 +2862,11 @@ cmd_stmt() {
 
   if ! _stmt_check_ext; then
     if [[ "$OUTPUT_FMT" == "json" ]]; then
-      echo '{"command":"stmt","error":"sys_stat_statements not available","hint":"shared_preload_libraries = '"'"'sys_stat_statements'"'"' (需重启)"}'
+      local cur_val
+      cur_val=$(ksql_q "SHOW shared_preload_libraries;" 2>/dev/null | tr -d '[:space:]')
+      echo "{\"command\":\"stmt\",\"error\":\"sys_stat_statements not loaded\",\"current_shared_preload_libraries\":\"${cur_val}\",\"hint\":\"add sys_stat_statements to shared_preload_libraries and restart\"}"
     else
-      warn "sys_stat_statements 扩展未启用"
-      echo "  启用方式: shared_preload_libraries = 'sys_stat_statements'  (需重启)"
+      _stmt_install_hint
     fi
     return 0
   fi
