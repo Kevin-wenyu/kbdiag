@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
+KBDIAG_VERSION="v1.0.0-dirty"
 
 # --- lib/core.sh ---
 # ─── connection config ────────────────────────────────────────────────────────
@@ -3548,6 +3549,9 @@ case "$CMD" in
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
+    ;;
+  --version|-V)
+    echo "kbdiag ${KBDIAG_VERSION}"
     ;;
   -h|--help|help|"")
     cat <<'USAGE'

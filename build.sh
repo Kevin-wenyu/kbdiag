@@ -3,10 +3,13 @@ set -euo pipefail
 OUT=dist/kbdiag
 mkdir -p dist
 
+KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+
 {
   echo '#!/usr/bin/env bash'
   echo '# kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)'
   echo 'set -euo pipefail'
+  echo "KBDIAG_VERSION=\"${KBDIAG_VERSION}\""
   echo ''
   # strip shebang and set from lib files
   for f in lib/core.sh lib/cmd_status.sh lib/cmd_cluster.sh \
@@ -72,6 +75,9 @@ case "$CMD" in
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
+    ;;
+  --version|-V)
+    echo "kbdiag ${KBDIAG_VERSION}"
     ;;
   -h|--help|help|"")
     cat <<'USAGE'
