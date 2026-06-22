@@ -451,6 +451,40 @@ _diag_temp() {
   _finding "$level" "temp_files" "临时文件使用量大\n  症状：累计临时文件 ${temp_pretty}\n  建议:\n    · 增大 work_mem 减少排序溢出\n    · kbdiag temp 查看具体会话"
 }
 
+_diag_stmt_top() {
+  local stmt_avail
+  stmt_avail=$(ksql_q "SELECT count(*) FROM sys_catalog.sys_class WHERE relname='sys_stat_statements';" 2>/dev/null | tr -d '[:space:]')
+  [[ "${stmt_avail:-0}" -eq 0 ]] && return
+
+  local stats_reset
+  stats_reset=$(ksql_q "SELECT coalesce(stats_reset::date::text,'unknown') FROM sys_stat_bgwriter;" 2>/dev/null | tr -d '[:space:]')
+
+  local rows
+  rows=$(ksql_q "
+    SELECT queryid::text,
+           round((total_exec_time/1000.0)::numeric,1)::text AS total_s,
+           round(100.0*total_exec_time/NULLIF(sum(total_exec_time) OVER(),0),1)::text AS pct,
+           calls::text,
+           round(mean_exec_time::numeric,1)::text AS mean_ms,
+           left(replace(query, E'\\n', ' '), 70) AS summary
+    FROM sys_stat_statements
+    WHERE calls > 0
+    ORDER BY total_exec_time DESC
+    LIMIT 3;" 2>/dev/null || true)
+
+  [[ -z "$rows" ]] && return
+
+  local evidence=""
+  while IFS='|' read -r qid total_s pct calls mean_ms summary; do
+    [[ -z "${qid// /}" ]] && continue
+    evidence="${evidence}  · queryid=${qid// /}  总耗时: ${total_s// /}s (${pct// /}%)  calls: ${calls// /}  mean: ${mean_ms// /}ms\n"
+    evidence="${evidence}    ${summary}\n"
+  done <<< "$rows"
+
+  local body="历史 SQL 负担 Top 3（累计总耗时，stats_reset: ${stats_reset}）\n${evidence}  验证: kbdiag stmt（查看完整 AWR 报告）"
+  _finding "INFO" "stmt_top" "$body"
+}
+
 # ── 渲染 ────────────────────────────────────────────────────────────────────────
 
 _diag_render() {
@@ -536,6 +570,7 @@ cmd_diagnose() {
     _diag_buffer_hit
     _diag_checkpoint
     _diag_temp
+    _diag_stmt_top
   fi
 
   local t_end; t_end=$(date +%s)
