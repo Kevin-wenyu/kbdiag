@@ -41,7 +41,7 @@ _advisor_index() {
       WHERE sui.idx_scan = 0 AND sut.n_live_tup > 1000
         AND si.indisunique = false AND si.indisprimary = false;" | tr -d '[:space:]')
     if [[ $collect -eq 1 ]]; then
-      _finding "WARN" "idx_unused" "${unused_cnt} unused index(es) (total ${unused_size:-?}) — run 'kbdiag idx unused' for detail"
+      _finding "WARN" "idx_unused" "未使用索引\n  症状：${unused_cnt} 个未使用索引，浪费 ${unused_size:-?}\n  建议:\n    · kbdiag advisor index --fix 生成 DROP SQL"
     else
       warn "${unused_cnt} unused index(es) (total ${unused_size:-?}) — run 'kbdiag idx unused' for detail"
       json_item "advisor_idx_unused" "warn" "$unused_cnt" "$unused_size wasted"
@@ -69,7 +69,7 @@ _advisor_index() {
 
   if [[ $dup_cnt -gt 0 ]]; then
     if [[ $collect -eq 1 ]]; then
-      _finding "WARN" "idx_dup" "${dup_cnt} duplicate index pair(s) — run 'kbdiag idx dup' for detail"
+      _finding "WARN" "idx_dup" "重复/冗余索引\n  症状：${dup_cnt} 个重复或冗余索引\n  建议:\n    · kbdiag advisor index --fix 生成 DROP SQL"
     else
       warn "${dup_cnt} duplicate index pair(s) — run 'kbdiag idx dup' for detail"
       json_item "advisor_idx_dup" "warn" "$dup_cnt" ""
@@ -99,7 +99,7 @@ _advisor_index() {
 
   if [[ $missing_cnt -gt 0 ]]; then
     if [[ $collect -eq 1 ]]; then
-      _finding "WARN" "idx_missing" "${missing_cnt} unindexed FK column(s) on large table(s) — run 'kbdiag idx missing'"
+      _finding "WARN" "idx_missing" "缺失FK索引\n  症状：${missing_cnt} 个大表中缺失外键索引\n  建议:\n    · kbdiag advisor index --fix 生成 CREATE SQL"
     else
       warn "${missing_cnt} unindexed FK column(s) on large table(s) — run 'kbdiag idx missing'"
       json_item "advisor_idx_missing" "warn" "$missing_cnt" ""
@@ -284,7 +284,7 @@ _advisor_params() {
     local min_ok_mb=$(( mem_mb * 20 / 100 ))
     if [[ $sb_mb -lt $min_ok_mb ]]; then
       if [[ $collect -eq 1 ]]; then
-        _finding "WARN" "param_shared_buffers" "shared_buffers=${sb_mb}MB — recommend ${rec_sb_mb}MB (25% of ${mem_mb}MB RAM)"
+        _finding "WARN" "param_shared_buffers" "shared_buffers 设置过低\n  症状：shared_buffers=${sb_mb}MB，仅占 RAM 的 $((sb_mb*100/mem_mb))%\n  建议:\n    · 调整至 ${rec_sb_mb}MB（25% of ${mem_mb}MB RAM）"
       else
         warn "shared_buffers=${sb_mb}MB — recommend ${rec_sb_mb}MB (25% of ${mem_mb}MB RAM)"
         json_item "advisor_param_shared_buffers" "warn" "${sb_mb}MB" "recommend ${rec_sb_mb}MB"
@@ -298,8 +298,10 @@ _advisor_params() {
       fi
     fi
   else
-    info "shared_buffers=${sb_mb}MB (cannot read RAM on this OS)"
-    json_item "advisor_param_shared_buffers" "ok" "${sb_mb}MB" "RAM unknown"
+    if [[ $collect -eq 0 ]]; then
+      info "shared_buffers=${sb_mb}MB (cannot read RAM on this OS)"
+      json_item "advisor_param_shared_buffers" "ok" "${sb_mb}MB" "RAM unknown"
+    fi
   fi
 
   # checkpoint_completion_target
@@ -307,7 +309,7 @@ _advisor_params() {
   ckpt_target=$(ksql_q "SELECT setting FROM sys_settings WHERE name='checkpoint_completion_target';" | tr -d '[:space:]')
   if awk "BEGIN{exit !(${ckpt_target:-0} < 0.7)}" 2>/dev/null; then
     if [[ $collect -eq 1 ]]; then
-      _finding "WARN" "param_checkpoint_completion_target" "checkpoint_completion_target=${ckpt_target} — recommend 0.9"
+      _finding "WARN" "param_checkpoint" "checkpoint_completion_target 设置过低\n  症状：checkpoint_completion_target=${ckpt_target}\n  建议:\n    · 调整至 0.9 以减少 WAL 积压"
     else
       warn "checkpoint_completion_target=${ckpt_target} — recommend 0.9"
       json_item "advisor_param_checkpoint_completion_target" "warn" "$ckpt_target" "recommend 0.9"
@@ -331,7 +333,7 @@ _advisor_params() {
     rec_wm_kb=$(( mem_mb * 1024 / ${max_conn} / 4 ))
     if [[ ${wm_kb:-0} -lt $(( rec_wm_kb / 2 )) ]]; then
       if [[ $collect -eq 1 ]]; then
-        _finding "WARN" "param_work_mem" "work_mem=${wm_mb}MB — recommend ~$(( rec_wm_kb / 1024 ))MB (RAM/${max_conn}conn/4)"
+        _finding "WARN" "param_work_mem" "work_mem 分配不足\n  症状：work_mem=${wm_mb}MB，${max_conn} 连接占用内存过多\n  建议:\n    · 调整至 ~$(( rec_wm_kb / 1024 ))MB（RAM/${max_conn}conn/4）"
       else
         warn "work_mem=${wm_mb}MB — recommend ~$(( rec_wm_kb / 1024 ))MB (RAM/${max_conn}conn/4)"
         json_item "advisor_param_work_mem" "warn" "${wm_mb}MB" "recommend ~$(( rec_wm_kb / 1024 ))MB"
