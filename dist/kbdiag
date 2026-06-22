@@ -3040,10 +3040,11 @@ _diag_slow_queries() {
   local rows
   rows=$(ksql_q "
     SELECT pid, usename,
-           date_trunc('second', now()-query_start)::text AS duration,
+           date_trunc('second', now()-query_start)::text AS dur_sec,
            coalesce(wait_event_type,'') AS wait_event_type,
            coalesce(wait_event,'') AS wait_event,
-           left(query, 80) AS query
+           left(query, 80) AS query,
+           coalesce(query_id::text, '') AS query_id
     FROM sys_stat_activity
     WHERE state='active'
       AND now()-query_start > interval '${KB_SLOW_THRESHOLD} seconds'
@@ -3053,15 +3054,53 @@ _diag_slow_queries() {
 
   [[ -z "$rows" ]] && return
 
-  local cnt=0 evidence=""
-  while IFS='|' read -r pid user duration wtype wevent query; do
+  local cnt=0 evidence="" pid_list=""
+  while IFS='|' read -r pid user dur_sec wtype wevent query qid; do
     [[ -z "${pid// /}" ]] && continue
     cnt=$(( cnt + 1 ))
-    evidence="${evidence}    · pid ${pid// /} (${user// /}) | 时长: ${duration// /} | wait: ${wtype// /}/${wevent// /}\n"
+    evidence="${evidence}    · pid ${pid// /} (${user// /}) | 时长: ${dur_sec// /} | wait: ${wtype// /}/${wevent// /}\n"
     evidence="${evidence}      SQL: $(echo "$query" | xargs 2>/dev/null || echo "$query")\n"
+    [[ -n "${qid// /}" ]] && pid_list="${pid_list:+${pid_list},}${pid// /}"
   done <<< "$rows"
 
-  local body="慢查询\n  症状：当前 ${cnt} 条查询运行超过 ${KB_SLOW_THRESHOLD}s\n  证据:\n${evidence}  建议:\n    · kbdiag sql <pid> 查看执行计划"
+  local hist_note=""
+  local stmt_avail
+  stmt_avail=$(ksql_q "SELECT count(*) FROM sys_catalog.sys_class WHERE relname='sys_stat_statements';" 2>/dev/null | tr -d '[:space:]')
+  if [[ "${stmt_avail:-0}" -gt 0 && -n "$pid_list" ]]; then
+    local qid_rows
+    qid_rows=$(ksql_q "
+      SELECT s.query_id::text,
+             round(ss.mean_exec_time::numeric, 1)::text AS hist_mean_ms,
+             round(ss.stddev_exec_time::numeric, 1)::text AS hist_stddev_ms,
+             ss.calls::text
+      FROM sys_stat_activity s
+      JOIN sys_stat_statements ss ON ss.queryid = s.query_id
+      WHERE s.pid = ANY(ARRAY[${pid_list}]);" 2>/dev/null || true)
+    if [[ -n "$qid_rows" ]]; then
+      while IFS='|' read -r qid hist_mean_ms hist_stddev_ms call_cnt; do
+        [[ -z "${qid// /}" ]] && continue
+        local hist_mean_s hist_stddev_s
+        hist_mean_s="${hist_mean_ms// /}"
+        hist_stddev_s="${hist_stddev_ms// /}"
+        local hist_mean_fmt hist_stddev_fmt
+        hist_mean_fmt=$(printf "%.1f" "$(echo "${hist_mean_s}/1000" | bc -l 2>/dev/null || echo 0)")s
+        hist_stddev_fmt=$(printf "%.1f" "$(echo "${hist_stddev_s:-0}/1000" | bc -l 2>/dev/null || echo 0)")s
+        local threshold_fmt
+        threshold_fmt=$(printf "%.1f" "$(echo "${hist_mean_s}/1000" | bc -l 2>/dev/null || echo 0)")s，突然变慢
+        local pattern
+        if awk "BEGIN{exit !(${hist_stddev_s:-0} > ${hist_mean_s:-0} * 0.5)}"; then
+          pattern="高波动（stddev ${hist_stddev_fmt} > mean×0.5），执行计划不稳定"
+        else
+          pattern="一贯慢（历史均值 ${hist_mean_fmt}，calls: ${call_cnt// /}）"
+        fi
+        hist_note="${hist_note}    · queryid ${qid// /}: 历史均值 ${hist_mean_fmt} | ${pattern}\n"
+      done <<< "$qid_rows"
+    fi
+  fi
+
+  local hist_section=""
+  [[ -n "$hist_note" ]] && hist_section="\n  历史均值（sys_stat_statements）:\n${hist_note}"
+  local body="慢查询\n  症状：当前 ${cnt} 条查询运行超过 ${KB_SLOW_THRESHOLD}s\n  证据:\n${evidence}${hist_section}  建议:\n    · kbdiag sql <pid> 查看执行计划\n    · kbdiag stmt <queryid> 查看历史统计"
   _finding "INFO" "slow_queries" "$body"
 }
 

@@ -50,3 +50,10 @@ test_diagnose_standalone_no_crash() {
   assert_not_contains "$out" "Error:"
   assert_not_contains "$out" ": line "
 }
+
+test_diagnose_slow_hist_no_crash() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose" || true)
+  assert_not_contains "$out" ": line "
+  assert_not_contains "$out" "unbound variable"
+  assert_not_contains "$out" "command not found"
+}
