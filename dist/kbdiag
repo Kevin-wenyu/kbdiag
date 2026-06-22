@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-7-gfc28ff1-dirty"
+KBDIAG_VERSION="v1.0.0-8-g9a898f4-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -703,7 +703,7 @@ _perf_slow() {
   fi
 
   warn "${cnt} slow query(ies)"
-  ksql_q "
+  ksql_qh "
     SELECT pid, usename,
            date_trunc('second', now()-query_start)::text AS duration,
            client_addr,
@@ -718,7 +718,7 @@ _perf_slow() {
 
 _perf_bloat() {
   hdr "Table bloat (live ratio < 80%)"
-  ksql_q "
+  ksql_qh "
     SELECT schemaname, relname,
            pg_size_pretty(pg_relation_size(schemaname||'.'||relname)) AS table_size,
            n_live_tup, n_dead_tup,
@@ -746,7 +746,7 @@ _perf_bloat() {
 
 _perf_vacuum() {
   hdr "Vacuum status (stale or high dead tuples, with autovacuum threshold)"
-  ksql_q "
+  ksql_qh "
     SELECT schemaname, relname,
            n_dead_tup,
            last_autovacuum::date AS last_autovacuum,
@@ -771,7 +771,7 @@ _perf_vacuum() {
 
 _perf_wait() {
   hdr "Wait event distribution (active sessions)"
-  ksql_q "
+  ksql_qh "
     SELECT wait_event_type, wait_event, count(*) AS cnt,
            round(avg(EXTRACT(EPOCH FROM (now()-query_start))),1) AS avg_sec
     FROM sys_stat_activity
@@ -783,7 +783,7 @@ _perf_wait() {
 
 _perf_io() {
   hdr "Table I/O hotspots (by physical reads)"
-  ksql_q "
+  ksql_qh "
     SELECT schemaname, relname,
            heap_blks_read, heap_blks_hit,
            CASE WHEN (heap_blks_read+heap_blks_hit)=0 THEN 100
@@ -809,7 +809,7 @@ _perf_top() {
   hdr "Top sessions by ${mode}"
   case "$mode" in
     buffers)
-      ksql_q "
+      ksql_qh "
         SELECT pid, usename, left(query,60) AS query,
                shared_blks_hit + shared_blks_read AS total_buffers
         FROM sys_stat_activity
@@ -818,7 +818,7 @@ _perf_top() {
         | column -t -s '|' || true
       ;;
     reads)
-      ksql_q "
+      ksql_qh "
         SELECT pid, usename, left(query,60) AS query,
                shared_blks_read AS blks_read
         FROM sys_stat_activity
@@ -827,7 +827,7 @@ _perf_top() {
         | column -t -s '|' || true
       ;;
     writes)
-      ksql_q "
+      ksql_qh "
         SELECT pid, usename, left(query,60) AS query,
                shared_blks_written AS blks_written
         FROM sys_stat_activity
@@ -836,7 +836,7 @@ _perf_top() {
         | column -t -s '|' || true
       ;;
     cpu)
-      ksql_q "
+      ksql_qh "
         SELECT pid, usename, left(query,60) AS query,
                round(EXTRACT(EPOCH FROM (now()-query_start))::numeric,1) AS cpu_sec
         FROM sys_stat_activity
@@ -845,7 +845,7 @@ _perf_top() {
         | column -t -s '|' || true
       ;;
     temp)
-      ksql_q "
+      ksql_qh "
         SELECT pid, usename, left(query,60) AS query,
                temp_blks_read + temp_blks_written AS temp_blks
         FROM sys_stat_activity
@@ -862,7 +862,7 @@ _perf_top() {
 
 _perf_index() {
   hdr "Unused indexes (0 scans in last stats reset)"
-  ksql_q "
+  ksql_qh "
     SELECT schemaname, relname, indexrelname,
            pg_size_pretty(pg_relation_size(indexrelid)) AS index_size,
            idx_scan

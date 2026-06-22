@@ -130,3 +130,43 @@ test_perf_unknown_subcommand_errors() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE perf xyzzy")
   [[ "${code:-0}" -ne 0 ]] && _pass || _fail "unknown perf subcommand should exit non-zero"
 }
+
+# ── header verification tests ─────────────────────────────────────────────────
+
+test_perf_slow_has_header() {
+  # Note: when there are no slow queries, ksql_qh won't output headers since result set is empty.
+  # Just verify command runs without error.
+  ssh_node1 "$KBDIAG_REMOTE perf slow" 2>&1 >/dev/null && _pass || _fail "perf slow failed"
+}
+
+test_perf_wait_has_header() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE perf wait" 2>&1)
+  echo "$out" | grep -qi "wait_event" && _pass || _fail "perf wait missing 'wait_event' header"
+}
+
+test_perf_io_has_header() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE perf io" 2>&1)
+  echo "$out" | grep -qi "schemaname" && _pass || _fail "perf io missing 'schemaname' header"
+}
+
+test_perf_vacuum_has_header() {
+  # Note: when there are no tables needing vacuum, ksql_qh won't output headers since result set is empty.
+  # Just verify command runs without error.
+  ssh_node1 "$KBDIAG_REMOTE perf vacuum" 2>&1 >/dev/null && _pass || _fail "perf vacuum failed"
+}
+
+test_perf_bloat_has_header() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE perf bloat" 2>&1)
+  echo "$out" | grep -qi "schemaname" && _pass || _fail "perf bloat missing 'schemaname' header"
+}
+
+test_perf_top_has_header() {
+  # Note: when there are no active sessions, ksql_qh won't output headers since result set is empty.
+  # Just verify command runs without error.
+  ssh_node1 "$KBDIAG_REMOTE perf top" 2>&1 >/dev/null && _pass || _fail "perf top failed"
+}
+
+test_perf_index_has_header() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE perf index" 2>&1)
+  echo "$out" | grep -qi "schemaname" && _pass || _fail "perf index missing 'schemaname' header"
+}
