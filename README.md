@@ -88,6 +88,18 @@ kbdiag [global-flags] <command> [subcommand] [command-flags]
 | `advisor [index\|vacuum\|params\|analyze] [--fix]` | DBA recommendations; `--fix` emits executable SQL |
 | `all` | Run all checks |
 
+## Configuration File
+
+Per-host settings can be placed in `~/.kbdiagrc` (sourced at startup before any defaults):
+
+```bash
+# ~/.kbdiagrc — example
+KB_PORT=5432
+KB_BIN_DIR=/opt/kingbase/bin
+KB_SUPERUSER=dba
+KB_SLOW_THRESHOLD=3
+```
+
 ## Environment Variables
 
 | Variable | Default | Description |
@@ -192,6 +204,18 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | `idx [unused\|dup\|bloat\|missing]` | 索引健康分析 |
 | `advisor [index\|vacuum\|params\|analyze] [--fix]` | 综合 DBA 建议；`--fix` 输出可执行 SQL |
 | `all` | 运行所有检查 |
+
+## 配置文件
+
+每台主机的个性化配置放在 `~/.kbdiagrc`（启动时自动加载，优先于默认值）：
+
+```bash
+# ~/.kbdiagrc 示例
+KB_PORT=5432
+KB_BIN_DIR=/opt/kingbase/bin
+KB_SUPERUSER=dba
+KB_SLOW_THRESHOLD=3
+```
 
 ## 环境变量
 

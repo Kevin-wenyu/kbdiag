@@ -10,6 +10,7 @@ KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
   echo '# kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)'
   echo 'set -euo pipefail'
   echo "KBDIAG_VERSION=\"${KBDIAG_VERSION}\""
+  echo '[[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true'
   echo ''
   # strip shebang and set from lib files
   for f in lib/core.sh lib/cmd_status.sh lib/cmd_cluster.sh \

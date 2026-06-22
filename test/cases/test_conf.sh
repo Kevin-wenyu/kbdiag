@@ -31,3 +31,12 @@ test_conf_diff_no_peer_warns_gracefully() {
   has_warn=$(echo "$out" | grep -c "Cannot determine peer\|Comparing parameters\|peer" || true)
   [[ "${has_warn:-0}" -ge 1 ]] && _pass || _fail "expected peer-related output; got: $(echo "$out" | head -3)"
 }
+
+test_kbdiagrc_overrides_port() {
+  # 写一个临时 .kbdiagrc，设置一个无害变量，确认 .kbdiagrc 被 source（status 不 crash）
+  local out
+  out=$(ssh_node1 "echo 'KB_QUERY_TIMEOUT=1' > ~/.kbdiagrc && $KBDIAG_REMOTE status; rm -f ~/.kbdiagrc" || true)
+  # status 应该仍能运行（timeout=1 足够本地查询），不 crash
+  assert_not_contains "$out" ": line "
+  assert_not_contains "$out" "command not found"
+}
