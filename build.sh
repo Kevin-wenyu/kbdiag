@@ -19,7 +19,8 @@ mkdir -p dist
             lib/cmd_kill.sh \
             lib/cmd_idx.sh \
             lib/cmd_colstat.sh \
-            lib/cmd_advisor.sh; do
+            lib/cmd_advisor.sh \
+            lib/cmd_license.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
     grep -v '^#!' "$f" || true
@@ -63,6 +64,7 @@ case "$CMD" in
   idx)         cmd_idx "$SUBCMD" ;;
   colstat)     cmd_colstat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   advisor)     cmd_advisor "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
+  license)     cmd_license ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
@@ -81,6 +83,7 @@ Global flags:
 
 [OPS] Commands (no DBA context required):
   status              Instance process, connectivity, role, uptime
+  license             License 授权状态（有效期、正式/试用）
   cluster             Repmgr cluster topology
   replication         Replication lag / standby connections
   check               14-item health check, exit 0=OK 1=WARN 2=FAIL

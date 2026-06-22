@@ -29,4 +29,17 @@ cmd_status() {
   local uptime
   uptime=$(ksql_q "SELECT date_trunc('second', now() - pg_postmaster_start_time())::text;")
   info "Uptime: $uptime"
+
+  local lic_days
+  lic_days=$(ksql_q "SELECT get_license_validdays();" | tr -d '[:space:]')
+  lic_days="${lic_days:-0}"
+  if [[ "$lic_days" == "-2" ]]; then
+    ok "License: 永久授权（正式）"
+  elif [[ "$lic_days" -gt "$KB_WARN_LICENSE_DAYS" ]]; then
+    ok "License: 剩余 ${lic_days} 天"
+  elif [[ "$lic_days" -gt 0 ]]; then
+    warn "License: 剩余 ${lic_days} 天到期"
+  else
+    fail "License: 已过期"
+  fi
 }

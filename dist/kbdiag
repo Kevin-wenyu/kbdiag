@@ -38,6 +38,7 @@ KB_WARN_XID="${KB_WARN_XID:-1000000000}"     # 10亿
 KB_FAIL_XID="${KB_FAIL_XID:-1900000000}"     # 19亿
 KB_WARN_OLDEST_TXN="${KB_WARN_OLDEST_TXN:-3600}"   # 1h in seconds
 KB_FAIL_OLDEST_TXN="${KB_FAIL_OLDEST_TXN:-14400}"  # 4h in seconds
+KB_WARN_LICENSE_DAYS="${KB_WARN_LICENSE_DAYS:-30}"
 
 # ─── global flags (set by parse_global_args) ──────────────────────────────────
 VERBOSE="${VERBOSE:-}"
@@ -182,6 +183,19 @@ cmd_status() {
   local uptime
   uptime=$(ksql_q "SELECT date_trunc('second', now() - pg_postmaster_start_time())::text;")
   info "Uptime: $uptime"
+
+  local lic_days
+  lic_days=$(ksql_q "SELECT get_license_validdays();" | tr -d '[:space:]')
+  lic_days="${lic_days:-0}"
+  if [[ "$lic_days" == "-2" ]]; then
+    ok "License: 永久授权（正式）"
+  elif [[ "$lic_days" -gt "$KB_WARN_LICENSE_DAYS" ]]; then
+    ok "License: 剩余 ${lic_days} 天"
+  elif [[ "$lic_days" -gt 0 ]]; then
+    warn "License: 剩余 ${lic_days} 天到期"
+  else
+    fail "License: 已过期"
+  fi
 }
 
 # --- lib/cmd_cluster.sh ---
@@ -2540,6 +2554,70 @@ cmd_advisor() {
   return $_exit
 }
 
+# --- lib/cmd_license.sh ---
+cmd_license() {
+  [[ "$OUTPUT_FMT" == "json" ]] && json_begin "license"
+  hdr "License"
+
+  local validdays
+  validdays=$(ksql_q "SELECT get_license_validdays();" | tr -d '[:space:]')
+  validdays="${validdays:-0}"
+
+  local status_label status_level
+  if [[ "$validdays" == "-2" ]]; then
+    status_label="永久授权（正式）"
+    status_level="ok"
+  elif [[ "$validdays" -gt "$KB_WARN_LICENSE_DAYS" ]]; then
+    status_label="剩余 ${validdays} 天"
+    status_level="ok"
+  elif [[ "$validdays" -gt 0 ]]; then
+    status_label="剩余 ${validdays} 天，即将到期"
+    status_level="warn"
+  else
+    status_label="已过期（validdays=${validdays}）"
+    status_level="fail"
+  fi
+
+  local info_text serial product edition username project issued
+  info_text=$(ksql_q "SELECT get_license_info();")
+  serial=$(echo "$info_text"   | grep 'License序列号'  | sed 's/.*--- 启用 --- //' | tr -d ' \t\r\n+')
+  product=$(echo "$info_text"  | grep '产品名称'       | sed 's/.*--- 启用 --- //' | tr -d ' \t\r\n+')
+  edition=$(echo "$info_text"  | grep '细分版本模板名' | sed 's/.*--- 启用 --- //' | tr -d ' \t\r\n+')
+  username=$(echo "$info_text" | grep '用户名称'       | sed 's/.*--- 启用 --- //' | tr -d ' \t\r\n+')
+  project=$(echo "$info_text"  | grep '项目名称'       | sed 's/.*--- 启用 --- //' | tr -d ' \t\r\n+')
+  issued=$(echo "$info_text"   | grep '生产日期'       | sed 's/.*--- 启用 --- //' | tr -d ' \t\r\n+')
+
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    json_item "license_status" "$status_level" "$status_label"  "validdays=${validdays}"
+    json_item "serial"         "ok"            "$serial"        ""
+    json_item "product"        "ok"            "$product"       ""
+    json_item "edition"        "ok"            "$edition"       ""
+    json_item "user"           "ok"            "$username"      ""
+    json_item "project"        "ok"            "$project"       ""
+    json_item "issued"         "ok"            "$issued"        ""
+    json_end
+    return
+  fi
+
+  case "$status_level" in
+    ok)   ok   "授权状态: $status_label" ;;
+    warn) warn "授权状态: $status_label" ;;
+    fail) fail "授权状态: $status_label" ;;
+  esac
+
+  info "序列号:   $serial"
+  info "产品名称: $product"
+  info "版本模板: $edition"
+  info "用户名称: $username"
+  info "项目名称: $project"
+  info "生产日期: $issued"
+
+  if [[ -n "$VERBOSE" ]]; then
+    echo ""
+    echo "$info_text"
+  fi
+}
+
 # ─── dispatch ────────────────────────────────────────────────────────────────
 require_kingbase_user
 
@@ -2576,6 +2654,7 @@ case "$CMD" in
   idx)         cmd_idx "$SUBCMD" ;;
   colstat)     cmd_colstat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   advisor)     cmd_advisor "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
+  license)     cmd_license ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
@@ -2594,6 +2673,7 @@ Global flags:
 
 [OPS] Commands (no DBA context required):
   status              Instance process, connectivity, role, uptime
+  license             License 授权状态（有效期、正式/试用）
   cluster             Repmgr cluster topology
   replication         Replication lag / standby connections
   check               14-item health check, exit 0=OK 1=WARN 2=FAIL

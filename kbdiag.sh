@@ -29,7 +29,8 @@ for _f in \
   "$SCRIPT_DIR"/lib/cmd_kill.sh \
   "$SCRIPT_DIR"/lib/cmd_idx.sh \
   "$SCRIPT_DIR"/lib/cmd_colstat.sh \
-  "$SCRIPT_DIR"/lib/cmd_advisor.sh; do
+  "$SCRIPT_DIR"/lib/cmd_advisor.sh \
+  "$SCRIPT_DIR"/lib/cmd_license.sh; do
   [[ -f "$_f" ]] && source "$_f"
 done
 
@@ -68,6 +69,7 @@ case "$CMD" in
   idx)         cmd_idx "$SUBCMD" ;;
   colstat)     cmd_colstat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   advisor)     cmd_advisor "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
+  license)     cmd_license ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
