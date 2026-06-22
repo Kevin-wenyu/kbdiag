@@ -23,6 +23,22 @@ curl -fsSL https://raw.githubusercontent.com/Kevin-wenyu/kbdiag/main/dist/kbdiag
 ~/kbdiag update
 ```
 
+## Team Deployment
+
+Push kbdiag to multiple hosts at once:
+
+```bash
+# Create a hosts file (one user@host per line)
+cp scripts/hosts.example my-hosts.txt
+vim my-hosts.txt
+
+# Deploy
+bash scripts/deploy.sh my-hosts.txt
+
+# Custom SSH port or destination
+SSH_PORT=2222 DB_USER=kingbase bash scripts/deploy.sh my-hosts.txt
+```
+
 ## Quick Start
 
 ```bash
@@ -144,6 +160,22 @@ curl -fsSL https://raw.githubusercontent.com/Kevin-wenyu/kbdiag/main/dist/kbdiag
 
 ```bash
 ~/kbdiag update
+```
+
+## 团队批量部署
+
+一次推送到多台主机：
+
+```bash
+# 创建主机列表文件（每行 user@host）
+cp scripts/hosts.example my-hosts.txt
+vim my-hosts.txt
+
+# 批量部署
+bash scripts/deploy.sh my-hosts.txt
+
+# 自定义 SSH 端口或目标路径
+SSH_PORT=2222 bash scripts/deploy.sh my-hosts.txt
 ```
 
 ## 快速开始

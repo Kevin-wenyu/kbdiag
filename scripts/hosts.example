@@ -1,0 +1,7 @@
+# kbdiag hosts file — one entry per line
+# Format: user@host  (SSH will use default port, or set SSH_PORT env var)
+# Lines starting with # are ignored
+
+# kevin@db-node1.example.com
+# kevin@db-node2.example.com
+# kevin@192.168.1.10
