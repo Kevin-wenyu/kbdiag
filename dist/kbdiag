@@ -2790,6 +2790,53 @@ _stmt_detail() {
   printf "注意: SQL 中 \$N 为占位符，已替换为 'param_N'，运行前请换成真实值\n"
 }
 
+_stmt_json() {
+  local queryid="${1:-}"
+  local stats_reset
+  stats_reset=$(ksql_q "SELECT coalesce(stats_reset::text,'') FROM sys_stat_bgwriter;" 2>/dev/null | tr -d '[:space:]')
+  local ts; ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  if [[ -n "$queryid" ]]; then
+    local row
+    row=$(ksql_q "
+      SELECT calls, mean_exec_time, min_exec_time, max_exec_time, stddev_exec_time,
+             mean_plan_time, shared_blks_hit, shared_blks_read,
+             round(100.0 * shared_blks_hit / NULLIF(shared_blks_hit + shared_blks_read, 0), 1),
+             temp_blks_read, temp_blks_written,
+             replace(replace(query, '\\', '\\\\'), '\"', '\\\"')
+      FROM sys_stat_statements WHERE queryid::text = '${queryid}';" 2>/dev/null || true)
+    if [[ -z "$row" ]]; then
+      echo "{\"command\":\"stmt\",\"queryid\":\"${queryid}\",\"error\":\"not found\"}"
+      return
+    fi
+    local calls mean_ms min_ms max_ms stddev_ms plan_ms blks_hit blks_read hit_ratio temp_r temp_w sql_text
+    IFS='|' read -r calls mean_ms min_ms max_ms stddev_ms plan_ms blks_hit blks_read hit_ratio temp_r temp_w sql_text <<< "$row"
+    printf '{"command":"stmt","queryid":"%s","stats_reset":"%s","timestamp":"%s","calls":%s,"mean_exec_time":%s,"min_exec_time":%s,"max_exec_time":%s,"stddev_exec_time":%s,"mean_plan_time":%s,"shared_blks_hit":%s,"shared_blks_read":%s,"hit_ratio":%s,"temp_blks_read":%s,"temp_blks_written":%s,"query":"%s"}\n' \
+      "${queryid}" "${stats_reset}" "${ts}" \
+      "${calls// /}" "${mean_ms// /}" "${min_ms// /}" "${max_ms// /}" "${stddev_ms// /}" "${plan_ms// /}" \
+      "${blks_hit// /}" "${blks_read// /}" "${hit_ratio// /}" "${temp_r// /}" "${temp_w// /}" \
+      "${sql_text}"
+  else
+    local top_mean=""
+    while IFS='|' read -r qid calls mean_ms max_ms pct summary; do
+      [[ -z "${qid// /}" ]] && continue
+      local entry
+      entry=$(printf '{"queryid":"%s","calls":%s,"mean_exec_time":%s,"max_exec_time":%s,"pct_total":"%s","query_summary":"%s"}' \
+        "${qid// /}" "${calls// /}" "${mean_ms// /}" "${max_ms// /}" "${pct// /}" \
+        "$(echo "${summary}" | sed 's/"/\\"/g')")
+      top_mean="${top_mean:+${top_mean},}${entry}"
+    done < <(ksql_q "
+      SELECT queryid::text, calls,
+             round(mean_exec_time::numeric,1), round(max_exec_time::numeric,1),
+             round(100.0*total_exec_time/NULLIF(sum(total_exec_time) OVER(),0),1),
+             left(replace(query, E'\\n', ' '), 60)
+      FROM sys_stat_statements WHERE calls > 0
+      ORDER BY mean_exec_time DESC LIMIT ${TOP_N};" 2>/dev/null || true)
+    printf '{"command":"stmt","stats_reset":"%s","timestamp":"%s","top_by_mean":[%s]}\n' \
+      "${stats_reset}" "${ts}" "${top_mean}"
+  fi
+}
+
 cmd_stmt() {
   local queryid="${1:-}"
 
@@ -2800,6 +2847,11 @@ cmd_stmt() {
       warn "sys_stat_statements 扩展未启用"
       echo "  启用方式: shared_preload_libraries = 'sys_stat_statements'  (需重启)"
     fi
+    return 0
+  fi
+
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    _stmt_json "$queryid"
     return 0
   fi
 

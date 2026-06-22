@@ -15,3 +15,29 @@ test_stmt_has_stats_reset() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE stmt")
   assert_contains "$out" "数据覆盖"
 }
+
+test_stmt_queryid_exit_zero() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE stmt 0000000000000000")
+  assert_exit_code 0 "$code"
+}
+
+test_stmt_queryid_has_explain_template() {
+  local qid
+  qid=$(ssh_node1 "/home/kingbase/cluster/install/kingbase/bin/ksql -p 54321 -U system test -AXtc \"SELECT queryid::text FROM sys_stat_statements LIMIT 1;\"" 2>/dev/null | tr -d '[:space:]')
+  [[ -z "$qid" ]] && { echo "  [SKIP] sys_stat_statements empty"; _pass; return; }
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE stmt $qid")
+  assert_contains "$out" "验证路径"
+  assert_contains "$out" "EXPLAIN"
+}
+
+test_stmt_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json stmt")
+  assert_json_valid "$out"
+  assert_contains "$out" '"command":"stmt"'
+}
+
+test_stmt_no_extension_graceful() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json stmt" || true)
+  assert_not_contains "$out" ": line "
+  assert_not_contains "$out" "command not found"
+}
