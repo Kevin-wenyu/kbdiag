@@ -48,7 +48,8 @@ kbdiag [global-flags] <command> [subcommand] [command-flags]
 
 | 命令 | 说明 |
 |------|------|
-| `status` | 进程、连通性、角色、运行时长 |
+| `status` | 进程、连通性、角色、运行时长（含授权摘要） |
+| `license` | 授权有效期、是否正式授权、序列号、用户名称等 |
 | `cluster` | repmgr 集群拓扑（单机自动跳过） |
 | `replication` | primary 显示 standby 连接；standby 显示 WAL 延迟 |
 | `check` | 14 项健康阈值检查，exit code 0=OK / 1=WARN / 2=FAIL |
