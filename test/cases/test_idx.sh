@@ -49,6 +49,25 @@ test_idx_quiet_hides_ok() {
   assert_not_contains "$out" "[OK]"
 }
 
+test_idx_unused_has_header() {
+  local out
+  out=$(ssh_node1 "$KBDIAG_REMOTE idx unused" 2>&1)
+  # Either "No unused indexes" OK message, or table with header
+  echo "$out" | grep -qE 'indexrelname|No unused' && _pass || _fail "missing 'indexrelname' header or 'No unused' message"
+}
+
+test_idx_bloat_has_header() {
+  local out
+  out=$(ssh_node1 "$KBDIAG_REMOTE idx bloat" 2>&1)
+  echo "$out" | grep -qE 'schemaname|No highly bloated' && _pass || _fail "missing 'schemaname' header or 'No highly bloated' message"
+}
+
+test_idx_missing_has_header() {
+  local out
+  out=$(ssh_node1 "$KBDIAG_REMOTE idx missing" 2>&1)
+  echo "$out" | grep -qE 'fk_col|No missing FK' && _pass || _fail "missing 'fk_col' header or 'No missing FK' message"
+}
+
 test_idx_unknown_sub_fails() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE idx badsubcmd 2>/dev/null" 2>/dev/null || true)
   [[ "${code:-0}" -ne 0 ]] && _pass || _fail "expected non-zero exit for unknown subcommand"

@@ -10,7 +10,7 @@ _locks_wait() {
   fi
 
   warn "$cnt waiting lock(s)"
-  ksql_q "
+  ksql_qh "
     SELECT w.pid AS wait_pid, w.usename, left(w.query,60) AS wait_query,
            b.pid AS block_pid, b.usename AS block_user,
            lw.locktype, lw.mode AS wait_mode,
@@ -28,7 +28,20 @@ _locks_wait() {
 _locks_hold() {
   hdr "Lock-holding sessions"
 
-  ksql_q "
+  local cnt
+  cnt=$(ksql_q "
+    SELECT count(*) FROM sys_locks l
+    JOIN sys_stat_activity a ON a.pid = l.pid
+    WHERE l.granted = true
+      AND l.pid <> sys_backend_pid()
+      AND l.locktype = 'relation';" | tr -d '[:space:]')
+
+  if [[ "${cnt:-0}" -eq 0 ]]; then
+    ok "No lock-holding sessions"
+    return 0
+  fi
+
+  ksql_qh "
     SELECT l.pid, a.usename, a.application_name,
            l.locktype, l.relation::regclass AS object,
            l.mode, date_trunc('second', now()-a.xact_start)::text AS held_for,
@@ -55,7 +68,7 @@ _locks_deadlock() {
   fi
 
   warn "$cnt database(s) with deadlocks"
-  ksql_q "
+  ksql_qh "
     SELECT datname, deadlocks
     FROM sys_stat_database
     WHERE deadlocks > 0

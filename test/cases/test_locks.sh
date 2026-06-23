@@ -60,3 +60,15 @@ test_locks_unknown_subcmd_errors() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE locks badcmd")
   [[ "${code:-0}" -ne 0 ]] && _pass || _fail "unknown locks subcommand should exit non-zero"
 }
+
+test_locks_hold_has_header_or_ok() {
+  local out
+  out=$(ssh_node1 "$KBDIAG_REMOTE locks hold" 2>&1)
+  echo "$out" | grep -qE 'pid|No lock-holding' && _pass || _fail "missing 'pid' header or 'No lock-holding' message"
+}
+
+test_locks_wait_has_header_or_ok() {
+  local out
+  out=$(ssh_node1 "$KBDIAG_REMOTE locks wait" 2>&1)
+  echo "$out" | grep -qE 'wait_pid|No waiting' && _pass || _fail "missing 'wait_pid' header or 'No waiting' message"
+}

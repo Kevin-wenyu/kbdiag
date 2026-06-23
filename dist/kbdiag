@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-8-g9a898f4-dirty"
+KBDIAG_VERSION="v1.0.0-9-g6a953b0-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -334,7 +334,7 @@ _locks_wait() {
   fi
 
   warn "$cnt waiting lock(s)"
-  ksql_q "
+  ksql_qh "
     SELECT w.pid AS wait_pid, w.usename, left(w.query,60) AS wait_query,
            b.pid AS block_pid, b.usename AS block_user,
            lw.locktype, lw.mode AS wait_mode,
@@ -352,7 +352,20 @@ _locks_wait() {
 _locks_hold() {
   hdr "Lock-holding sessions"
 
-  ksql_q "
+  local cnt
+  cnt=$(ksql_q "
+    SELECT count(*) FROM sys_locks l
+    JOIN sys_stat_activity a ON a.pid = l.pid
+    WHERE l.granted = true
+      AND l.pid <> sys_backend_pid()
+      AND l.locktype = 'relation';" | tr -d '[:space:]')
+
+  if [[ "${cnt:-0}" -eq 0 ]]; then
+    ok "No lock-holding sessions"
+    return 0
+  fi
+
+  ksql_qh "
     SELECT l.pid, a.usename, a.application_name,
            l.locktype, l.relation::regclass AS object,
            l.mode, date_trunc('second', now()-a.xact_start)::text AS held_for,
@@ -379,7 +392,7 @@ _locks_deadlock() {
   fi
 
   warn "$cnt database(s) with deadlocks"
-  ksql_q "
+  ksql_qh "
     SELECT datname, deadlocks
     FROM sys_stat_database
     WHERE deadlocks > 0
@@ -1797,8 +1810,27 @@ cmd_kill() {
 # --- lib/cmd_idx.sh ---
 _idx_unused() {
   hdr "Unused indexes (idx_scan=0, table rows > 1000)"
-  local rows
-  rows=$(ksql_q "
+  local cnt
+  cnt=$(ksql_q "
+    SELECT count(*)
+    FROM sys_stat_user_indexes sui
+    JOIN sys_index si ON si.indexrelid = sui.indexrelid
+    JOIN sys_stat_user_tables sut
+      ON sut.schemaname = sui.schemaname AND sut.relname = sui.relname
+    WHERE sui.idx_scan = 0
+      AND sut.n_live_tup > 1000
+      AND si.indisunique = false
+      AND si.indisprimary = false;" 2>/dev/null | tr -d '[:space:]')
+
+  if [[ "${cnt:-0}" -eq 0 ]]; then
+    ok "No unused non-unique indexes found"
+    json_item "idx_unused" "ok" "0" ""
+    return 0
+  fi
+
+  warn "${cnt} unused index(es) — consider DROP INDEX CONCURRENTLY"
+  json_item "idx_unused" "warn" "${cnt}" "run 'idx unused' for detail"
+  ksql_qh "
     SELECT sui.schemaname, sui.relname AS tablename, sui.indexrelname,
            pg_size_pretty(pg_relation_size(sui.indexrelid)) AS index_size,
            sui.idx_scan
@@ -1811,27 +1843,35 @@ _idx_unused() {
       AND si.indisunique = false
       AND si.indisprimary = false
     ORDER BY pg_relation_size(sui.indexrelid) DESC
-    LIMIT ${TOP_N};" 2>/dev/null || true)
-
-  local cnt; cnt=$(echo "$rows" | grep -c '.' 2>/dev/null || echo 0)
-  [[ -z "$rows" ]] && cnt=0
-
-  if [[ $cnt -eq 0 ]]; then
-    ok "No unused non-unique indexes found"
-    json_item "idx_unused" "ok" "0" ""
-    return 0
-  fi
-
-  warn "${cnt} unused index(es) — consider DROP INDEX CONCURRENTLY"
-  json_item "idx_unused" "warn" "${cnt}" "run 'idx unused' for detail"
-  echo "$rows" | column -t -s '|' || true
+    LIMIT ${TOP_N};" \
+    | column -t -s '|' || true
   return 1
 }
 
 _idx_dup() {
   hdr "Duplicate indexes (same leading column set)"
-  local rows
-  rows=$(ksql_q "
+  local cnt
+  cnt=$(ksql_q "
+    SELECT count(*)
+    FROM sys_stat_user_indexes a
+    JOIN sys_stat_user_indexes b
+      ON a.schemaname = b.schemaname
+     AND a.relname = b.relname
+     AND a.indexrelid < b.indexrelid
+    JOIN sys_index ia ON ia.indexrelid = a.indexrelid
+    JOIN sys_index ib ON ib.indexrelid = b.indexrelid
+    WHERE ia.indkey = ib.indkey
+      AND ia.indpred IS NULL AND ib.indpred IS NULL;" 2>/dev/null | tr -d '[:space:]')
+
+  if [[ "${cnt:-0}" -eq 0 ]]; then
+    ok "No duplicate indexes found"
+    json_item "idx_dup" "ok" "0" ""
+    return 0
+  fi
+
+  warn "${cnt} duplicate index pair(s)"
+  json_item "idx_dup" "warn" "${cnt}" ""
+  ksql_qh "
     SELECT a.schemaname, a.relname AS tablename,
            a.indexrelname AS index1, b.indexrelname AS index2,
            pg_size_pretty(pg_relation_size(a.indexrelid)) AS size1
@@ -1845,27 +1885,33 @@ _idx_dup() {
     WHERE ia.indkey = ib.indkey
       AND ia.indpred IS NULL AND ib.indpred IS NULL
     ORDER BY a.schemaname, a.relname
-    LIMIT ${TOP_N};" 2>/dev/null || true)
-
-  local cnt; cnt=$(echo "$rows" | grep -c '.' 2>/dev/null || echo 0)
-  [[ -z "$rows" ]] && cnt=0
-
-  if [[ $cnt -eq 0 ]]; then
-    ok "No duplicate indexes found"
-    json_item "idx_dup" "ok" "0" ""
-    return 0
-  fi
-
-  warn "${cnt} duplicate index pair(s)"
-  json_item "idx_dup" "warn" "${cnt}" ""
-  echo "$rows" | column -t -s '|' || true
+    LIMIT ${TOP_N};" \
+    | column -t -s '|' || true
   return 1
 }
 
 _idx_bloat() {
   hdr "Bloated indexes (estimated bloat > 30%)"
-  local rows
-  rows=$(ksql_q "
+  local cnt
+  cnt=$(ksql_q "
+    SELECT count(*)
+    FROM sys_stat_user_indexes sui
+    JOIN sys_class ic ON ic.oid = sui.indexrelid
+    WHERE ic.relpages > 10
+      AND CASE WHEN ic.relpages > 0
+            THEN (1.0 - (ic.reltuples * 8.0 / (ic.relpages * 8192.0)))
+            ELSE 0
+          END > 0.3;" 2>/dev/null | tr -d '[:space:]')
+
+  if [[ "${cnt:-0}" -eq 0 ]]; then
+    ok "No highly bloated indexes found (threshold: 30%)"
+    json_item "idx_bloat" "ok" "0" ""
+    return 0
+  fi
+
+  warn "${cnt} bloated index(es) — consider REINDEX CONCURRENTLY"
+  json_item "idx_bloat" "warn" "${cnt}" ""
+  ksql_qh "
     SELECT sui.schemaname, sui.relname AS tablename, sui.indexrelname,
            pg_size_pretty(pg_relation_size(sui.indexrelid)) AS index_size,
            ic.relpages,
@@ -1882,27 +1928,41 @@ _idx_bloat() {
             ELSE 0
           END > 0.3
     ORDER BY pg_relation_size(sui.indexrelid) DESC
-    LIMIT ${TOP_N};" 2>/dev/null || true)
-
-  local cnt; cnt=$(echo "$rows" | grep -c '.' 2>/dev/null || echo 0)
-  [[ -z "$rows" ]] && cnt=0
-
-  if [[ $cnt -eq 0 ]]; then
-    ok "No highly bloated indexes found (threshold: 30%)"
-    json_item "idx_bloat" "ok" "0" ""
-    return 0
-  fi
-
-  warn "${cnt} bloated index(es) — consider REINDEX CONCURRENTLY"
-  json_item "idx_bloat" "warn" "${cnt}" ""
-  echo "$rows" | column -t -s '|' || true
+    LIMIT ${TOP_N};" \
+    | column -t -s '|' || true
   return 1
 }
 
 _idx_missing() {
   hdr "Missing FK indexes (large tables with unindexed FK leading column)"
-  local rows
-  rows=$(ksql_q "
+  local cnt
+  cnt=$(ksql_q "
+    SELECT count(DISTINCT (n.nspname, c.relname, con.conname))
+    FROM sys_constraint con
+    JOIN sys_class c ON c.oid = con.conrelid
+    JOIN sys_namespace n ON n.oid = c.relnamespace
+    JOIN sys_attribute a
+      ON a.attrelid = c.oid AND a.attnum = con.conkey[1]
+    JOIN sys_stat_user_tables sut
+      ON sut.schemaname = n.nspname AND sut.relname = c.relname
+    WHERE con.contype = 'f'
+      AND sut.n_live_tup > 10000
+      AND n.nspname NOT IN ('sys_catalog', 'information_schema', 'sys_toast')
+      AND NOT EXISTS (
+        SELECT 1 FROM sys_index i
+        WHERE i.indrelid = c.oid
+          AND i.indkey[0] = con.conkey[1]
+      );" 2>/dev/null | tr -d '[:space:]')
+
+  if [[ "${cnt:-0}" -eq 0 ]]; then
+    ok "No missing FK indexes found"
+    json_item "idx_missing" "ok" "0" ""
+    return 0
+  fi
+
+  warn "${cnt} FK column(s) without index on large table(s)"
+  json_item "idx_missing" "warn" "${cnt}" ""
+  ksql_qh "
     SELECT DISTINCT n.nspname AS schemaname, c.relname AS tablename,
            a.attname AS fk_col, con.conname AS constraint_name,
            sut.n_live_tup AS row_count
@@ -1922,20 +1982,8 @@ _idx_missing() {
           AND i.indkey[0] = con.conkey[1]
       )
     ORDER BY sut.n_live_tup DESC
-    LIMIT ${TOP_N};" 2>/dev/null || true)
-
-  local cnt; cnt=$(echo "$rows" | grep -c '.' 2>/dev/null || echo 0)
-  [[ -z "$rows" ]] && cnt=0
-
-  if [[ $cnt -eq 0 ]]; then
-    ok "No missing FK indexes found"
-    json_item "idx_missing" "ok" "0" ""
-    return 0
-  fi
-
-  warn "${cnt} FK column(s) without index on large table(s)"
-  json_item "idx_missing" "warn" "${cnt}" ""
-  echo "$rows" | column -t -s '|' || true
+    LIMIT ${TOP_N};" \
+    | column -t -s '|' || true
   return 1
 }
 
