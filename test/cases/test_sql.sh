@@ -103,3 +103,13 @@ test_sql_pid_invalid_shows_warn() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE sql 999999")
   assert_contains "$out" "No active session"
 }
+
+# ── header verification ──────────────────────────────────────────────────────
+
+test_sql_all_has_column_header() {
+  # Force at least one non-idle session so the result set isn't empty.
+  start_slow_query_bg
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE sql all" 2>&1)
+  stop_slow_query_bg
+  echo "$out" | grep -qi "usename" && _pass || _fail "sql all missing 'usename' column header"
+}

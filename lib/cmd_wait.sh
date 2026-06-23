@@ -10,7 +10,7 @@ cmd_wait() {
   fi
 
   info "Wait event distribution ($cnt session(s) waiting):"
-  ksql_q "
+  ksql_qh "
     SELECT wait_event_type, wait_event, count(*) AS sessions,
            round(avg(EXTRACT(EPOCH FROM (now()-query_start))),1) AS avg_wait_sec
     FROM sys_stat_activity
@@ -21,7 +21,7 @@ cmd_wait() {
   if [[ -n "$VERBOSE" ]]; then
     echo ""
     info "Session details by wait event:"
-    ksql_q "
+    ksql_qh "
       SELECT wait_event_type, wait_event, pid,
              left(query, 80) AS query
       FROM sys_stat_activity

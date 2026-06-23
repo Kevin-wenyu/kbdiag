@@ -6,7 +6,7 @@ cmd_sessions() {
   info "Non-idle sessions: $cnt"
 
   if [[ -n "$VERBOSE" || "$cnt" -gt 0 ]]; then
-    ksql_q "
+    ksql_qh "
       SELECT pid, usename, application_name, client_addr, state,
              date_trunc('second', now() - query_start)::text AS duration,
              left(query, 80) AS query

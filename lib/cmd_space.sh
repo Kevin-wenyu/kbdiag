@@ -13,7 +13,7 @@ _space_frag() {
   fi
 
   warn "$cnt fragmented table(s) — consider VACUUM"
-  ksql_q "
+  ksql_qh "
     SELECT schemaname, relname,
            pg_size_pretty(pg_relation_size(schemaname||'.'||relname)) AS size,
            n_live_tup, n_dead_tup,
@@ -58,7 +58,7 @@ _space_all() {
 
   # 3. 各数据库大小
   info "Database sizes:"
-  ksql_q "
+  ksql_qh "
     SELECT datname,
            pg_size_pretty(pg_database_size(datname)) AS size
     FROM sys_database
@@ -68,7 +68,7 @@ _space_all() {
 
   # 4. Top 10 最大表
   info "Top 10 largest tables (total incl. indexes):"
-  ksql_q "
+  ksql_qh "
     SELECT schemaname, relname,
            pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS total_size,
            pg_size_pretty(pg_relation_size(schemaname||'.'||relname))       AS table_size,

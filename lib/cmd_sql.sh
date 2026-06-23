@@ -4,7 +4,7 @@ cmd_sql() {
 
   if [[ "$target" == "all" ]]; then
     # All non-idle sessions summary
-    ksql_q "
+    ksql_qh "
       SELECT pid, usename, state,
              date_trunc('second', now()-query_start)::text AS duration,
              wait_event_type, wait_event,

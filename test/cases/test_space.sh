@@ -52,3 +52,23 @@ test_space_unknown_subcmd_errors() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE space badcmd")
   [[ "${code:-0}" -ne 0 ]] && _pass || _fail "unknown space subcommand should exit non-zero"
 }
+
+# ── header verification ──────────────────────────────────────────────────────
+
+test_space_all_has_datname_header() {
+  # Database-sizes table is always non-empty → header must appear.
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE space" 2>&1)
+  echo "$out" | grep -qi "datname" && _pass || _fail "space missing 'datname' column header"
+}
+
+test_space_all_has_relname_header() {
+  # Top-10 largest tables — sys_stat_user_tables is non-empty on the test VM.
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE space" 2>&1)
+  echo "$out" | grep -qi "relname" && _pass || _fail "space missing 'relname' column header"
+}
+
+test_space_frag_has_header_or_empty_ok() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE space frag" 2>&1)
+  echo "$out" | grep -qE 'schemaname|No heavily fragmented' && _pass \
+    || _fail "space frag missing both 'schemaname' header and 'No heavily fragmented' message"
+}

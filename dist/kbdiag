@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-9-g6a953b0-dirty"
+KBDIAG_VERSION="v1.0.0-10-gf6a86e4-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -310,7 +310,7 @@ cmd_sessions() {
   info "Non-idle sessions: $cnt"
 
   if [[ -n "$VERBOSE" || "$cnt" -gt 0 ]]; then
-    ksql_q "
+    ksql_qh "
       SELECT pid, usename, application_name, client_addr, state,
              date_trunc('second', now() - query_start)::text AS duration,
              left(query, 80) AS query
@@ -941,7 +941,7 @@ _space_frag() {
   fi
 
   warn "$cnt fragmented table(s) — consider VACUUM"
-  ksql_q "
+  ksql_qh "
     SELECT schemaname, relname,
            pg_size_pretty(pg_relation_size(schemaname||'.'||relname)) AS size,
            n_live_tup, n_dead_tup,
@@ -986,7 +986,7 @@ _space_all() {
 
   # 3. 各数据库大小
   info "Database sizes:"
-  ksql_q "
+  ksql_qh "
     SELECT datname,
            pg_size_pretty(pg_database_size(datname)) AS size
     FROM sys_database
@@ -996,7 +996,7 @@ _space_all() {
 
   # 4. Top 10 最大表
   info "Top 10 largest tables (total incl. indexes):"
-  ksql_q "
+  ksql_qh "
     SELECT schemaname, relname,
            pg_size_pretty(pg_total_relation_size(schemaname||'.'||relname)) AS total_size,
            pg_size_pretty(pg_relation_size(schemaname||'.'||relname))       AS table_size,
@@ -1038,7 +1038,7 @@ cmd_sql() {
 
   if [[ "$target" == "all" ]]; then
     # All non-idle sessions summary
-    ksql_q "
+    ksql_qh "
       SELECT pid, usename, state,
              date_trunc('second', now()-query_start)::text AS duration,
              wait_event_type, wait_event,
@@ -1091,7 +1091,7 @@ cmd_wait() {
   fi
 
   info "Wait event distribution ($cnt session(s) waiting):"
-  ksql_q "
+  ksql_qh "
     SELECT wait_event_type, wait_event, count(*) AS sessions,
            round(avg(EXTRACT(EPOCH FROM (now()-query_start))),1) AS avg_wait_sec
     FROM sys_stat_activity
@@ -1102,7 +1102,7 @@ cmd_wait() {
   if [[ -n "$VERBOSE" ]]; then
     echo ""
     info "Session details by wait event:"
-    ksql_q "
+    ksql_qh "
       SELECT wait_event_type, wait_event, pid,
              left(query, 80) AS query
       FROM sys_stat_activity
