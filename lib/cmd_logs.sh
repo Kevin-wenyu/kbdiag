@@ -46,7 +46,7 @@ cmd_logs() {
     cutoff=$(date -d "-${mins} minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || \
              date -v "-${mins}M" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || true)
     if [[ -n "$cutoff" ]]; then
-      tmp_file=$(mktemp /tmp/kbdiag_logs.XXXXXX)
+      tmp_file=$(mktemp "${TMPDIR:-/tmp}/kbdiag_logs.XXXXXX")
       awk -v cut="$cutoff" '$0 >= cut' "$log_file" > "$tmp_file" || true
       target_file="$tmp_file"
     fi
