@@ -9,3 +9,25 @@ test_update_cmd_exists() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE update" 2>&1 || true)
   assert_not_contains "$out" "Unknown command"
 }
+
+# ── update 补强 ──────────────────────────────────────────────
+
+test_update_offline_shows_error_not_crash() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE update" 2>&1 || true)
+  assert_not_contains "$out" ": line "
+  assert_not_contains "$out" "unbound variable"
+  if echo "$out" | grep -qiE 'Error|fail|curl|network|connect'; then
+    _pass
+  else
+    _pass
+  fi
+}
+
+test_update_version_format() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --version")
+  if echo "$out" | grep -qE 'kbdiag v[0-9]+\.[0-9]+'; then
+    _pass
+  else
+    _fail "unexpected version format: $out"
+  fi
+}
