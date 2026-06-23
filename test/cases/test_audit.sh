@@ -29,3 +29,8 @@ test_audit_shows_public_grants_section() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE audit")
   assert_contains "$out" "PUBLIC"
 }
+
+test_audit_superuser_has_column_header() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE audit")
+  assert_contains "$out" "rolname"
+}

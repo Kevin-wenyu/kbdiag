@@ -26,7 +26,7 @@ cmd_conf() {
 
   # Default: show non-default parameters + pending restart
   info "Non-default parameters:"
-  ksql_q "
+  ksql_qh "
     SELECT name, setting, unit, boot_val,
            CASE WHEN pending_restart = 'true' THEN '[RESTART NEEDED]' ELSE '' END AS note
     FROM sys_settings WHERE setting <> boot_val ORDER BY name;" | column -t -s '|' || true

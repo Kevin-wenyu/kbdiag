@@ -23,7 +23,7 @@ cmd_obj() {
 
   # 1. Size & tuples
   info "Size & tuples:"
-  ksql_q "
+  ksql_qh "
     SELECT pg_size_pretty(pg_total_relation_size('\"$schema\".\"$table\"')) AS total_size,
            pg_size_pretty(pg_relation_size('\"$schema\".\"$table\"')) AS table_size,
            pg_size_pretty(pg_indexes_size('\"$schema\".\"$table\"')) AS index_size,
@@ -33,14 +33,14 @@ cmd_obj() {
 
   # 2. Vacuum/Analyze status
   info "Vacuum/Analyze status:"
-  ksql_q "
+  ksql_qh "
     SELECT last_vacuum::date, last_autovacuum::date, last_analyze::date, last_autoanalyze::date,
            n_mod_since_analyze AS mods_since_analyze
     FROM sys_stat_user_tables WHERE schemaname='$schema' AND relname='$table';" | column -t -s '|' || true
 
   # 3. Indexes
   info "Indexes (usage):"
-  ksql_q "
+  ksql_qh "
     SELECT i.indexrelname, pg_size_pretty(pg_relation_size(i.indexrelid)) AS size,
            i.idx_scan, i.idx_tup_read, i.idx_tup_fetch,
            CASE WHEN si.indisunique THEN 'UNIQUE' ELSE '' END AS flags
@@ -51,7 +51,7 @@ cmd_obj() {
 
   # 4. Constraints
   info "Constraints:"
-  ksql_q "
+  ksql_qh "
     SELECT conname, contype,
            CASE contype WHEN 'p' THEN 'PRIMARY KEY' WHEN 'f' THEN 'FOREIGN KEY'
                         WHEN 'u' THEN 'UNIQUE' WHEN 'c' THEN 'CHECK' END AS type
@@ -60,7 +60,7 @@ cmd_obj() {
   # 5. verbose: Column statistics
   if [[ -n "$VERBOSE" ]]; then
     info "Column statistics:"
-    ksql_q "
+    ksql_qh "
       SELECT attname, null_frac, n_distinct, most_common_vals
       FROM sys_stats WHERE schemaname='$schema' AND tablename='$table'
       ORDER BY attname LIMIT $TOP_N;" | column -t -s '|' || true

@@ -12,7 +12,7 @@ cmd_params() {
     where="name ILIKE '%${pattern}%'"
   fi
 
-  ksql_q "
+  ksql_qh "
     SELECT name, setting, unit, boot_val,
            CASE WHEN pending_restart = 'true' THEN '[RESTART NEEDED]' ELSE '' END AS note
     FROM sys_settings WHERE $where ORDER BY name LIMIT $TOP_N;" | column -t -s '|' || true

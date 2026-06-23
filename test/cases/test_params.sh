@@ -49,3 +49,8 @@ test_params_pattern_no_match_exits_zero() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE params xyzzy_nonexistent")
   assert_exit_code 0 "${code:-0}"
 }
+
+test_params_has_column_header() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE params work_mem")
+  assert_contains "$out" "name"
+}

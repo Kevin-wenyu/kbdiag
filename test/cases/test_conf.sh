@@ -15,6 +15,12 @@ test_conf_default_shows_nondefault_info() {
   assert_contains "$out" "Non-default parameters"
 }
 
+test_conf_has_column_header() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE conf")
+  # Either header "name" appears, OR there are no non-default params (unlikely on real DB)
+  if echo "$out" | grep -qE 'name\|setting|No restart-pending'; then _pass; else _fail "no header or OK message in conf output"; fi
+}
+
 test_conf_default_shows_restart_status() {
   # Should show either "No restart-pending" or a warning about restart-pending params
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE conf")

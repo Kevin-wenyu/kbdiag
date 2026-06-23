@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-10-gf6a86e4-dirty"
+KBDIAG_VERSION="v1.0.0-11-gd5a65eb-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -268,7 +268,7 @@ cmd_replication() {
   if [[ "$is_standby" == "false" ]]; then
     info "Standby connections:"
     if [[ -n "$VERBOSE" ]]; then
-      ksql_q "
+      ksql_qh "
         SELECT client_addr, state, sync_state,
                pg_size_pretty(sent_lsn - replay_lsn) AS replay_lag
         FROM sys_stat_replication;
@@ -445,7 +445,7 @@ cmd_check() {
     json_item "connections" "ok" "${conn_used}/${max_conn} (${conn_pct}%)" ""
   fi
   if [[ -n "$VERBOSE" ]]; then
-    ksql_q "SELECT usename, count(*) FROM sys_stat_activity GROUP BY usename ORDER BY 2 DESC LIMIT 10;" \
+    ksql_qh "SELECT usename, count(*) FROM sys_stat_activity GROUP BY usename ORDER BY 2 DESC LIMIT 10;" \
       | column -t -s '|' || true
   fi
 
@@ -495,7 +495,7 @@ cmd_check() {
     json_item "long_transactions" "ok" "0" ""
   fi
   if [[ -n "$VERBOSE" && ${long_warn:-0} -gt 0 ]]; then
-    ksql_q "
+    ksql_qh "
       SELECT pid, usename, state,
              date_trunc('second', now()-xact_start)::text AS duration,
              left(query,80) AS query
@@ -513,7 +513,7 @@ cmd_check() {
     json_item "waiting_locks" "warn" "${lock_cnt}" "sessions waiting on locks"
     _exit=$(_check_level $_exit 1)
     if [[ -n "$VERBOSE" ]]; then
-      ksql_q "
+      ksql_qh "
         SELECT w.pid, w.usename, left(w.query,60) AS wait_query,
                b.pid AS block_pid, left(b.query,60) AS block_query
         FROM sys_stat_activity w
@@ -553,7 +553,7 @@ cmd_check() {
     json_item "autovacuum_backlog" "warn" "${vac_cnt}" "tables with dead_tup > ${KB_WARN_DEAD_TUPLES}"
     _exit=$(_check_level $_exit 1)
     if [[ -n "$VERBOSE" ]]; then
-      ksql_q "
+      ksql_qh "
         SELECT schemaname, relname, n_dead_tup, last_autovacuum
         FROM sys_stat_user_tables
         WHERE n_dead_tup > ${KB_WARN_DEAD_TUPLES}
@@ -1117,58 +1117,58 @@ cmd_progress() {
   hdr "Operation progress"
 
   # ── VACUUM progress ──────────────────────────────────────────────────────────
-  local vac_out
-  vac_out=$(ksql_q "
-    SELECT p.pid, p.phase, p.heap_blks_scanned, p.heap_blks_total,
-           CASE WHEN p.heap_blks_total > 0
-                THEN round(100.0*p.heap_blks_scanned/p.heap_blks_total,1) ELSE 0 END AS pct,
-           a.query
-    FROM sys_stat_progress_vacuum p JOIN sys_stat_activity a ON a.pid=p.pid;
-  " 2>/dev/null || true)
-
-  if [[ -z "$vac_out" ]]; then
+  local vac_cnt
+  vac_cnt=$(ksql_q "SELECT count(*) FROM sys_stat_progress_vacuum;" 2>/dev/null | tr -d '[:space:]' || echo 0)
+  if [[ "${vac_cnt:-0}" -eq 0 ]]; then
     info "No vacuum operations in progress"
   else
     info "VACUUM operations in progress:"
-    echo "$vac_out" | column -t -s '|' || true
+    ksql_qh "
+      SELECT p.pid, p.phase, p.heap_blks_scanned, p.heap_blks_total,
+             CASE WHEN p.heap_blks_total > 0
+                  THEN round(100.0*p.heap_blks_scanned/p.heap_blks_total,1) ELSE 0 END AS pct,
+             a.query
+      FROM sys_stat_progress_vacuum p JOIN sys_stat_activity a ON a.pid=p.pid;
+    " 2>/dev/null | column -t -s '|' || true
   fi
 
   echo ""
 
   # ── CREATE INDEX progress ────────────────────────────────────────────────────
-  local idx_out
-  idx_out=$(ksql_q "
-    SELECT p.pid, p.phase, p.blocks_done, p.blocks_total,
-           CASE WHEN p.blocks_total > 0
-                THEN round(100.0*p.blocks_done/p.blocks_total,1) ELSE 0 END AS pct,
-           a.query
-    FROM sys_stat_progress_create_index p JOIN sys_stat_activity a ON a.pid=p.pid;
-  " 2>/dev/null || true)
-
-  if [[ -z "$idx_out" ]]; then
+  local idx_cnt
+  idx_cnt=$(ksql_q "SELECT count(*) FROM sys_stat_progress_create_index;" 2>/dev/null | tr -d '[:space:]' || echo 0)
+  if [[ "${idx_cnt:-0}" -eq 0 ]]; then
     info "No index creation in progress"
   else
     info "CREATE INDEX operations in progress:"
-    echo "$idx_out" | column -t -s '|' || true
+    ksql_qh "
+      SELECT p.pid, p.phase, p.blocks_done, p.blocks_total,
+             CASE WHEN p.blocks_total > 0
+                  THEN round(100.0*p.blocks_done/p.blocks_total,1) ELSE 0 END AS pct,
+             a.query
+      FROM sys_stat_progress_create_index p JOIN sys_stat_activity a ON a.pid=p.pid;
+    " 2>/dev/null | column -t -s '|' || true
   fi
 
   echo ""
 
   # ── Long-running queries (> 60s) ─────────────────────────────────────────────
-  local slow_out
-  slow_out=$(ksql_q "
-    SELECT pid, usename, date_trunc('second', now()-query_start)::text AS duration,
-           left(query, 80) AS query
-    FROM sys_stat_activity
+  local slow_cnt
+  slow_cnt=$(ksql_q "
+    SELECT count(*) FROM sys_stat_activity
     WHERE state='active' AND now()-query_start > interval '60 seconds'
-      AND pid <> sys_backend_pid() LIMIT $TOP_N;
-  " 2>/dev/null || true)
-
-  if [[ -z "$slow_out" ]]; then
+      AND pid <> sys_backend_pid();" 2>/dev/null | tr -d '[:space:]' || echo 0)
+  if [[ "${slow_cnt:-0}" -eq 0 ]]; then
     info "No long-running queries (> 60s)"
   else
     info "Long-running queries (> 60s):"
-    echo "$slow_out" | column -t -s '|' || true
+    ksql_qh "
+      SELECT pid, usename, date_trunc('second', now()-query_start)::text AS duration,
+             left(query, 80) AS query
+      FROM sys_stat_activity
+      WHERE state='active' AND now()-query_start > interval '60 seconds'
+        AND pid <> sys_backend_pid() LIMIT $TOP_N;
+    " 2>/dev/null | column -t -s '|' || true
   fi
 }
 
@@ -1187,7 +1187,7 @@ cmd_params() {
     where="name ILIKE '%${pattern}%'"
   fi
 
-  ksql_q "
+  ksql_qh "
     SELECT name, setting, unit, boot_val,
            CASE WHEN pending_restart = 'true' THEN '[RESTART NEEDED]' ELSE '' END AS note
     FROM sys_settings WHERE $where ORDER BY name LIMIT $TOP_N;" | column -t -s '|' || true
@@ -1261,7 +1261,7 @@ cmd_obj() {
 
   # 1. Size & tuples
   info "Size & tuples:"
-  ksql_q "
+  ksql_qh "
     SELECT pg_size_pretty(pg_total_relation_size('\"$schema\".\"$table\"')) AS total_size,
            pg_size_pretty(pg_relation_size('\"$schema\".\"$table\"')) AS table_size,
            pg_size_pretty(pg_indexes_size('\"$schema\".\"$table\"')) AS index_size,
@@ -1271,14 +1271,14 @@ cmd_obj() {
 
   # 2. Vacuum/Analyze status
   info "Vacuum/Analyze status:"
-  ksql_q "
+  ksql_qh "
     SELECT last_vacuum::date, last_autovacuum::date, last_analyze::date, last_autoanalyze::date,
            n_mod_since_analyze AS mods_since_analyze
     FROM sys_stat_user_tables WHERE schemaname='$schema' AND relname='$table';" | column -t -s '|' || true
 
   # 3. Indexes
   info "Indexes (usage):"
-  ksql_q "
+  ksql_qh "
     SELECT i.indexrelname, pg_size_pretty(pg_relation_size(i.indexrelid)) AS size,
            i.idx_scan, i.idx_tup_read, i.idx_tup_fetch,
            CASE WHEN si.indisunique THEN 'UNIQUE' ELSE '' END AS flags
@@ -1289,7 +1289,7 @@ cmd_obj() {
 
   # 4. Constraints
   info "Constraints:"
-  ksql_q "
+  ksql_qh "
     SELECT conname, contype,
            CASE contype WHEN 'p' THEN 'PRIMARY KEY' WHEN 'f' THEN 'FOREIGN KEY'
                         WHEN 'u' THEN 'UNIQUE' WHEN 'c' THEN 'CHECK' END AS type
@@ -1298,7 +1298,7 @@ cmd_obj() {
   # 5. verbose: Column statistics
   if [[ -n "$VERBOSE" ]]; then
     info "Column statistics:"
-    ksql_q "
+    ksql_qh "
       SELECT attname, null_frac, n_distinct, most_common_vals
       FROM sys_stats WHERE schemaname='$schema' AND tablename='$table'
       ORDER BY attname LIMIT $TOP_N;" | column -t -s '|' || true
@@ -1311,41 +1311,39 @@ cmd_temp() {
 
   # ── Cumulative temp file stats per database ──────────────────────────────────
   info "Cumulative temp file stats (all time):"
-  local db_out
-  db_out=$(ksql_q "
-    SELECT datname, temp_files, pg_size_pretty(temp_bytes) AS temp_size
-    FROM sys_stat_database WHERE temp_bytes > 0 ORDER BY temp_bytes DESC;
-  " 2>/dev/null || true)
-
-  if [[ -z "$db_out" ]]; then
+  local db_cnt
+  db_cnt=$(ksql_q "SELECT count(*) FROM sys_stat_database WHERE temp_bytes > 0;" 2>/dev/null | tr -d '[:space:]' || echo 0)
+  if [[ "${db_cnt:-0}" -eq 0 ]]; then
     info "No temp file usage recorded"
   else
-    echo "$db_out" | column -t -s '|' || true
+    ksql_qh "
+      SELECT datname, temp_files, pg_size_pretty(temp_bytes) AS temp_size
+      FROM sys_stat_database WHERE temp_bytes > 0 ORDER BY temp_bytes DESC;
+    " 2>/dev/null | column -t -s '|' || true
   fi
 
   echo ""
 
   # ── Current sessions using temp files ───────────────────────────────────────
   info "Current sessions using temp files:"
-  local sess_out
-  sess_out=$(ksql_q "
-    SELECT pid, usename, temp_blks_read, temp_blks_written,
-           left(query, 60) AS query
-    FROM sys_stat_activity
-    WHERE temp_blks_written > 0 AND state <> 'idle';
-  " 2>/dev/null || true)
-
-  if [[ -z "$sess_out" ]]; then
+  local sess_cnt
+  sess_cnt=$(ksql_q "SELECT count(*) FROM sys_stat_activity WHERE temp_blks_written > 0 AND state <> 'idle';" 2>/dev/null | tr -d '[:space:]' || echo 0)
+  if [[ "${sess_cnt:-0}" -eq 0 ]]; then
     info "No sessions currently using temp files"
   else
-    echo "$sess_out" | column -t -s '|' || true
+    ksql_qh "
+      SELECT pid, usename, temp_blks_read, temp_blks_written,
+             left(query, 60) AS query
+      FROM sys_stat_activity
+      WHERE temp_blks_written > 0 AND state <> 'idle';
+    " 2>/dev/null | column -t -s '|' || true
   fi
 
   echo ""
 
   # ── Memory settings related to temp file usage ───────────────────────────────
   info "Related settings:"
-  ksql_q "
+  ksql_qh "
     SELECT name, setting, unit FROM sys_settings
     WHERE name IN ('work_mem','temp_file_limit','maintenance_work_mem')
     ORDER BY name;" | column -t -s '|' || true
@@ -1402,7 +1400,7 @@ cmd_conf() {
 
   # Default: show non-default parameters + pending restart
   info "Non-default parameters:"
-  ksql_q "
+  ksql_qh "
     SELECT name, setting, unit, boot_val,
            CASE WHEN pending_restart = 'true' THEN '[RESTART NEEDED]' ELSE '' END AS note
     FROM sys_settings WHERE setting <> boot_val ORDER BY name;" | column -t -s '|' || true
@@ -1418,46 +1416,53 @@ cmd_audit() {
 
   # Superusers
   info "Superuser roles:"
-  ksql_q "SELECT rolname FROM sys_roles WHERE rolsuper=true ORDER BY rolname;" | column -t -s '|' || true
+  ksql_qh "SELECT rolname FROM sys_roles WHERE rolsuper=true ORDER BY rolname;" | column -t -s '|' || true
 
   # Roles that can login without a password
   info "Roles with login but no password:"
-  local no_pwd
-  no_pwd=$(ksql_q "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolpassword IS NULL ORDER BY rolname;" || true)
-  if [[ -n "$no_pwd" ]]; then
+  local no_pwd_cnt
+  no_pwd_cnt=$(ksql_q "SELECT count(*) FROM sys_roles WHERE rolcanlogin=true AND rolpassword IS NULL;" | tr -d '[:space:]')
+  if [[ "${no_pwd_cnt:-0}" -gt 0 ]]; then
     warn "Roles with no password set:"
-    echo "$no_pwd" | column -t -s '|'
+    ksql_qh "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolpassword IS NULL ORDER BY rolname;" | column -t -s '|' || true
   else
     ok "All login roles have passwords set"
   fi
 
   # PUBLIC schema write grants
   info "PUBLIC write grants on public schema tables (top $TOP_N):"
-  local pub_grants
-  pub_grants=$(ksql_q "
-    SELECT grantee, table_name, privilege_type
-    FROM information_schema.role_table_grants
+  local pub_grants_cnt
+  pub_grants_cnt=$(ksql_q "
+    SELECT count(*) FROM information_schema.role_table_grants
     WHERE table_schema='public' AND privilege_type IN ('INSERT','UPDATE','DELETE')
-      AND grantee='PUBLIC'
-    LIMIT $TOP_N;" | column -t -s '|' || true)
-  if [[ -n "$pub_grants" ]]; then
+      AND grantee='PUBLIC';" | tr -d '[:space:]')
+  if [[ "${pub_grants_cnt:-0}" -gt 0 ]]; then
     warn "PUBLIC has write grants on these tables:"
-    echo "$pub_grants"
+    ksql_qh "
+      SELECT grantee, table_name, privilege_type
+      FROM information_schema.role_table_grants
+      WHERE table_schema='public' AND privilege_type IN ('INSERT','UPDATE','DELETE')
+        AND grantee='PUBLIC'
+      LIMIT $TOP_N;" | column -t -s '|' || true
   else
     ok "No PUBLIC write grants on public schema tables"
   fi
 
   # Tables without primary keys
   info "User tables without primary keys (top $TOP_N):"
-  local no_pk
-  no_pk=$(ksql_q "
-    SELECT schemaname, relname FROM sys_stat_user_tables
+  local no_pk_cnt
+  no_pk_cnt=$(ksql_q "
+    SELECT count(*) FROM sys_stat_user_tables
     WHERE relname NOT IN (
       SELECT conrelid::regclass::text FROM sys_constraint WHERE contype='p'
-    ) ORDER BY schemaname, relname LIMIT $TOP_N;" | column -t -s '|' || true)
-  if [[ -n "$no_pk" ]]; then
+    );" | tr -d '[:space:]')
+  if [[ "${no_pk_cnt:-0}" -gt 0 ]]; then
     warn "Tables without primary keys:"
-    echo "$no_pk"
+    ksql_qh "
+      SELECT schemaname, relname FROM sys_stat_user_tables
+      WHERE relname NOT IN (
+        SELECT conrelid::regclass::text FROM sys_constraint WHERE contype='p'
+      ) ORDER BY schemaname, relname LIMIT $TOP_N;" | column -t -s '|' || true
   else
     ok "All user tables have primary keys"
   fi

@@ -34,3 +34,9 @@ test_temp_quiet_flag() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE -q temp")
   assert_exit_code 0 "${code:-0}"
 }
+
+test_temp_has_settings_header() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE temp")
+  # The "Related settings" table always renders (3 rows), so header must appear
+  assert_contains "$out" "name"
+}

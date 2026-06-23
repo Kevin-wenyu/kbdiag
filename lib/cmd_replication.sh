@@ -7,7 +7,7 @@ cmd_replication() {
   if [[ "$is_standby" == "false" ]]; then
     info "Standby connections:"
     if [[ -n "$VERBOSE" ]]; then
-      ksql_q "
+      ksql_qh "
         SELECT client_addr, state, sync_state,
                pg_size_pretty(sent_lsn - replay_lsn) AS replay_lag
         FROM sys_stat_replication;

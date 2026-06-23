@@ -28,7 +28,7 @@ cmd_check() {
     json_item "connections" "ok" "${conn_used}/${max_conn} (${conn_pct}%)" ""
   fi
   if [[ -n "$VERBOSE" ]]; then
-    ksql_q "SELECT usename, count(*) FROM sys_stat_activity GROUP BY usename ORDER BY 2 DESC LIMIT 10;" \
+    ksql_qh "SELECT usename, count(*) FROM sys_stat_activity GROUP BY usename ORDER BY 2 DESC LIMIT 10;" \
       | column -t -s '|' || true
   fi
 
@@ -78,7 +78,7 @@ cmd_check() {
     json_item "long_transactions" "ok" "0" ""
   fi
   if [[ -n "$VERBOSE" && ${long_warn:-0} -gt 0 ]]; then
-    ksql_q "
+    ksql_qh "
       SELECT pid, usename, state,
              date_trunc('second', now()-xact_start)::text AS duration,
              left(query,80) AS query
@@ -96,7 +96,7 @@ cmd_check() {
     json_item "waiting_locks" "warn" "${lock_cnt}" "sessions waiting on locks"
     _exit=$(_check_level $_exit 1)
     if [[ -n "$VERBOSE" ]]; then
-      ksql_q "
+      ksql_qh "
         SELECT w.pid, w.usename, left(w.query,60) AS wait_query,
                b.pid AS block_pid, left(b.query,60) AS block_query
         FROM sys_stat_activity w
@@ -136,7 +136,7 @@ cmd_check() {
     json_item "autovacuum_backlog" "warn" "${vac_cnt}" "tables with dead_tup > ${KB_WARN_DEAD_TUPLES}"
     _exit=$(_check_level $_exit 1)
     if [[ -n "$VERBOSE" ]]; then
-      ksql_q "
+      ksql_qh "
         SELECT schemaname, relname, n_dead_tup, last_autovacuum
         FROM sys_stat_user_tables
         WHERE n_dead_tup > ${KB_WARN_DEAD_TUPLES}

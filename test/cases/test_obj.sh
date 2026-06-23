@@ -61,3 +61,8 @@ test_obj_nonexistent_table_returns_error() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE obj public.kbdiag_nonexistent_xyz")
   assert_exit_code 1 "$code"
 }
+
+test_obj_has_column_header() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE obj kbdiag_test")
+  assert_contains "$out" "total_size"
+}
