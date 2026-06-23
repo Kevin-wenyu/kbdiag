@@ -76,14 +76,8 @@ test_stat_shows_checkpoints() {
 }
 
 test_stat_top_sql_section_or_skip() {
-  local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval=1")
-  # Top SQL section should be present if sys_stat_statements is loaded
-  # but it's OK if it's not loaded (graceful skip)
-  if echo "$out" | grep -qiE 'Top SQL|sys_stat_statements'; then
-    _pass
-  else
-    # If neither is present, the function still succeeded (no errors)
-    # This is acceptable behavior - it gracefully skips
-    _pass
-  fi
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval=1" 2>&1 || true)
+  assert_not_contains "$out" ": line "
+  assert_not_contains "$out" "unbound variable"
+  _pass
 }

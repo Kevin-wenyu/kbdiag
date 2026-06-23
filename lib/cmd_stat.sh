@@ -102,18 +102,18 @@ _stat_section_top_sql() {
   fi
 
   printf "\nTop SQL (by total execution time):\n"
-  printf "%-20s %-10s %-10s %s\n" "queryid" "calls" "total_s" "SQL"
-  printf "%-20s %-10s %-10s %s\n" "--------------------" "----------" "----------" "---"
-  ksql_q "SELECT queryid::text,
-    calls::text,
-    round((total_exec_time/1000.0)::numeric, 1)::text,
+  printf "%-8s %-10s %-10s %s\n" "calls" "total_ms" "mean_ms" "query"
+  printf "%-8s %-10s %-10s %s\n" "--------" "----------" "----------" "---"
+  ksql_q "SELECT calls::text,
+    round(total_exec_time::numeric, 1)::text,
+    round(mean_exec_time::numeric, 1)::text,
     left(replace(query, E'\n', ' '), 60)
     FROM sys_stat_statements
     WHERE calls > 0
     ORDER BY total_exec_time DESC
     LIMIT 5;" 2>/dev/null \
-  | while IFS='|' read -r queryid calls total_s sql; do
-      printf "%-20s %-10s %-10s %s\n" \
-        "${queryid// /}" "${calls// /}" "${total_s// /}" "${sql// /}"
+  | while IFS='|' read -r calls total_ms mean_ms sql; do
+      printf "%-8s %-10s %-10s %s\n" \
+        "${calls// /}" "${total_ms// /}" "${mean_ms// /}" "${sql// /}"
     done || true
 }
