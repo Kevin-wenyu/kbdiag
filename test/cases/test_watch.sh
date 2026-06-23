@@ -29,3 +29,19 @@ test_watch_unknown_subcmd_warns() {
   # Just verify it doesn't hang and produces some output or not
   _pass
 }
+
+# ── watch 补强 ───────────────────────────────────────────────
+
+test_watch_locks_no_crash() {
+  local out; out=$(ssh_node1 "timeout 3 $KBDIAG_REMOTE watch 1 locks 2>&1 || true")
+  assert_not_contains "$out" ": line "
+  assert_not_contains "$out" "command not found"
+  assert_not_contains "$out" "unknown command"
+}
+
+test_watch_wait_no_crash() {
+  local out; out=$(ssh_node1 "timeout 3 $KBDIAG_REMOTE watch 1 wait 2>&1 || true")
+  assert_not_contains "$out" ": line "
+  assert_not_contains "$out" "command not found"
+  assert_not_contains "$out" "unknown command"
+}
