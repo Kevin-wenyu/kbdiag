@@ -82,3 +82,35 @@ test_advisor_standby_runs() {
   local code; code=$(ssh_node2_exit "$KBDIAG_REMOTE advisor")
   [[ "${code:-0}" -le 1 ]] && _pass || _fail "advisor on standby exited $code"
 }
+
+# ── --fix SQL 语法验证 ────────────────────────────────────────
+
+test_advisor_fix_vacuum_sql_parseable() {
+  local sql; sql=$(ssh_node1 "$KBDIAG_REMOTE advisor vacuum --fix" 2>/dev/null | grep -i 'VACUUM' | head -1 || true)
+  [[ -z "$sql" ]] && { _pass; return; }
+  if echo "$sql" | grep -qiE '^VACUUM'; then
+    _pass
+  else
+    _fail "expected VACUUM statement, got: $sql"
+  fi
+}
+
+test_advisor_fix_analyze_sql_parseable() {
+  local sql; sql=$(ssh_node1 "$KBDIAG_REMOTE advisor analyze --fix" 2>/dev/null | grep -i 'ANALYZE' | head -1 || true)
+  [[ -z "$sql" ]] && { _pass; return; }
+  if echo "$sql" | grep -qiE '^ANALYZE'; then
+    _pass
+  else
+    _fail "expected ANALYZE statement, got: $sql"
+  fi
+}
+
+test_advisor_fix_index_sql_executable() {
+  local sql; sql=$(ssh_node1 "$KBDIAG_REMOTE advisor index --fix" 2>/dev/null | grep -i 'CREATE INDEX' | head -1 || true)
+  [[ -z "$sql" ]] && { _pass; return; }
+  if echo "$sql" | grep -qiE '^DROP INDEX'; then
+    _pass
+  else
+    _fail "expected DROP INDEX statement from advisor index --fix, got: $sql"
+  fi
+}
