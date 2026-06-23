@@ -45,3 +45,17 @@ test_watch_wait_no_crash() {
   assert_not_contains "$out" "command not found"
   assert_not_contains "$out" "unknown command"
 }
+
+test_watch_natural_interface_sessions() {
+  # kbdiag watch sessions（不传 interval）应能运行，不报 "unknown command"
+  local out; out=$(ssh_node1 "timeout 3 $KBDIAG_REMOTE watch sessions 2>&1 || true")
+  assert_not_contains "$out" "unknown command"
+  assert_not_contains "$out" ": line "
+}
+
+test_watch_default_no_args_runs_status() {
+  # kbdiag watch（无参数）应默认运行 status，不报 "unknown command ''"
+  local out; out=$(ssh_node1 "timeout 3 $KBDIAG_REMOTE watch 2>&1 || true")
+  assert_not_contains "$out" "unknown command ''"
+  assert_not_contains "$out" ": line "
+}

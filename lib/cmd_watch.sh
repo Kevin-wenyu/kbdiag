@@ -1,8 +1,18 @@
 # shellcheck shell=bash
 cmd_watch() {
-  local interval="${1:-5}"; shift
-  local subcmd="${1:-}"; [[ $# -gt 0 ]] && shift || true
-  local args=("$@")
+  local interval=5
+  local subcmd="status"
+  local args=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      status|sessions|wait|check|locks) subcmd="$1" ;;
+      perf) subcmd="$1"; shift; args=("$@"); break ;;
+      ''|*[!0-9]*) ;;
+      *) interval="$1" ;;
+    esac
+    shift
+  done
 
   while true; do
     clear 2>/dev/null || printf '\033[2J\033[H'
