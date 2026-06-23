@@ -1,5 +1,5 @@
 {
   "hooks": {
-    "PreToolUse": "python3 -c \"import sys, json; d=json.load(sys.stdin); cmd=d.get('tool_name',''); dangerous=['push --force', 'push -f', 'reset --hard', 'checkout .', 'restore .', 'clean -f', 'branch -D']; args=' '.join(d.get('tool_parameters', {}).get('command', '').split()[:2]); [sys.exit(f'BLOCK: {cmd} {args}') for rule in dangerous if rule in ' '.join(d.get('tool_parameters', {}).get('command', '').split())]\" 2>/dev/null"
+    "PreToolUse": "python3 -c \"import sys, json, re; d=json.load(sys.stdin); cmd=' '.join(d.get('tool_parameters', {}).get('command', '').split()); patterns=[r'push\\s+.*--force(?!-with-lease)', r'push\\s+.*-f(?!\\w)', r'reset\\s+.*--hard', r'checkout\\s+\\.', r'restore\\s+\\.', r'clean\\s+.*-f', r'branch\\s+.*-D']; blocked=[p for p in patterns if re.search(p, cmd)]; [sys.exit('BLOCKED: ' + cmd) for _ in blocked if blocked]\" 2>&1"
   }
 }
