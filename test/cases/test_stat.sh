@@ -47,3 +47,30 @@ test_stat_header_shows_interval() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval 2")
   assert_contains "$out" "throughput"
 }
+
+test_stat_shows_wait_events() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval=1")
+  if echo "$out" | grep -qiE 'Wait event|wait_event|等待'; then
+    _pass
+  else
+    _fail "stat missing wait events section: $(echo "$out" | tail -5)"
+  fi
+}
+
+test_stat_shows_temp_files() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval=1")
+  if echo "$out" | grep -qiE 'Temp files|temp_files'; then
+    _pass
+  else
+    _fail "stat missing temp files section: $(echo "$out" | tail -5)"
+  fi
+}
+
+test_stat_shows_checkpoints() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval=1")
+  if echo "$out" | grep -qiE 'Checkpoint|checkpoint'; then
+    _pass
+  else
+    _fail "stat missing checkpoint section: $(echo "$out" | tail -5)"
+  fi
+}
