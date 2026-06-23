@@ -26,3 +26,16 @@ test_remote_all_from_nodes_conf() {
   # Clean up
   ssh_node1 "rm -f ~/.kbdiag/nodes.conf" || true
 }
+
+# ── remote 补强 ──────────────────────────────────────────────
+
+test_remote_single_node_status() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE remote node1 status" 2>&1 || true)
+  assert_not_contains "$out" "Unknown command"
+  assert_not_contains "$out" ": line "
+}
+
+test_remote_all_exits_cleanly() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE remote --all status" || true)
+  [[ "${code:-0}" -ne 127 ]] && _pass || _fail "remote --all crashed with exit 127"
+}
