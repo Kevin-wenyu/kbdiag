@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # cmd_stmt.sh — SQL 历史统计（sys_stat_statements AWR 风格）
 
 _stmt_check_ext() {
@@ -116,6 +117,7 @@ _stmt_detail() {
 
   printf "\n${BOLD}==> SQL 详情  queryid: %s${RESET}\n\n" "$queryid"
 
+  # shellcheck disable=SC2059
   printf "${BOLD}── 执行统计 ──────────────────────────────────────────────────────────────────────────────────────────────────${RESET}\n"
   printf "调用次数    : %s\n" "${calls// /}"
   printf "平均耗时    : %s ms\n" "${mean_ms// /}"
@@ -129,6 +131,7 @@ _stmt_detail() {
   printf "规划时间    : %s ms (avg)\n" "${plan_ms// /}"
   echo ""
 
+  # shellcheck disable=SC2059
   printf "${BOLD}── IO 分解 ───────────────────────────────────────────────────────────────────────────────────────────────────${RESET}\n"
   printf "shared_blks_hit   : %s\n" "${blks_hit// /}"
   printf "shared_blks_read  : %s\n" "${blks_read// /}"
@@ -142,15 +145,18 @@ _stmt_detail() {
   printf "temp_blks_written : %s\n" "${temp_w// /}"
   echo ""
 
+  # shellcheck disable=SC2059
   printf "${BOLD}── SQL 全文 ──────────────────────────────────────────────────────────────────────────────────────────────────${RESET}\n"
   echo "$sql_text"
   echo ""
 
   local explain_sql
   explain_sql=$(printf '%s' "$sql_text" | sed "s/\\\$\([0-9][0-9]*\)/'param_\1'  -- 替换为实际值/g")
+  # shellcheck disable=SC2059
   printf "${BOLD}── 验证路径 ──────────────────────────────────────────────────────────────────────────────────────────────────${RESET}\n"
   printf "执行计划（填入实际参数后运行）:\n"
   printf "  EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)\n"
+  # shellcheck disable=SC2001
   echo "$explain_sql" | sed 's/^/  /'
   echo ""
   printf "注意: SQL 中 \$N 为占位符，已替换为 'param_N'，运行前请换成真实值\n"
@@ -187,6 +193,7 @@ _stmt_json() {
     while IFS='|' read -r qid calls mean_ms max_ms pct summary; do
       [[ -z "${qid// /}" ]] && continue
       local entry
+      # shellcheck disable=SC2001
       entry=$(printf '{"queryid":"%s","calls":%s,"mean_exec_time":%s,"max_exec_time":%s,"pct_total":"%s","query_summary":"%s"}' \
         "${qid// /}" "${calls// /}" "${mean_ms// /}" "${max_ms// /}" "${pct// /}" \
         "$(echo "${summary}" | sed 's/"/\\"/g')")

@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_audit() {
   hdr "Security Audit"
 

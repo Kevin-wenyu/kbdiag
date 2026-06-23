@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_stat() {
   local interval=5 count=1
   local i=0

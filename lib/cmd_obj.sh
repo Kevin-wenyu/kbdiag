@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_obj() {
   local target="${1:-}"
   if [[ -z "$target" ]]; then

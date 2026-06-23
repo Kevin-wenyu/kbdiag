@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_temp() {
   hdr "Temp file usage"
 

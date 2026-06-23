@@ -1,15 +1,16 @@
+# shellcheck shell=bash
 # cmd_logs.sh — log file analysis (slow queries, errors, fatals)
 
 cmd_logs() {
-  local log_file="" since="" level="all"
+  local log_file="" since=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --file)    log_file="$2"; shift ;;
       --file=*)  log_file="${1#--file=}" ;;
       --since)   since="$2"; shift ;;
       --since=*) since="${1#--since=}" ;;
-      --level)   level="$2"; shift ;;
-      --level=*) level="${1#--level=}" ;;
+      --level)   shift ;;
+      --level=*) ;;
       "")        ;; # skip empty args from dispatch
     esac
     shift
@@ -17,12 +18,13 @@ cmd_logs() {
 
   # Auto-detect log path if not specified
   if [[ -z "$log_file" ]]; then
-    local log_dir log_fn
+    local log_dir
     log_dir=$(ksql_q "SELECT setting FROM sys_settings WHERE name='log_directory';" 2>/dev/null | tr -d '[:space:]') || log_dir=""
     if [[ -z "$log_dir" ]]; then
       log_dir="log"
     fi
     [[ "${log_dir}" != /* ]] && log_dir="$KB_DATA_DIR/$log_dir"
+    # shellcheck disable=SC2012
     log_file=$(ls -t "${log_dir}/"*.log 2>/dev/null | head -1 || true)
   fi
 
@@ -38,8 +40,8 @@ cmd_logs() {
   local tmp_file=""
   if [[ -n "$since" ]]; then
     local mins=0
-    [[ "$since" =~ ([0-9]+)h ]] && mins=$(( mins + ${BASH_REMATCH[1]} * 60 ))
-    [[ "$since" =~ ([0-9]+)m ]] && mins=$(( mins + ${BASH_REMATCH[1]} ))
+    [[ "$since" =~ ([0-9]+)h ]] && mins=$(( mins + BASH_REMATCH[1] * 60 ))
+    [[ "$since" =~ ([0-9]+)m ]] && mins=$(( mins + BASH_REMATCH[1] ))
     local cutoff
     cutoff=$(date -d "-${mins} minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || \
              date -v "-${mins}M" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || true)

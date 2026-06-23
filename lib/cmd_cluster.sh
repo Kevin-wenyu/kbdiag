@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_cluster() {
   hdr "Cluster status (repmgr)"
 

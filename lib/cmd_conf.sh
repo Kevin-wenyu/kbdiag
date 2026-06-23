@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_conf() {
   local subcmd="${1:-}"
   hdr "Configuration"
@@ -33,5 +34,6 @@ cmd_conf() {
 
   local restart_cnt
   restart_cnt=$(ksql_q "SELECT count(*) FROM sys_settings WHERE pending_restart=true;" | tr -d '[:space:]')
+  # shellcheck disable=SC2015
   [[ "${restart_cnt:-0}" -gt 0 ]] && warn "$restart_cnt parameter(s) pending restart" || ok "No restart-pending parameters"
 }

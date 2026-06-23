@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 _colstat_parse_mcv() {
   # Parse "{val1,val2,val3}" and "{0.42,0.31,0.18}" into "val1(42%) val2(31%) val3(18%)"
   local vals_raw="$1" freqs_raw="$2"
@@ -7,7 +8,9 @@ _colstat_parse_mcv() {
   [[ -z "$vals_raw" || "$vals_raw" == "N/A" ]] && echo "—" && return
 
   local IFS=','
+  # shellcheck disable=SC2206
   local vals=($vals_raw)
+  # shellcheck disable=SC2206
   local freqs=($freqs_raw)
   local result=""
   local i=0

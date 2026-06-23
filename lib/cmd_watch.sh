@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_watch() {
   local interval="${1:-5}"; shift
   local subcmd="${1:-}"; [[ $# -gt 0 ]] && shift || true

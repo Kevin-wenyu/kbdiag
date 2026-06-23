@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 _idx_unused() {
   hdr "Unused indexes (idx_scan=0, table rows > 1000)"
   local cnt

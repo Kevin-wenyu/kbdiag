@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 _kill_usage() {
   echo "Usage: kbdiag kill [options] [pid...]"
   echo ""

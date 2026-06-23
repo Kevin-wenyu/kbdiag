@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 _perf_slow() {
   hdr "Slow queries (running > ${KB_SLOW_THRESHOLD}s)"
   local cnt

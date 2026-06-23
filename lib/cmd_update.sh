@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # cmd_update.sh — self-update from GitHub
 
 cmd_update() {

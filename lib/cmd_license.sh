@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_license() {
   [[ "$OUTPUT_FMT" == "json" ]] && json_begin "license"
   hdr "License"

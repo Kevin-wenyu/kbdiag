@@ -1,6 +1,7 @@
+# shellcheck shell=bash
 _check_level() {
   # $1=current_exit $2=new_level(1=warn,2=fail)
-  [[ $2 -gt $1 ]] && echo $2 || echo $1
+  [[ $2 -gt $1 ]] && echo "$2" || echo "$1"
 }
 
 cmd_check() {
@@ -18,11 +19,11 @@ cmd_check() {
   if [[ $conn_pct -ge $KB_FAIL_CONN ]]; then
     fail "Connections: ${conn_pct}% (${conn_used}/${max_conn}) >= FAIL threshold ${KB_FAIL_CONN}%"
     json_item "connections" "fail" "${conn_used}/${max_conn} (${conn_pct}%)" ">= FAIL threshold ${KB_FAIL_CONN}%"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
   elif [[ $conn_pct -ge $KB_WARN_CONN ]]; then
     warn "Connections: ${conn_pct}% (${conn_used}/${max_conn}) >= WARN threshold ${KB_WARN_CONN}%"
     json_item "connections" "warn" "${conn_used}/${max_conn} (${conn_pct}%)" ">= WARN threshold ${KB_WARN_CONN}%"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
   else
     ok "Connections: ${conn_pct}% (${conn_used}/${max_conn})"
     json_item "connections" "ok" "${conn_used}/${max_conn} (${conn_pct}%)" ""
@@ -42,11 +43,11 @@ cmd_check() {
     if [[ $lag_sec -ge $KB_FAIL_LAG ]]; then
       fail "Replication lag: ${lag_sec}s >= FAIL threshold ${KB_FAIL_LAG}s"
       json_item "replication_lag" "fail" "${lag_sec}s" ">= FAIL threshold ${KB_FAIL_LAG}s"
-      _exit=$(_check_level $_exit 2)
+      _exit=$(_check_level "$_exit" 2)
     elif [[ $lag_sec -ge $KB_WARN_LAG ]]; then
       warn "Replication lag: ${lag_sec}s >= WARN threshold ${KB_WARN_LAG}s"
       json_item "replication_lag" "warn" "${lag_sec}s" ">= WARN threshold ${KB_WARN_LAG}s"
-      _exit=$(_check_level $_exit 1)
+      _exit=$(_check_level "$_exit" 1)
     else
       ok "Replication lag: ${lag_sec}s"
       json_item "replication_lag" "ok" "${lag_sec}s" ""
@@ -68,11 +69,11 @@ cmd_check() {
   if [[ ${long_fail:-0} -gt 0 ]]; then
     fail "Long transactions: ${long_fail} exceeding FAIL threshold ${KB_FAIL_TXN}s"
     json_item "long_transactions" "fail" "${long_fail}" "exceeding FAIL threshold ${KB_FAIL_TXN}s"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
   elif [[ ${long_warn:-0} -gt 0 ]]; then
     warn "Long transactions: ${long_warn} exceeding WARN threshold ${KB_WARN_TXN}s"
     json_item "long_transactions" "warn" "${long_warn}" "exceeding WARN threshold ${KB_WARN_TXN}s"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
   else
     ok "Long transactions: none"
     json_item "long_transactions" "ok" "0" ""
@@ -94,7 +95,7 @@ cmd_check() {
   if [[ ${lock_cnt:-0} -gt 0 ]]; then
     warn "Waiting locks: ${lock_cnt}"
     json_item "waiting_locks" "warn" "${lock_cnt}" "sessions waiting on locks"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     if [[ -n "$VERBOSE" ]]; then
       ksql_qh "
         SELECT w.pid, w.usename, left(w.query,60) AS wait_query,
@@ -119,7 +120,7 @@ cmd_check() {
   if [[ ${arch_failed:-0} -gt 0 ]]; then
     warn "Archiver: ${arch_failed} failed file(s)"
     json_item "archiver" "warn" "${arch_failed}" "failed WAL file(s)"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     [[ -n "$VERBOSE" ]] && info "$arch_status"
   else
     ok "Archiver: no failures"
@@ -134,7 +135,7 @@ cmd_check() {
   if [[ ${vac_cnt:-0} -gt 0 ]]; then
     warn "Autovacuum backlog: ${vac_cnt} table(s) with dead tuples > ${KB_WARN_DEAD_TUPLES}"
     json_item "autovacuum_backlog" "warn" "${vac_cnt}" "tables with dead_tup > ${KB_WARN_DEAD_TUPLES}"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     if [[ -n "$VERBOSE" ]]; then
       ksql_qh "
         SELECT schemaname, relname, n_dead_tup, last_autovacuum
@@ -155,11 +156,11 @@ cmd_check() {
   hit_rate_int=$(echo "$hit_rate" | cut -d. -f1)
   if [[ $hit_rate_int -lt $KB_FAIL_HIT ]]; then
     fail "Buffer hit rate: ${hit_rate}% < FAIL threshold ${KB_FAIL_HIT}%"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "buffer_hit" "fail" "${hit_rate}%" "< FAIL threshold ${KB_FAIL_HIT}%"
   elif [[ $hit_rate_int -lt $KB_WARN_HIT ]]; then
     warn "Buffer hit rate: ${hit_rate}% < WARN threshold ${KB_WARN_HIT}%"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "buffer_hit" "warn" "${hit_rate}%" "< WARN threshold ${KB_WARN_HIT}%"
   else
     ok "Buffer hit rate: ${hit_rate}%"
@@ -172,7 +173,7 @@ cmd_check() {
   ckpt_req=${ckpt_req:-0}
   if [[ $ckpt_req -ge $KB_WARN_CKPT ]]; then
     warn "Checkpoint pressure: ${ckpt_req} requested checkpoints >= WARN threshold ${KB_WARN_CKPT}"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "checkpoint" "warn" "${ckpt_req}" ">= WARN threshold ${KB_WARN_CKPT}"
   else
     ok "Checkpoint pressure: ${ckpt_req} requested checkpoints"
@@ -185,11 +186,11 @@ cmd_check() {
   temp_bytes=${temp_bytes:-0}
   if [[ $temp_bytes -ge $KB_FAIL_TEMP ]]; then
     fail "Temp file usage: ${temp_bytes} bytes >= FAIL threshold ${KB_FAIL_TEMP}"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "temp_files" "fail" "${temp_bytes}" ">= FAIL threshold ${KB_FAIL_TEMP}"
   elif [[ $temp_bytes -ge $KB_WARN_TEMP ]]; then
     warn "Temp file usage: ${temp_bytes} bytes >= WARN threshold ${KB_WARN_TEMP}"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "temp_files" "warn" "${temp_bytes}" ">= WARN threshold ${KB_WARN_TEMP}"
   else
     ok "Temp file usage: ${temp_bytes} bytes"
@@ -202,7 +203,7 @@ cmd_check() {
   deadlocks=${deadlocks:-0}
   if [[ $deadlocks -gt 0 ]]; then
     warn "Deadlocks: ${deadlocks} since last reset"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "deadlocks" "warn" "${deadlocks}" "since last reset"
   else
     ok "Deadlocks: none"
@@ -217,11 +218,11 @@ cmd_check() {
   slot_lag_pretty=${slot_lag_pretty:-0}
   if [[ $slot_lag_bytes -ge $KB_FAIL_SLOT ]]; then
     fail "Replication slot lag: ${slot_lag_pretty} >= FAIL threshold $(( KB_FAIL_SLOT / 1048576 ))MB"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "slot_lag" "fail" "${slot_lag_pretty}" ">= FAIL threshold"
   elif [[ $slot_lag_bytes -ge $KB_WARN_SLOT ]]; then
     warn "Replication slot lag: ${slot_lag_pretty} >= WARN threshold $(( KB_WARN_SLOT / 1048576 ))MB"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "slot_lag" "warn" "${slot_lag_pretty}" ">= WARN threshold"
   else
     ok "Replication slot lag: ${slot_lag_pretty}"
@@ -234,11 +235,11 @@ cmd_check() {
   bgw_pct=${bgw_pct:-0}
   if [[ $bgw_pct -ge $KB_FAIL_BGW ]]; then
     fail "BGWriter pressure: ${bgw_pct}% backend writes >= FAIL threshold ${KB_FAIL_BGW}%"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "bgwriter" "fail" "${bgw_pct}%" ">= FAIL threshold ${KB_FAIL_BGW}%"
   elif [[ $bgw_pct -ge $KB_WARN_BGW ]]; then
     warn "BGWriter pressure: ${bgw_pct}% backend writes >= WARN threshold ${KB_WARN_BGW}%"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "bgwriter" "warn" "${bgw_pct}%" ">= WARN threshold ${KB_WARN_BGW}%"
   else
     ok "BGWriter pressure: ${bgw_pct}% backend writes"
@@ -251,11 +252,11 @@ cmd_check() {
   xid_age=${xid_age:-0}
   if [[ $xid_age -ge $KB_FAIL_XID ]]; then
     fail "XID age: ${xid_age} >= FAIL threshold ${KB_FAIL_XID}"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "xid_age" "fail" "${xid_age}" ">= FAIL threshold ${KB_FAIL_XID}"
   elif [[ $xid_age -ge $KB_WARN_XID ]]; then
     warn "XID age: ${xid_age} >= WARN threshold ${KB_WARN_XID}"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "xid_age" "warn" "${xid_age}" ">= WARN threshold ${KB_WARN_XID}"
   else
     ok "XID age: ${xid_age}"
@@ -268,11 +269,11 @@ cmd_check() {
   oldest_txn=${oldest_txn:-0}
   if [[ $oldest_txn -ge $KB_FAIL_OLDEST_TXN ]]; then
     fail "oldest active transaction: ${oldest_txn}s >= FAIL threshold ${KB_FAIL_OLDEST_TXN}s"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "oldest_txn" "fail" "${oldest_txn}s" ">= FAIL threshold ${KB_FAIL_OLDEST_TXN}s"
   elif [[ $oldest_txn -ge $KB_WARN_OLDEST_TXN ]]; then
     warn "oldest active transaction: ${oldest_txn}s >= WARN threshold ${KB_WARN_OLDEST_TXN}s"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "oldest_txn" "warn" "${oldest_txn}s" ">= WARN threshold ${KB_WARN_OLDEST_TXN}s"
   else
     ok "oldest active transaction: ${oldest_txn}s"
@@ -280,5 +281,5 @@ cmd_check() {
   fi
 
   [[ "$OUTPUT_FMT" == "json" ]] && json_end
-  return $_exit
+  return "$_exit"
 }

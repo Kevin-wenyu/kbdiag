@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # cmd_diagnose.sh — RCA root-cause diagnostic report
 
 # ── 快速模式子函数 ─────────────────────────────────────────────────────────────
@@ -220,8 +221,6 @@ _diag_slow_queries() {
         local hist_mean_fmt hist_stddev_fmt
         hist_mean_fmt=$(printf "%.1f" "$(echo "${hist_mean_s}/1000" | bc -l 2>/dev/null || echo 0)")s
         hist_stddev_fmt=$(printf "%.1f" "$(echo "${hist_stddev_s:-0}/1000" | bc -l 2>/dev/null || echo 0)")s
-        local threshold_fmt
-        threshold_fmt=$(printf "%.1f" "$(echo "${hist_mean_s}/1000" | bc -l 2>/dev/null || echo 0)")s，突然变慢
         local pattern
         if awk "BEGIN{exit !(${hist_stddev_s:-0} > ${hist_mean_s:-0} * 0.5)}"; then
           pattern="高波动（stddev ${hist_stddev_fmt} > mean×0.5），执行计划不稳定"
@@ -312,6 +311,7 @@ _diag_disk() {
 
   local archive_path="${KB_DATA_DIR}/sys_wal/archive_status"
   local ready_cnt=0
+  # shellcheck disable=SC2012
   [[ -d "$archive_path" ]] && ready_cnt=$(ls "$archive_path"/*.ready 2>/dev/null | wc -l | tr -d '[:space:]') || ready_cnt=0
 
   [[ "$level" == "OK" && "${ready_cnt:-0}" -lt 10 ]] && return
@@ -510,10 +510,12 @@ _diag_render() {
     return
   fi
 
+  # shellcheck disable=SC2059
   printf "\n${BOLD}==> Diagnose  [${mode_label}，耗时 ${elapsed}s]${RESET}\n"
   echo ""
 
   if [[ $critical -eq 0 && $warn_ct -eq 0 && $info_ct -eq 0 ]]; then
+    # shellcheck disable=SC2059
     printf "${GREEN}● 未发现异常${RESET}\n"
     [[ "$full_mode" -eq 0 ]] && echo "  加 --full 可运行完整检查（预计约 90s）"
     return

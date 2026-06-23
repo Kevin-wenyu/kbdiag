@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_params() {
   local pattern="${1:-}" all_flag="${2:-}"
   hdr "Instance parameters"

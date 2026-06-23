@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 _space_frag() {
   hdr "Table fragmentation (dead tuple ratio > 10%)"
 

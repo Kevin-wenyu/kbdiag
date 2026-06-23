@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_wait() {
   hdr "Wait event analysis"
 

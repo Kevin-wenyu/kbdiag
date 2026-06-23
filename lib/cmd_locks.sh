@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 _locks_wait() {
   hdr "Waiting locks"
 

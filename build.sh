@@ -36,7 +36,7 @@ KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
   cat << 'DISPATCH'
 # ─── dispatch ────────────────────────────────────────────────────────────────
-require_kingbase_user
+require_kingbase_user "$@"
 
 parse_global_args "$@"
 set -- "${ARGS[@]+"${ARGS[@]}"}"

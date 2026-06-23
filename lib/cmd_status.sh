@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_status() {
   hdr "Instance status"
 

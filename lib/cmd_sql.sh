@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_sql() {
   local target="${1:-all}"
   hdr "SQL analysis"

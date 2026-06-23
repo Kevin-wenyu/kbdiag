@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-11-gd5a65eb-dirty"
+KBDIAG_VERSION="v1.0.0-17-gdc26227-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
+# shellcheck shell=bash
 # ─── connection config ────────────────────────────────────────────────────────
 KB_BIN_DIR="${KB_BIN_DIR:-/home/kingbase/cluster/install/kingbase/bin}"
 KB_DATA_DIR="${KB_DATA_DIR:-/home/kingbase/cluster/install/kingbase/data}"
@@ -114,7 +115,9 @@ json_begin() {
 json_item() {
   # json_item <name> <status> <value> [detail]
   local name="$1" status="$2" value="$3" detail="${4:-}"
-  local entry="{\"name\":\"$name\",\"status\":\"$status\",\"value\":\"$(echo "$value" | sed 's/"/\\"/g')\",\"detail\":\"$(echo "$detail" | sed 's/"/\\"/g')\"}"
+  local entry
+  # shellcheck disable=SC2001
+  entry="{\"name\":\"$name\",\"status\":\"$status\",\"value\":\"$(echo "$value" | sed 's/"/\\"/g')\",\"detail\":\"$(echo "$detail" | sed 's/"/\\"/g')\"}"
   _JSON_ITEMS="${_JSON_ITEMS:+${_JSON_ITEMS},}${entry}"
 }
 
@@ -124,6 +127,7 @@ json_row() {
   for pair in "$@"; do
     local k="${pair%%=*}" v="${pair#*=}"
     [[ $first -eq 0 ]] && obj="${obj},"
+    # shellcheck disable=SC2001
     obj="${obj}\"$k\":\"$(echo "$v" | sed 's/"/\\"/g')\""
     first=0
   done
@@ -179,6 +183,14 @@ json_diagnose_end() {
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
 require_kingbase_user() {
+  # Allow --help, --version, help, and bare invocation without the kingbase user check
+  [[ $# -eq 0 ]] && return 0
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --help|-h|help|--version|-V|"") return 0 ;;
+    esac
+  done
   if [[ "$(whoami)" != "kingbase" ]]; then
     echo "Error: run as kingbase user  (sudo -i -u kingbase)" >&2
     exit 1
@@ -200,6 +212,7 @@ repmgr_available() {
 }
 
 # --- lib/cmd_status.sh ---
+# shellcheck shell=bash
 cmd_status() {
   hdr "Instance status"
 
@@ -247,6 +260,7 @@ cmd_status() {
 }
 
 # --- lib/cmd_cluster.sh ---
+# shellcheck shell=bash
 cmd_cluster() {
   hdr "Cluster status (repmgr)"
 
@@ -259,6 +273,7 @@ cmd_cluster() {
 }
 
 # --- lib/cmd_replication.sh ---
+# shellcheck shell=bash
 cmd_replication() {
   hdr "Replication"
 
@@ -302,6 +317,7 @@ cmd_replication() {
 }
 
 # --- lib/cmd_sessions.sh ---
+# shellcheck shell=bash
 cmd_sessions() {
   hdr "Active sessions"
 
@@ -322,6 +338,7 @@ cmd_sessions() {
 }
 
 # --- lib/cmd_locks.sh ---
+# shellcheck shell=bash
 _locks_wait() {
   hdr "Waiting locks"
 
@@ -415,9 +432,10 @@ cmd_locks() {
 }
 
 # --- lib/cmd_check.sh ---
+# shellcheck shell=bash
 _check_level() {
   # $1=current_exit $2=new_level(1=warn,2=fail)
-  [[ $2 -gt $1 ]] && echo $2 || echo $1
+  [[ $2 -gt $1 ]] && echo "$2" || echo "$1"
 }
 
 cmd_check() {
@@ -435,11 +453,11 @@ cmd_check() {
   if [[ $conn_pct -ge $KB_FAIL_CONN ]]; then
     fail "Connections: ${conn_pct}% (${conn_used}/${max_conn}) >= FAIL threshold ${KB_FAIL_CONN}%"
     json_item "connections" "fail" "${conn_used}/${max_conn} (${conn_pct}%)" ">= FAIL threshold ${KB_FAIL_CONN}%"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
   elif [[ $conn_pct -ge $KB_WARN_CONN ]]; then
     warn "Connections: ${conn_pct}% (${conn_used}/${max_conn}) >= WARN threshold ${KB_WARN_CONN}%"
     json_item "connections" "warn" "${conn_used}/${max_conn} (${conn_pct}%)" ">= WARN threshold ${KB_WARN_CONN}%"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
   else
     ok "Connections: ${conn_pct}% (${conn_used}/${max_conn})"
     json_item "connections" "ok" "${conn_used}/${max_conn} (${conn_pct}%)" ""
@@ -459,11 +477,11 @@ cmd_check() {
     if [[ $lag_sec -ge $KB_FAIL_LAG ]]; then
       fail "Replication lag: ${lag_sec}s >= FAIL threshold ${KB_FAIL_LAG}s"
       json_item "replication_lag" "fail" "${lag_sec}s" ">= FAIL threshold ${KB_FAIL_LAG}s"
-      _exit=$(_check_level $_exit 2)
+      _exit=$(_check_level "$_exit" 2)
     elif [[ $lag_sec -ge $KB_WARN_LAG ]]; then
       warn "Replication lag: ${lag_sec}s >= WARN threshold ${KB_WARN_LAG}s"
       json_item "replication_lag" "warn" "${lag_sec}s" ">= WARN threshold ${KB_WARN_LAG}s"
-      _exit=$(_check_level $_exit 1)
+      _exit=$(_check_level "$_exit" 1)
     else
       ok "Replication lag: ${lag_sec}s"
       json_item "replication_lag" "ok" "${lag_sec}s" ""
@@ -485,11 +503,11 @@ cmd_check() {
   if [[ ${long_fail:-0} -gt 0 ]]; then
     fail "Long transactions: ${long_fail} exceeding FAIL threshold ${KB_FAIL_TXN}s"
     json_item "long_transactions" "fail" "${long_fail}" "exceeding FAIL threshold ${KB_FAIL_TXN}s"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
   elif [[ ${long_warn:-0} -gt 0 ]]; then
     warn "Long transactions: ${long_warn} exceeding WARN threshold ${KB_WARN_TXN}s"
     json_item "long_transactions" "warn" "${long_warn}" "exceeding WARN threshold ${KB_WARN_TXN}s"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
   else
     ok "Long transactions: none"
     json_item "long_transactions" "ok" "0" ""
@@ -511,7 +529,7 @@ cmd_check() {
   if [[ ${lock_cnt:-0} -gt 0 ]]; then
     warn "Waiting locks: ${lock_cnt}"
     json_item "waiting_locks" "warn" "${lock_cnt}" "sessions waiting on locks"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     if [[ -n "$VERBOSE" ]]; then
       ksql_qh "
         SELECT w.pid, w.usename, left(w.query,60) AS wait_query,
@@ -536,7 +554,7 @@ cmd_check() {
   if [[ ${arch_failed:-0} -gt 0 ]]; then
     warn "Archiver: ${arch_failed} failed file(s)"
     json_item "archiver" "warn" "${arch_failed}" "failed WAL file(s)"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     [[ -n "$VERBOSE" ]] && info "$arch_status"
   else
     ok "Archiver: no failures"
@@ -551,7 +569,7 @@ cmd_check() {
   if [[ ${vac_cnt:-0} -gt 0 ]]; then
     warn "Autovacuum backlog: ${vac_cnt} table(s) with dead tuples > ${KB_WARN_DEAD_TUPLES}"
     json_item "autovacuum_backlog" "warn" "${vac_cnt}" "tables with dead_tup > ${KB_WARN_DEAD_TUPLES}"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     if [[ -n "$VERBOSE" ]]; then
       ksql_qh "
         SELECT schemaname, relname, n_dead_tup, last_autovacuum
@@ -572,11 +590,11 @@ cmd_check() {
   hit_rate_int=$(echo "$hit_rate" | cut -d. -f1)
   if [[ $hit_rate_int -lt $KB_FAIL_HIT ]]; then
     fail "Buffer hit rate: ${hit_rate}% < FAIL threshold ${KB_FAIL_HIT}%"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "buffer_hit" "fail" "${hit_rate}%" "< FAIL threshold ${KB_FAIL_HIT}%"
   elif [[ $hit_rate_int -lt $KB_WARN_HIT ]]; then
     warn "Buffer hit rate: ${hit_rate}% < WARN threshold ${KB_WARN_HIT}%"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "buffer_hit" "warn" "${hit_rate}%" "< WARN threshold ${KB_WARN_HIT}%"
   else
     ok "Buffer hit rate: ${hit_rate}%"
@@ -589,7 +607,7 @@ cmd_check() {
   ckpt_req=${ckpt_req:-0}
   if [[ $ckpt_req -ge $KB_WARN_CKPT ]]; then
     warn "Checkpoint pressure: ${ckpt_req} requested checkpoints >= WARN threshold ${KB_WARN_CKPT}"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "checkpoint" "warn" "${ckpt_req}" ">= WARN threshold ${KB_WARN_CKPT}"
   else
     ok "Checkpoint pressure: ${ckpt_req} requested checkpoints"
@@ -602,11 +620,11 @@ cmd_check() {
   temp_bytes=${temp_bytes:-0}
   if [[ $temp_bytes -ge $KB_FAIL_TEMP ]]; then
     fail "Temp file usage: ${temp_bytes} bytes >= FAIL threshold ${KB_FAIL_TEMP}"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "temp_files" "fail" "${temp_bytes}" ">= FAIL threshold ${KB_FAIL_TEMP}"
   elif [[ $temp_bytes -ge $KB_WARN_TEMP ]]; then
     warn "Temp file usage: ${temp_bytes} bytes >= WARN threshold ${KB_WARN_TEMP}"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "temp_files" "warn" "${temp_bytes}" ">= WARN threshold ${KB_WARN_TEMP}"
   else
     ok "Temp file usage: ${temp_bytes} bytes"
@@ -619,7 +637,7 @@ cmd_check() {
   deadlocks=${deadlocks:-0}
   if [[ $deadlocks -gt 0 ]]; then
     warn "Deadlocks: ${deadlocks} since last reset"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "deadlocks" "warn" "${deadlocks}" "since last reset"
   else
     ok "Deadlocks: none"
@@ -634,11 +652,11 @@ cmd_check() {
   slot_lag_pretty=${slot_lag_pretty:-0}
   if [[ $slot_lag_bytes -ge $KB_FAIL_SLOT ]]; then
     fail "Replication slot lag: ${slot_lag_pretty} >= FAIL threshold $(( KB_FAIL_SLOT / 1048576 ))MB"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "slot_lag" "fail" "${slot_lag_pretty}" ">= FAIL threshold"
   elif [[ $slot_lag_bytes -ge $KB_WARN_SLOT ]]; then
     warn "Replication slot lag: ${slot_lag_pretty} >= WARN threshold $(( KB_WARN_SLOT / 1048576 ))MB"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "slot_lag" "warn" "${slot_lag_pretty}" ">= WARN threshold"
   else
     ok "Replication slot lag: ${slot_lag_pretty}"
@@ -651,11 +669,11 @@ cmd_check() {
   bgw_pct=${bgw_pct:-0}
   if [[ $bgw_pct -ge $KB_FAIL_BGW ]]; then
     fail "BGWriter pressure: ${bgw_pct}% backend writes >= FAIL threshold ${KB_FAIL_BGW}%"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "bgwriter" "fail" "${bgw_pct}%" ">= FAIL threshold ${KB_FAIL_BGW}%"
   elif [[ $bgw_pct -ge $KB_WARN_BGW ]]; then
     warn "BGWriter pressure: ${bgw_pct}% backend writes >= WARN threshold ${KB_WARN_BGW}%"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "bgwriter" "warn" "${bgw_pct}%" ">= WARN threshold ${KB_WARN_BGW}%"
   else
     ok "BGWriter pressure: ${bgw_pct}% backend writes"
@@ -668,11 +686,11 @@ cmd_check() {
   xid_age=${xid_age:-0}
   if [[ $xid_age -ge $KB_FAIL_XID ]]; then
     fail "XID age: ${xid_age} >= FAIL threshold ${KB_FAIL_XID}"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "xid_age" "fail" "${xid_age}" ">= FAIL threshold ${KB_FAIL_XID}"
   elif [[ $xid_age -ge $KB_WARN_XID ]]; then
     warn "XID age: ${xid_age} >= WARN threshold ${KB_WARN_XID}"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "xid_age" "warn" "${xid_age}" ">= WARN threshold ${KB_WARN_XID}"
   else
     ok "XID age: ${xid_age}"
@@ -685,11 +703,11 @@ cmd_check() {
   oldest_txn=${oldest_txn:-0}
   if [[ $oldest_txn -ge $KB_FAIL_OLDEST_TXN ]]; then
     fail "oldest active transaction: ${oldest_txn}s >= FAIL threshold ${KB_FAIL_OLDEST_TXN}s"
-    _exit=$(_check_level $_exit 2)
+    _exit=$(_check_level "$_exit" 2)
     json_item "oldest_txn" "fail" "${oldest_txn}s" ">= FAIL threshold ${KB_FAIL_OLDEST_TXN}s"
   elif [[ $oldest_txn -ge $KB_WARN_OLDEST_TXN ]]; then
     warn "oldest active transaction: ${oldest_txn}s >= WARN threshold ${KB_WARN_OLDEST_TXN}s"
-    _exit=$(_check_level $_exit 1)
+    _exit=$(_check_level "$_exit" 1)
     json_item "oldest_txn" "warn" "${oldest_txn}s" ">= WARN threshold ${KB_WARN_OLDEST_TXN}s"
   else
     ok "oldest active transaction: ${oldest_txn}s"
@@ -697,10 +715,11 @@ cmd_check() {
   fi
 
   [[ "$OUTPUT_FMT" == "json" ]] && json_end
-  return $_exit
+  return "$_exit"
 }
 
 # --- lib/cmd_perf.sh ---
+# shellcheck shell=bash
 _perf_slow() {
   hdr "Slow queries (running > ${KB_SLOW_THRESHOLD}s)"
   local cnt
@@ -926,6 +945,7 @@ cmd_perf() {
 }
 
 # --- lib/cmd_space.sh ---
+# shellcheck shell=bash
 _space_frag() {
   hdr "Table fragmentation (dead tuple ratio > 10%)"
 
@@ -1032,6 +1052,7 @@ cmd_space() {
 }
 
 # --- lib/cmd_sql.sh ---
+# shellcheck shell=bash
 cmd_sql() {
   local target="${1:-all}"
   hdr "SQL analysis"
@@ -1079,6 +1100,7 @@ cmd_sql() {
 }
 
 # --- lib/cmd_wait.sh ---
+# shellcheck shell=bash
 cmd_wait() {
   hdr "Wait event analysis"
 
@@ -1113,6 +1135,7 @@ cmd_wait() {
 }
 
 # --- lib/cmd_progress.sh ---
+# shellcheck shell=bash
 cmd_progress() {
   hdr "Operation progress"
 
@@ -1173,6 +1196,7 @@ cmd_progress() {
 }
 
 # --- lib/cmd_params.sh ---
+# shellcheck shell=bash
 cmd_params() {
   local pattern="${1:-}" all_flag="${2:-}"
   hdr "Instance parameters"
@@ -1194,6 +1218,7 @@ cmd_params() {
 }
 
 # --- lib/cmd_stat.sh ---
+# shellcheck shell=bash
 cmd_stat() {
   local interval=5 count=1
   local i=0
@@ -1236,6 +1261,7 @@ cmd_stat() {
 }
 
 # --- lib/cmd_obj.sh ---
+# shellcheck shell=bash
 cmd_obj() {
   local target="${1:-}"
   if [[ -z "$target" ]]; then
@@ -1306,6 +1332,7 @@ cmd_obj() {
 }
 
 # --- lib/cmd_temp.sh ---
+# shellcheck shell=bash
 cmd_temp() {
   hdr "Temp file usage"
 
@@ -1350,6 +1377,7 @@ cmd_temp() {
 }
 
 # --- lib/cmd_watch.sh ---
+# shellcheck shell=bash
 cmd_watch() {
   local interval="${1:-5}"; shift
   local subcmd="${1:-}"; [[ $# -gt 0 ]] && shift || true
@@ -1372,6 +1400,7 @@ cmd_watch() {
 }
 
 # --- lib/cmd_conf.sh ---
+# shellcheck shell=bash
 cmd_conf() {
   local subcmd="${1:-}"
   hdr "Configuration"
@@ -1407,10 +1436,12 @@ cmd_conf() {
 
   local restart_cnt
   restart_cnt=$(ksql_q "SELECT count(*) FROM sys_settings WHERE pending_restart=true;" | tr -d '[:space:]')
+  # shellcheck disable=SC2015
   [[ "${restart_cnt:-0}" -gt 0 ]] && warn "$restart_cnt parameter(s) pending restart" || ok "No restart-pending parameters"
 }
 
 # --- lib/cmd_audit.sh ---
+# shellcheck shell=bash
 cmd_audit() {
   hdr "Security Audit"
 
@@ -1469,18 +1500,19 @@ cmd_audit() {
 }
 
 # --- lib/cmd_logs.sh ---
+# shellcheck shell=bash
 # cmd_logs.sh — log file analysis (slow queries, errors, fatals)
 
 cmd_logs() {
-  local log_file="" since="" level="all"
+  local log_file="" since=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --file)    log_file="$2"; shift ;;
       --file=*)  log_file="${1#--file=}" ;;
       --since)   since="$2"; shift ;;
       --since=*) since="${1#--since=}" ;;
-      --level)   level="$2"; shift ;;
-      --level=*) level="${1#--level=}" ;;
+      --level)   shift ;;
+      --level=*) ;;
       "")        ;; # skip empty args from dispatch
     esac
     shift
@@ -1488,12 +1520,13 @@ cmd_logs() {
 
   # Auto-detect log path if not specified
   if [[ -z "$log_file" ]]; then
-    local log_dir log_fn
+    local log_dir
     log_dir=$(ksql_q "SELECT setting FROM sys_settings WHERE name='log_directory';" 2>/dev/null | tr -d '[:space:]') || log_dir=""
     if [[ -z "$log_dir" ]]; then
       log_dir="log"
     fi
     [[ "${log_dir}" != /* ]] && log_dir="$KB_DATA_DIR/$log_dir"
+    # shellcheck disable=SC2012
     log_file=$(ls -t "${log_dir}/"*.log 2>/dev/null | head -1 || true)
   fi
 
@@ -1509,8 +1542,8 @@ cmd_logs() {
   local tmp_file=""
   if [[ -n "$since" ]]; then
     local mins=0
-    [[ "$since" =~ ([0-9]+)h ]] && mins=$(( mins + ${BASH_REMATCH[1]} * 60 ))
-    [[ "$since" =~ ([0-9]+)m ]] && mins=$(( mins + ${BASH_REMATCH[1]} ))
+    [[ "$since" =~ ([0-9]+)h ]] && mins=$(( mins + BASH_REMATCH[1] * 60 ))
+    [[ "$since" =~ ([0-9]+)m ]] && mins=$(( mins + BASH_REMATCH[1] ))
     local cutoff
     cutoff=$(date -d "-${mins} minutes" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || \
              date -v "-${mins}M" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || true)
@@ -1551,6 +1584,7 @@ cmd_logs() {
 }
 
 # --- lib/cmd_remote.sh ---
+# shellcheck shell=bash
 cmd_remote() {
   local nodes_arg="${1:-}"; shift || true
   local rcmd="${1:-}"; shift || true
@@ -1600,6 +1634,7 @@ cmd_remote() {
 }
 
 # --- lib/cmd_kill.sh ---
+# shellcheck shell=bash
 _kill_usage() {
   echo "Usage: kbdiag kill [options] [pid...]"
   echo ""
@@ -1813,6 +1848,7 @@ cmd_kill() {
 }
 
 # --- lib/cmd_idx.sh ---
+# shellcheck shell=bash
 _idx_unused() {
   hdr "Unused indexes (idx_scan=0, table rows > 1000)"
   local cnt
@@ -2021,6 +2057,7 @@ cmd_idx() {
 }
 
 # --- lib/cmd_colstat.sh ---
+# shellcheck shell=bash
 _colstat_parse_mcv() {
   # Parse "{val1,val2,val3}" and "{0.42,0.31,0.18}" into "val1(42%) val2(31%) val3(18%)"
   local vals_raw="$1" freqs_raw="$2"
@@ -2030,7 +2067,9 @@ _colstat_parse_mcv() {
   [[ -z "$vals_raw" || "$vals_raw" == "N/A" ]] && echo "—" && return
 
   local IFS=','
+  # shellcheck disable=SC2206
   local vals=($vals_raw)
+  # shellcheck disable=SC2206
   local freqs=($freqs_raw)
   local result=""
   local i=0
@@ -2250,6 +2289,7 @@ cmd_colstat() {
 }
 
 # --- lib/cmd_advisor.sh ---
+# shellcheck shell=bash
 # cmd_advisor.sh — consolidated DBA advisor with --fix SQL generation
 
 _advisor_get_mem_mb() {
@@ -2582,7 +2622,7 @@ _advisor_params() {
   max_conn=$(ksql_q "SELECT setting FROM sys_settings WHERE name='max_connections';" | tr -d '[:space:]')
 
   if [[ $mem_mb -gt 0 && ${max_conn:-0} -gt 0 ]]; then
-    rec_wm_kb=$(( mem_mb * 1024 / ${max_conn} / 4 ))
+    rec_wm_kb=$(( mem_mb * 1024 / max_conn / 4 ))
     if [[ ${wm_kb:-0} -lt $(( rec_wm_kb / 2 )) ]]; then
       if [[ $collect -eq 1 ]]; then
         _finding "WARN" "param_work_mem" "work_mem 分配不足\n  症状：work_mem=${wm_mb}MB，${max_conn} 连接占用内存过多\n  建议:\n    · 调整至 ~$(( rec_wm_kb / 1024 ))MB（RAM/${max_conn}conn/4）"
@@ -2710,6 +2750,7 @@ cmd_advisor() {
 }
 
 # --- lib/cmd_stmt.sh ---
+# shellcheck shell=bash
 # cmd_stmt.sh — SQL 历史统计（sys_stat_statements AWR 风格）
 
 _stmt_check_ext() {
@@ -2828,6 +2869,7 @@ _stmt_detail() {
 
   printf "\n${BOLD}==> SQL 详情  queryid: %s${RESET}\n\n" "$queryid"
 
+  # shellcheck disable=SC2059
   printf "${BOLD}── 执行统计 ──────────────────────────────────────────────────────────────────────────────────────────────────${RESET}\n"
   printf "调用次数    : %s\n" "${calls// /}"
   printf "平均耗时    : %s ms\n" "${mean_ms// /}"
@@ -2841,6 +2883,7 @@ _stmt_detail() {
   printf "规划时间    : %s ms (avg)\n" "${plan_ms// /}"
   echo ""
 
+  # shellcheck disable=SC2059
   printf "${BOLD}── IO 分解 ───────────────────────────────────────────────────────────────────────────────────────────────────${RESET}\n"
   printf "shared_blks_hit   : %s\n" "${blks_hit// /}"
   printf "shared_blks_read  : %s\n" "${blks_read// /}"
@@ -2854,15 +2897,18 @@ _stmt_detail() {
   printf "temp_blks_written : %s\n" "${temp_w// /}"
   echo ""
 
+  # shellcheck disable=SC2059
   printf "${BOLD}── SQL 全文 ──────────────────────────────────────────────────────────────────────────────────────────────────${RESET}\n"
   echo "$sql_text"
   echo ""
 
   local explain_sql
   explain_sql=$(printf '%s' "$sql_text" | sed "s/\\\$\([0-9][0-9]*\)/'param_\1'  -- 替换为实际值/g")
+  # shellcheck disable=SC2059
   printf "${BOLD}── 验证路径 ──────────────────────────────────────────────────────────────────────────────────────────────────${RESET}\n"
   printf "执行计划（填入实际参数后运行）:\n"
   printf "  EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)\n"
+  # shellcheck disable=SC2001
   echo "$explain_sql" | sed 's/^/  /'
   echo ""
   printf "注意: SQL 中 \$N 为占位符，已替换为 'param_N'，运行前请换成真实值\n"
@@ -2899,6 +2945,7 @@ _stmt_json() {
     while IFS='|' read -r qid calls mean_ms max_ms pct summary; do
       [[ -z "${qid// /}" ]] && continue
       local entry
+      # shellcheck disable=SC2001
       entry=$(printf '{"queryid":"%s","calls":%s,"mean_exec_time":%s,"max_exec_time":%s,"pct_total":"%s","query_summary":"%s"}' \
         "${qid// /}" "${calls// /}" "${mean_ms// /}" "${max_ms// /}" "${pct// /}" \
         "$(echo "${summary}" | sed 's/"/\\"/g')")
@@ -2942,6 +2989,7 @@ cmd_stmt() {
 }
 
 # --- lib/cmd_diagnose.sh ---
+# shellcheck shell=bash
 # cmd_diagnose.sh — RCA root-cause diagnostic report
 
 # ── 快速模式子函数 ─────────────────────────────────────────────────────────────
@@ -3164,8 +3212,6 @@ _diag_slow_queries() {
         local hist_mean_fmt hist_stddev_fmt
         hist_mean_fmt=$(printf "%.1f" "$(echo "${hist_mean_s}/1000" | bc -l 2>/dev/null || echo 0)")s
         hist_stddev_fmt=$(printf "%.1f" "$(echo "${hist_stddev_s:-0}/1000" | bc -l 2>/dev/null || echo 0)")s
-        local threshold_fmt
-        threshold_fmt=$(printf "%.1f" "$(echo "${hist_mean_s}/1000" | bc -l 2>/dev/null || echo 0)")s，突然变慢
         local pattern
         if awk "BEGIN{exit !(${hist_stddev_s:-0} > ${hist_mean_s:-0} * 0.5)}"; then
           pattern="高波动（stddev ${hist_stddev_fmt} > mean×0.5），执行计划不稳定"
@@ -3256,6 +3302,7 @@ _diag_disk() {
 
   local archive_path="${KB_DATA_DIR}/sys_wal/archive_status"
   local ready_cnt=0
+  # shellcheck disable=SC2012
   [[ -d "$archive_path" ]] && ready_cnt=$(ls "$archive_path"/*.ready 2>/dev/null | wc -l | tr -d '[:space:]') || ready_cnt=0
 
   [[ "$level" == "OK" && "${ready_cnt:-0}" -lt 10 ]] && return
@@ -3454,10 +3501,12 @@ _diag_render() {
     return
   fi
 
+  # shellcheck disable=SC2059
   printf "\n${BOLD}==> Diagnose  [${mode_label}，耗时 ${elapsed}s]${RESET}\n"
   echo ""
 
   if [[ $critical -eq 0 && $warn_ct -eq 0 && $info_ct -eq 0 ]]; then
+    # shellcheck disable=SC2059
     printf "${GREEN}● 未发现异常${RESET}\n"
     [[ "$full_mode" -eq 0 ]] && echo "  加 --full 可运行完整检查（预计约 90s）"
     return
@@ -3522,6 +3571,7 @@ cmd_diagnose() {
 }
 
 # --- lib/cmd_license.sh ---
+# shellcheck shell=bash
 cmd_license() {
   [[ "$OUTPUT_FMT" == "json" ]] && json_begin "license"
   hdr "License"
@@ -3586,6 +3636,7 @@ cmd_license() {
 }
 
 # --- lib/cmd_update.sh ---
+# shellcheck shell=bash
 # cmd_update.sh — self-update from GitHub
 
 cmd_update() {
@@ -3624,7 +3675,7 @@ cmd_update() {
 }
 
 # ─── dispatch ────────────────────────────────────────────────────────────────
-require_kingbase_user
+require_kingbase_user "$@"
 
 parse_global_args "$@"
 set -- "${ARGS[@]+"${ARGS[@]}"}"

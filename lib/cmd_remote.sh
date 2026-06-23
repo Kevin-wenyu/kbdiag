@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 cmd_remote() {
   local nodes_arg="${1:-}"; shift || true
   local rcmd="${1:-}"; shift || true

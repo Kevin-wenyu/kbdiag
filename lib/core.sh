@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # ─── connection config ────────────────────────────────────────────────────────
 KB_BIN_DIR="${KB_BIN_DIR:-/home/kingbase/cluster/install/kingbase/bin}"
 KB_DATA_DIR="${KB_DATA_DIR:-/home/kingbase/cluster/install/kingbase/data}"
@@ -107,7 +108,9 @@ json_begin() {
 json_item() {
   # json_item <name> <status> <value> [detail]
   local name="$1" status="$2" value="$3" detail="${4:-}"
-  local entry="{\"name\":\"$name\",\"status\":\"$status\",\"value\":\"$(echo "$value" | sed 's/"/\\"/g')\",\"detail\":\"$(echo "$detail" | sed 's/"/\\"/g')\"}"
+  local entry
+  # shellcheck disable=SC2001
+  entry="{\"name\":\"$name\",\"status\":\"$status\",\"value\":\"$(echo "$value" | sed 's/"/\\"/g')\",\"detail\":\"$(echo "$detail" | sed 's/"/\\"/g')\"}"
   _JSON_ITEMS="${_JSON_ITEMS:+${_JSON_ITEMS},}${entry}"
 }
 
@@ -117,6 +120,7 @@ json_row() {
   for pair in "$@"; do
     local k="${pair%%=*}" v="${pair#*=}"
     [[ $first -eq 0 ]] && obj="${obj},"
+    # shellcheck disable=SC2001
     obj="${obj}\"$k\":\"$(echo "$v" | sed 's/"/\\"/g')\""
     first=0
   done
@@ -172,6 +176,14 @@ json_diagnose_end() {
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
 require_kingbase_user() {
+  # Allow --help, --version, help, and bare invocation without the kingbase user check
+  [[ $# -eq 0 ]] && return 0
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --help|-h|help|--version|-V|"") return 0 ;;
+    esac
+  done
   if [[ "$(whoami)" != "kingbase" ]]; then
     echo "Error: run as kingbase user  (sudo -i -u kingbase)" >&2
     exit 1

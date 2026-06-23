@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # cmd_advisor.sh — consolidated DBA advisor with --fix SQL generation
 
 _advisor_get_mem_mb() {
@@ -330,7 +331,7 @@ _advisor_params() {
   max_conn=$(ksql_q "SELECT setting FROM sys_settings WHERE name='max_connections';" | tr -d '[:space:]')
 
   if [[ $mem_mb -gt 0 && ${max_conn:-0} -gt 0 ]]; then
-    rec_wm_kb=$(( mem_mb * 1024 / ${max_conn} / 4 ))
+    rec_wm_kb=$(( mem_mb * 1024 / max_conn / 4 ))
     if [[ ${wm_kb:-0} -lt $(( rec_wm_kb / 2 )) ]]; then
       if [[ $collect -eq 1 ]]; then
         _finding "WARN" "param_work_mem" "work_mem 分配不足\n  症状：work_mem=${wm_mb}MB，${max_conn} 连接占用内存过多\n  建议:\n    · 调整至 ~$(( rec_wm_kb / 1024 ))MB（RAM/${max_conn}conn/4）"
