@@ -42,6 +42,7 @@ cmd_stat() {
   _stat_section_wait_events "$interval"
   _stat_section_temp_files "$interval"
   _stat_section_checkpoints
+  _stat_section_top_sql
 }
 
 _stat_section_wait_events() {
@@ -89,5 +90,30 @@ _stat_section_checkpoints() {
       printf "Write time (s):        %s\n" "${write_s// /}"
       printf "Sync time (s):         %s\n" "${sync_s// /}"
       printf "Buffers written:       %s\n" "${bufs// /}"
+    done || true
+}
+
+_stat_section_top_sql() {
+  # Check if sys_stat_statements is loaded
+  local stmt_cnt
+  stmt_cnt=$(ksql_q "SELECT count(*) FROM sys_catalog.sys_class WHERE relname='sys_stat_statements';" 2>/dev/null | tr -d '[:space:]')
+  if [[ "${stmt_cnt:-0}" -eq 0 ]]; then
+    return 0
+  fi
+
+  printf "\nTop SQL (by total execution time):\n"
+  printf "%-20s %-10s %-10s %s\n" "queryid" "calls" "total_s" "SQL"
+  printf "%-20s %-10s %-10s %s\n" "--------------------" "----------" "----------" "---"
+  ksql_q "SELECT queryid::text,
+    calls::text,
+    round((total_exec_time/1000.0)::numeric, 1)::text,
+    left(replace(query, E'\n', ' '), 60)
+    FROM sys_stat_statements
+    WHERE calls > 0
+    ORDER BY total_exec_time DESC
+    LIMIT 5;" 2>/dev/null \
+  | while IFS='|' read -r queryid calls total_s sql; do
+      printf "%-20s %-10s %-10s %s\n" \
+        "${queryid// /}" "${calls// /}" "${total_s// /}" "${sql// /}"
     done || true
 }
