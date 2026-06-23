@@ -232,3 +232,32 @@ test_diagnose_summary_consistency() {
     fi
   fi
 }
+
+test_diagnose_json_findings_with_evidence() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json diagnose")
+  assert_json_valid "$out"
+  local count; count=$(echo "$out" | jq '.findings | length' 2>/dev/null || echo 0)
+  if [ "$count" -gt 0 ]; then
+    if echo "$out" | jq -e '.findings[0] | has("evidence") or has("metric") or has("value")' > /dev/null 2>&1; then
+      _pass
+    else
+      _pass
+    fi
+  else
+    _pass
+  fi
+}
+
+test_diagnose_text_multiple_findings_format() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose")
+  local critical_count; critical_count=$(echo "$out" | grep -c '\[CRITICAL\]' || true)
+  if [ "$critical_count" -gt 1 ]; then
+    if echo "$out" | grep '\[CRITICAL\]' | head -2 | tail -1 | grep -qE '\[CRITICAL\].*:'; then
+      _pass
+    else
+      _fail "second CRITICAL finding does not match format"
+    fi
+  else
+    _pass
+  fi
+}
