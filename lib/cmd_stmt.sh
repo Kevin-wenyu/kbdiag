@@ -1,6 +1,11 @@
 # shellcheck shell=bash
 # cmd_stmt.sh — SQL 历史统计（sys_stat_statements AWR 风格）
 
+# Shared with cmd_diagnose.sh's _diag_stmt_top and cmd_stat.sh's
+# _stat_section_top_sql — edit only here to change which statements count
+# as "active" in the various Top SQL views.
+_STMT_ACTIVE_WHERE="calls > 0"
+
 _stmt_check_ext() {
   local cnt
   cnt=$(ksql_q "SELECT count(*) FROM sys_catalog.sys_class WHERE relname='sys_stat_statements';" 2>/dev/null | tr -d '[:space:]')
@@ -42,7 +47,7 @@ _stmt_overview() {
            round(100.0 * total_exec_time / NULLIF(sum(total_exec_time) OVER (), 0), 1)::text || '%',
            left(replace(query, E'\n', ' '), 60)
     FROM sys_stat_statements
-    WHERE calls > 0
+    WHERE $_STMT_ACTIVE_WHERE
     ORDER BY mean_exec_time DESC
     LIMIT ${TOP_N};" 2>/dev/null | column -t -s '|' || true
 
@@ -58,7 +63,7 @@ _stmt_overview() {
            round(100.0 * total_exec_time / NULLIF(sum(total_exec_time) OVER (), 0), 1)::text || '%',
            left(replace(query, E'\n', ' '), 60)
     FROM sys_stat_statements
-    WHERE calls > 0
+    WHERE $_STMT_ACTIVE_WHERE
     ORDER BY total_exec_time DESC
     LIMIT ${TOP_N};" 2>/dev/null | column -t -s '|' || true
 
@@ -73,7 +78,7 @@ _stmt_overview() {
            round(100.0 * shared_blks_hit / NULLIF(shared_blks_hit + shared_blks_read, 0), 1)::text || '%',
            left(replace(query, E'\n', ' '), 60)
     FROM sys_stat_statements
-    WHERE calls > 0
+    WHERE $_STMT_ACTIVE_WHERE
     ORDER BY shared_blks_read DESC
     LIMIT ${TOP_N};" 2>/dev/null | column -t -s '|' || true
 
@@ -87,7 +92,7 @@ _stmt_overview() {
            round(mean_exec_time::numeric, 1)::text,
            left(replace(query, E'\n', ' '), 60)
     FROM sys_stat_statements
-    WHERE calls > 0
+    WHERE $_STMT_ACTIVE_WHERE
     ORDER BY calls DESC
     LIMIT ${TOP_N};" 2>/dev/null | column -t -s '|' || true
 
@@ -203,7 +208,7 @@ _stmt_json() {
              round(mean_exec_time::numeric,1), round(max_exec_time::numeric,1),
              round(100.0*total_exec_time/NULLIF(sum(total_exec_time) OVER(),0),1),
              left(replace(query, E'\\n', ' '), 60)
-      FROM sys_stat_statements WHERE calls > 0
+      FROM sys_stat_statements WHERE $_STMT_ACTIVE_WHERE
       ORDER BY mean_exec_time DESC LIMIT ${TOP_N};" 2>/dev/null || true)
     printf '{"command":"stmt","stats_reset":"%s","timestamp":"%s","top_by_mean":[%s]}\n' \
       "${stats_reset}" "${ts}" "${top_mean}"

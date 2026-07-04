@@ -443,9 +443,7 @@ _diag_temp() {
 }
 
 _diag_stmt_top() {
-  local stmt_avail
-  stmt_avail=$(ksql_q "SELECT count(*) FROM sys_catalog.sys_class WHERE relname='sys_stat_statements';" 2>/dev/null | tr -d '[:space:]')
-  [[ "${stmt_avail:-0}" -eq 0 ]] && return
+  _stmt_check_ext || return
 
   local stats_reset
   stats_reset=$(ksql_q "SELECT coalesce(stats_reset::date::text,'unknown') FROM sys_stat_bgwriter;" 2>/dev/null | tr -d '[:space:]')
@@ -459,7 +457,7 @@ _diag_stmt_top() {
            round(mean_exec_time::numeric,1)::text AS mean_ms,
            left(replace(query, E'\\n', ' '), 70) AS summary
     FROM sys_stat_statements
-    WHERE calls > 0
+    WHERE $_STMT_ACTIVE_WHERE
     ORDER BY total_exec_time DESC
     LIMIT 3;" 2>/dev/null || true)
 

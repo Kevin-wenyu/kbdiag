@@ -93,12 +93,7 @@ _stat_section_checkpoints() {
 }
 
 _stat_section_top_sql() {
-  # Check if sys_stat_statements is loaded
-  local stmt_cnt
-  stmt_cnt=$(ksql_q "SELECT count(*) FROM sys_catalog.sys_class WHERE relname='sys_stat_statements';" 2>/dev/null | tr -d '[:space:]')
-  if [[ "${stmt_cnt:-0}" -eq 0 ]]; then
-    return 0
-  fi
+  _stmt_check_ext || return 0
 
   printf "\nTop SQL (by total execution time):\n"
   printf "%-8s %-10s %-10s %s\n" "calls" "total_ms" "mean_ms" "query"
@@ -108,7 +103,7 @@ _stat_section_top_sql() {
     round(mean_exec_time::numeric, 1)::text,
     left(replace(query, E'\n', ' '), 60)
     FROM sys_stat_statements
-    WHERE calls > 0
+    WHERE $_STMT_ACTIVE_WHERE
     ORDER BY total_exec_time DESC
     LIMIT 5;" 2>/dev/null \
   | while IFS='|' read -r calls total_ms mean_ms sql; do
