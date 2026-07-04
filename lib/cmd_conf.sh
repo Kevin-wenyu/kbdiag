@@ -25,15 +25,18 @@ cmd_conf() {
     return 0
   fi
 
-  # Default: show non-default parameters + pending restart
-  info "Non-default parameters:"
-  ksql_qh "
-    SELECT name, setting, unit, boot_val,
-           CASE WHEN pending_restart = 'true' THEN '[RESTART NEEDED]' ELSE '' END AS note
-    FROM sys_settings WHERE setting <> boot_val ORDER BY name;" | column -t -s '|' || true
-
+  # conf's job is cross-node comparison (diff) plus the restart-pending signal;
+  # the full non-default parameter list lives in `kbdiag params` — don't duplicate it here.
   local restart_cnt
   restart_cnt=$(ksql_q "SELECT count(*) FROM sys_settings WHERE pending_restart=true;" | tr -d '[:space:]')
-  # shellcheck disable=SC2015
-  [[ "${restart_cnt:-0}" -gt 0 ]] && warn "$restart_cnt parameter(s) pending restart" || ok "No restart-pending parameters"
+  if [[ "${restart_cnt:-0}" -gt 0 ]]; then
+    warn "$restart_cnt parameter(s) pending restart"
+    ksql_qh "
+      SELECT name, setting, unit, boot_val
+      FROM sys_settings WHERE pending_restart=true ORDER BY name;" | column -t -s '|' || true
+  else
+    ok "No restart-pending parameters"
+  fi
+  info "Non-default parameter list: kbdiag params"
+  info "Cross-node comparison:      kbdiag conf diff"
 }

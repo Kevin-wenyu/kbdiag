@@ -10,14 +10,16 @@ test_conf_default_shows_header() {
   assert_contains "$out" "Configuration"
 }
 
-test_conf_default_shows_nondefault_info() {
+test_conf_default_points_to_params() {
+  # conf's default view no longer duplicates params' non-default listing —
+  # it should point the user at `kbdiag params` instead.
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE conf")
-  assert_contains "$out" "Non-default parameters"
+  assert_contains "$out" "kbdiag params"
 }
 
 test_conf_has_column_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE conf")
-  # Either header "name" appears, OR there are no non-default params (unlikely on real DB)
+  # Either a pending-restart param row appears, OR there are none (the common case)
   if echo "$out" | grep -qE 'name\|setting|No restart-pending'; then _pass; else _fail "no header or OK message in conf output"; fi
 }
 
