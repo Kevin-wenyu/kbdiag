@@ -1,12 +1,15 @@
 # shellcheck shell=bash
 _space_frag() {
-  hdr "Table fragmentation (dead tuple ratio > 10%)"
+  # Intentionally a lower/earlier bar than KB_WARN_DEAD_PCT (used by
+  # advisor/diagnose's actionable vacuum checks) — this is a soft heads-up,
+  # not "go vacuum now", so it keeps its own KB_WARN_FRAG_PCT threshold.
+  hdr "Table fragmentation (dead tuple ratio > ${KB_WARN_FRAG_PCT}%)"
 
   local cnt
   cnt=$(ksql_q "
     SELECT count(*) FROM sys_stat_user_tables
     WHERE n_live_tup+n_dead_tup > 1000
-      AND n_dead_tup::float/(n_live_tup+n_dead_tup+1) > 0.1;" | tr -d '[:space:]')
+      AND n_dead_tup::float/(n_live_tup+n_dead_tup+1) > ${KB_WARN_FRAG_PCT}/100.0;" | tr -d '[:space:]')
 
   if [[ "${cnt:-0}" -eq 0 ]]; then
     ok "No heavily fragmented tables"
@@ -21,7 +24,7 @@ _space_frag() {
            round(100.0*n_dead_tup/NULLIF(n_live_tup+n_dead_tup,0),1) AS dead_pct
     FROM sys_stat_user_tables
     WHERE n_live_tup+n_dead_tup > 1000
-      AND n_dead_tup::float/(n_live_tup+n_dead_tup+1) > 0.1
+      AND n_dead_tup::float/(n_live_tup+n_dead_tup+1) > ${KB_WARN_FRAG_PCT}/100.0
     ORDER BY dead_pct DESC
     LIMIT ${TOP_N};" \
     | column -t -s '|' || true

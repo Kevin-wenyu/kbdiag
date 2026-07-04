@@ -36,6 +36,13 @@ KB_FAIL_XID="${KB_FAIL_XID:-1900000000}"     # 19亿
 KB_WARN_OLDEST_TXN="${KB_WARN_OLDEST_TXN:-3600}"   # 1h in seconds
 KB_FAIL_OLDEST_TXN="${KB_FAIL_OLDEST_TXN:-14400}"  # 4h in seconds
 KB_WARN_LICENSE_DAYS="${KB_WARN_LICENSE_DAYS:-30}"
+# Per-table dead-tuple ratio (%): shared by perf/advisor/diagnose so a table
+# gets the same bloat verdict no matter which command looked at it.
+KB_WARN_DEAD_PCT="${KB_WARN_DEAD_PCT:-20}"
+KB_FAIL_DEAD_PCT="${KB_FAIL_DEAD_PCT:-30}"
+# space.sh's "fragmentation" flag is an intentionally earlier/softer signal
+# than KB_WARN_DEAD_PCT, kept as its own constant rather than reusing it.
+KB_WARN_FRAG_PCT="${KB_WARN_FRAG_PCT:-10}"
 
 # ─── global flags (set by parse_global_args) ──────────────────────────────────
 VERBOSE="${VERBOSE:-}"

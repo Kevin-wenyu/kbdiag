@@ -21,26 +21,18 @@ _advisor_index() {
   [[ $collect -eq 0 ]] && hdr "Advisor: Index"
   local _exit=0
 
-  # Unused indexes count + size
+  # Unused indexes count + size (filter definition shared with cmd_idx.sh's _idx_unused)
   local unused_cnt unused_size
   unused_cnt=$(ksql_q "
-    SELECT count(*) FROM sys_stat_user_indexes sui
-    JOIN sys_index si ON si.indexrelid = sui.indexrelid
-    JOIN sys_stat_user_tables sut
-      ON sut.schemaname=sui.schemaname AND sut.relname=sui.relname
-    WHERE sui.idx_scan = 0 AND sut.n_live_tup > 1000
-      AND si.indisunique = false AND si.indisprimary = false;" | tr -d '[:space:]')
+    SELECT count(*) $_IDX_UNUSED_FROM
+    WHERE $_IDX_UNUSED_WHERE;" | tr -d '[:space:]')
   unused_cnt="${unused_cnt:-0}"
 
   if [[ $unused_cnt -gt 0 ]]; then
     unused_size=$(ksql_q "
       SELECT pg_size_pretty(coalesce(sum(pg_relation_size(sui.indexrelid)),0))
-      FROM sys_stat_user_indexes sui
-      JOIN sys_index si ON si.indexrelid = sui.indexrelid
-      JOIN sys_stat_user_tables sut
-        ON sut.schemaname=sui.schemaname AND sut.relname=sui.relname
-      WHERE sui.idx_scan = 0 AND sut.n_live_tup > 1000
-        AND si.indisunique = false AND si.indisprimary = false;" | tr -d '[:space:]')
+      $_IDX_UNUSED_FROM
+      WHERE $_IDX_UNUSED_WHERE;" | tr -d '[:space:]')
     if [[ $collect -eq 1 ]]; then
       _finding "WARN" "idx_unused" "未使用索引\n  症状：${unused_cnt} 个未使用索引，浪费 ${unused_size:-?}\n  建议:\n    · kbdiag advisor index --fix 生成 DROP SQL"
     else
@@ -55,17 +47,11 @@ _advisor_index() {
     fi
   fi
 
-  # Duplicate indexes
+  # Duplicate indexes (filter definition shared with cmd_idx.sh's _idx_dup)
   local dup_cnt
   dup_cnt=$(ksql_q "
-    SELECT count(*) FROM (
-      SELECT a.indexrelid FROM sys_stat_user_indexes a
-      JOIN sys_stat_user_indexes b
-        ON a.schemaname=b.schemaname AND a.relname=b.relname AND a.indexrelid < b.indexrelid
-      JOIN sys_index ia ON ia.indexrelid=a.indexrelid
-      JOIN sys_index ib ON ib.indexrelid=b.indexrelid
-      WHERE ia.indkey=ib.indkey AND ia.indpred IS NULL AND ib.indpred IS NULL
-    ) sub;" | tr -d '[:space:]')
+    SELECT count(*) $_IDX_DUP_FROM
+    WHERE $_IDX_DUP_WHERE;" | tr -d '[:space:]')
   dup_cnt="${dup_cnt:-0}"
 
   if [[ $dup_cnt -gt 0 ]]; then
@@ -83,19 +69,12 @@ _advisor_index() {
     fi
   fi
 
-  # Missing FK indexes
+  # Missing FK indexes (filter definition shared with cmd_idx.sh's _idx_missing)
   local missing_cnt
   missing_cnt=$(ksql_q "
-    SELECT count(DISTINCT con.oid) FROM sys_constraint con
-    JOIN sys_class c ON c.oid=con.conrelid
-    JOIN sys_namespace n ON n.oid=c.relnamespace
-    JOIN sys_stat_user_tables sut ON sut.schemaname=n.nspname AND sut.relname=c.relname
-    WHERE con.contype='f' AND sut.n_live_tup > 10000
-      AND n.nspname NOT IN ('sys_catalog','information_schema','sys_toast')
-      AND NOT EXISTS (
-        SELECT 1 FROM sys_index i
-        WHERE i.indrelid=c.oid AND i.indkey[0]=con.conkey[1]
-      );" | tr -d '[:space:]')
+    SELECT count(DISTINCT con.oid)
+    $_IDX_MISSING_FROM
+    WHERE $_IDX_MISSING_WHERE;" | tr -d '[:space:]')
   missing_cnt="${missing_cnt:-0}"
 
   if [[ $missing_cnt -gt 0 ]]; then
@@ -122,12 +101,8 @@ _advisor_index() {
     local drop_sql
     drop_sql=$(ksql_q "
       SELECT 'DROP INDEX CONCURRENTLY ' || sui.schemaname || '.' || sui.indexrelname || ';'
-      FROM sys_stat_user_indexes sui
-      JOIN sys_index si ON si.indexrelid=sui.indexrelid
-      JOIN sys_stat_user_tables sut
-        ON sut.schemaname=sui.schemaname AND sut.relname=sui.relname
-      WHERE sui.idx_scan=0 AND sut.n_live_tup > 1000
-        AND si.indisunique=false AND si.indisprimary=false
+      $_IDX_UNUSED_FROM
+      WHERE $_IDX_UNUSED_WHERE
       ORDER BY pg_relation_size(sui.indexrelid) DESC
       LIMIT ${TOP_N};" 2>/dev/null || true)
     if [[ -n "$drop_sql" ]]; then
@@ -144,12 +119,8 @@ _advisor_index() {
         CASE WHEN a.idx_scan <= b.idx_scan THEN a.schemaname || '.' || a.indexrelname
              ELSE b.schemaname || '.' || b.indexrelname
         END || ';'
-      FROM sys_stat_user_indexes a
-      JOIN sys_stat_user_indexes b
-        ON a.schemaname = b.schemaname AND a.relname = b.relname AND a.indexrelid < b.indexrelid
-      JOIN sys_index ia ON ia.indexrelid = a.indexrelid
-      JOIN sys_index ib ON ib.indexrelid = b.indexrelid
-      WHERE ia.indkey = ib.indkey AND ia.indpred IS NULL AND ib.indpred IS NULL
+      $_IDX_DUP_FROM
+      WHERE $_IDX_DUP_WHERE
       LIMIT ${TOP_N};" 2>/dev/null || true)
     if [[ -n "$dup_sql" ]]; then
       echo "$dup_sql"
@@ -163,17 +134,8 @@ _advisor_index() {
     missing_sql=$(ksql_q "
       SELECT DISTINCT 'CREATE INDEX CONCURRENTLY ON ' || n.nspname || '.' || c.relname ||
         ' (' || a.attname || ');'
-      FROM sys_constraint con
-      JOIN sys_class c ON c.oid = con.conrelid
-      JOIN sys_namespace n ON n.oid = c.relnamespace
-      JOIN sys_attribute a ON a.attrelid = c.oid AND a.attnum = con.conkey[1]
-      JOIN sys_stat_user_tables sut ON sut.schemaname = n.nspname AND sut.relname = c.relname
-      WHERE con.contype = 'f' AND sut.n_live_tup > 10000
-        AND n.nspname NOT IN ('sys_catalog','information_schema','sys_toast')
-        AND NOT EXISTS (
-          SELECT 1 FROM sys_index i
-          WHERE i.indrelid = c.oid AND i.indkey[0] = con.conkey[1]
-        )
+      $_IDX_MISSING_FROM
+      WHERE $_IDX_MISSING_WHERE
       LIMIT ${TOP_N};" 2>/dev/null || true)
     if [[ -n "$missing_sql" ]]; then
       echo "$missing_sql"
@@ -190,7 +152,7 @@ _advisor_vacuum() {
   hdr "Advisor: Vacuum"
   local _exit=0
 
-  # Tables with high dead tuple ratio (> 20%)
+  # Tables with high dead tuple ratio (threshold shared with diagnose.sh's _diag_bloat)
   local bloat_rows
   bloat_rows=$(ksql_q "
     SELECT schemaname, relname,
@@ -198,7 +160,7 @@ _advisor_vacuum() {
            round(100.0*n_dead_tup/NULLIF(n_live_tup+n_dead_tup,0),1) AS dead_pct
     FROM sys_stat_user_tables
     WHERE n_live_tup + n_dead_tup > 1000
-      AND n_dead_tup::float / NULLIF(n_live_tup+n_dead_tup, 0) > 0.20
+      AND n_dead_tup::float / NULLIF(n_live_tup+n_dead_tup, 0) > ${KB_WARN_DEAD_PCT}/100.0
     ORDER BY n_dead_tup DESC
     LIMIT ${TOP_N};" 2>/dev/null || true)
 
@@ -212,7 +174,7 @@ _advisor_vacuum() {
     done <<< "$bloat_rows"
     _exit=1
   else
-    ok "No tables with >20% dead tuples"
+    ok "No tables with >${KB_WARN_DEAD_PCT}% dead tuples"
     json_item "advisor_vacuum_bloat" "ok" "0" ""
   fi
 

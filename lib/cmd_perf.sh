@@ -28,7 +28,9 @@ _perf_slow() {
 }
 
 _perf_bloat() {
-  hdr "Table bloat (live ratio < 80%)"
+  # Threshold shared with advisor/diagnose's dead-tuple checks (live_pct = 100 - dead_pct)
+  local live_floor=$(( 100 - KB_WARN_DEAD_PCT ))
+  hdr "Table bloat (live ratio < ${live_floor}%)"
   ksql_qh "
     SELECT schemaname, relname,
            pg_size_pretty(pg_relation_size(schemaname||'.'||relname)) AS table_size,
@@ -38,7 +40,7 @@ _perf_bloat() {
                 ELSE 100 END AS live_pct
     FROM sys_stat_user_tables
     WHERE n_live_tup+n_dead_tup > 1000
-      AND (n_live_tup::float/(n_live_tup+n_dead_tup+1)) < 0.8
+      AND (n_live_tup::float/(n_live_tup+n_dead_tup+1)) < ${live_floor}/100.0
     ORDER BY n_dead_tup DESC
     LIMIT 20;" \
     | column -t -s '|' || true
@@ -47,7 +49,7 @@ _perf_bloat() {
   cnt=$(ksql_q "
     SELECT count(*) FROM sys_stat_user_tables
     WHERE n_live_tup+n_dead_tup > 1000
-      AND (n_live_tup::float/(n_live_tup+n_dead_tup+1)) < 0.8;" | tr -d '[:space:]')
+      AND (n_live_tup::float/(n_live_tup+n_dead_tup+1)) < ${live_floor}/100.0;" | tr -d '[:space:]')
   if [[ ${cnt:-0} -eq 0 ]]; then
     ok "No bloated tables"
   else

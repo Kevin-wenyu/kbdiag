@@ -1,17 +1,50 @@
 # shellcheck shell=bash
+
+# Shared filter fragments — cmd_advisor.sh's _advisor_index() reuses these
+# instead of duplicating the SQL; edit only here to change what counts as
+# unused/duplicate/missing-FK.
+_IDX_UNUSED_FROM="FROM sys_stat_user_indexes sui
+    JOIN sys_index si ON si.indexrelid = sui.indexrelid
+    JOIN sys_stat_user_tables sut
+      ON sut.schemaname = sui.schemaname AND sut.relname = sui.relname"
+_IDX_UNUSED_WHERE="sui.idx_scan = 0
+      AND sut.n_live_tup > 1000
+      AND si.indisunique = false
+      AND si.indisprimary = false"
+
+_IDX_DUP_FROM="FROM sys_stat_user_indexes a
+    JOIN sys_stat_user_indexes b
+      ON a.schemaname = b.schemaname
+     AND a.relname = b.relname
+     AND a.indexrelid < b.indexrelid
+    JOIN sys_index ia ON ia.indexrelid = a.indexrelid
+    JOIN sys_index ib ON ib.indexrelid = b.indexrelid"
+_IDX_DUP_WHERE="ia.indkey = ib.indkey
+      AND ia.indpred IS NULL AND ib.indpred IS NULL"
+
+_IDX_MISSING_FROM="FROM sys_constraint con
+    JOIN sys_class c ON c.oid = con.conrelid
+    JOIN sys_namespace n ON n.oid = c.relnamespace
+    JOIN sys_attribute a
+      ON a.attrelid = c.oid AND a.attnum = con.conkey[1]
+    JOIN sys_stat_user_tables sut
+      ON sut.schemaname = n.nspname AND sut.relname = c.relname"
+_IDX_MISSING_WHERE="con.contype = 'f'
+      AND sut.n_live_tup > 10000
+      AND n.nspname NOT IN ('sys_catalog', 'information_schema', 'sys_toast')
+      AND NOT EXISTS (
+        SELECT 1 FROM sys_index i
+        WHERE i.indrelid = c.oid
+          AND i.indkey[0] = con.conkey[1]
+      )"
+
 _idx_unused() {
   hdr "Unused indexes (idx_scan=0, table rows > 1000)"
   local cnt
   cnt=$(ksql_q "
     SELECT count(*)
-    FROM sys_stat_user_indexes sui
-    JOIN sys_index si ON si.indexrelid = sui.indexrelid
-    JOIN sys_stat_user_tables sut
-      ON sut.schemaname = sui.schemaname AND sut.relname = sui.relname
-    WHERE sui.idx_scan = 0
-      AND sut.n_live_tup > 1000
-      AND si.indisunique = false
-      AND si.indisprimary = false;" 2>/dev/null | tr -d '[:space:]')
+    $_IDX_UNUSED_FROM
+    WHERE $_IDX_UNUSED_WHERE;" 2>/dev/null | tr -d '[:space:]')
 
   if [[ "${cnt:-0}" -eq 0 ]]; then
     ok "No unused non-unique indexes found"
@@ -25,14 +58,8 @@ _idx_unused() {
     SELECT sui.schemaname, sui.relname AS tablename, sui.indexrelname,
            pg_size_pretty(pg_relation_size(sui.indexrelid)) AS index_size,
            sui.idx_scan
-    FROM sys_stat_user_indexes sui
-    JOIN sys_index si ON si.indexrelid = sui.indexrelid
-    JOIN sys_stat_user_tables sut
-      ON sut.schemaname = sui.schemaname AND sut.relname = sui.relname
-    WHERE sui.idx_scan = 0
-      AND sut.n_live_tup > 1000
-      AND si.indisunique = false
-      AND si.indisprimary = false
+    $_IDX_UNUSED_FROM
+    WHERE $_IDX_UNUSED_WHERE
     ORDER BY pg_relation_size(sui.indexrelid) DESC
     LIMIT ${TOP_N};" \
     | column -t -s '|' || true
@@ -44,15 +71,8 @@ _idx_dup() {
   local cnt
   cnt=$(ksql_q "
     SELECT count(*)
-    FROM sys_stat_user_indexes a
-    JOIN sys_stat_user_indexes b
-      ON a.schemaname = b.schemaname
-     AND a.relname = b.relname
-     AND a.indexrelid < b.indexrelid
-    JOIN sys_index ia ON ia.indexrelid = a.indexrelid
-    JOIN sys_index ib ON ib.indexrelid = b.indexrelid
-    WHERE ia.indkey = ib.indkey
-      AND ia.indpred IS NULL AND ib.indpred IS NULL;" 2>/dev/null | tr -d '[:space:]')
+    $_IDX_DUP_FROM
+    WHERE $_IDX_DUP_WHERE;" 2>/dev/null | tr -d '[:space:]')
 
   if [[ "${cnt:-0}" -eq 0 ]]; then
     ok "No duplicate indexes found"
@@ -66,15 +86,8 @@ _idx_dup() {
     SELECT a.schemaname, a.relname AS tablename,
            a.indexrelname AS index1, b.indexrelname AS index2,
            pg_size_pretty(pg_relation_size(a.indexrelid)) AS size1
-    FROM sys_stat_user_indexes a
-    JOIN sys_stat_user_indexes b
-      ON a.schemaname = b.schemaname
-     AND a.relname = b.relname
-     AND a.indexrelid < b.indexrelid
-    JOIN sys_index ia ON ia.indexrelid = a.indexrelid
-    JOIN sys_index ib ON ib.indexrelid = b.indexrelid
-    WHERE ia.indkey = ib.indkey
-      AND ia.indpred IS NULL AND ib.indpred IS NULL
+    $_IDX_DUP_FROM
+    WHERE $_IDX_DUP_WHERE
     ORDER BY a.schemaname, a.relname
     LIMIT ${TOP_N};" \
     | column -t -s '|' || true
@@ -129,21 +142,8 @@ _idx_missing() {
   local cnt
   cnt=$(ksql_q "
     SELECT count(DISTINCT (n.nspname, c.relname, con.conname))
-    FROM sys_constraint con
-    JOIN sys_class c ON c.oid = con.conrelid
-    JOIN sys_namespace n ON n.oid = c.relnamespace
-    JOIN sys_attribute a
-      ON a.attrelid = c.oid AND a.attnum = con.conkey[1]
-    JOIN sys_stat_user_tables sut
-      ON sut.schemaname = n.nspname AND sut.relname = c.relname
-    WHERE con.contype = 'f'
-      AND sut.n_live_tup > 10000
-      AND n.nspname NOT IN ('sys_catalog', 'information_schema', 'sys_toast')
-      AND NOT EXISTS (
-        SELECT 1 FROM sys_index i
-        WHERE i.indrelid = c.oid
-          AND i.indkey[0] = con.conkey[1]
-      );" 2>/dev/null | tr -d '[:space:]')
+    $_IDX_MISSING_FROM
+    WHERE $_IDX_MISSING_WHERE;" 2>/dev/null | tr -d '[:space:]')
 
   if [[ "${cnt:-0}" -eq 0 ]]; then
     ok "No missing FK indexes found"
@@ -157,21 +157,8 @@ _idx_missing() {
     SELECT DISTINCT n.nspname AS schemaname, c.relname AS tablename,
            a.attname AS fk_col, con.conname AS constraint_name,
            sut.n_live_tup AS row_count
-    FROM sys_constraint con
-    JOIN sys_class c ON c.oid = con.conrelid
-    JOIN sys_namespace n ON n.oid = c.relnamespace
-    JOIN sys_attribute a
-      ON a.attrelid = c.oid AND a.attnum = con.conkey[1]
-    JOIN sys_stat_user_tables sut
-      ON sut.schemaname = n.nspname AND sut.relname = c.relname
-    WHERE con.contype = 'f'
-      AND sut.n_live_tup > 10000
-      AND n.nspname NOT IN ('sys_catalog', 'information_schema', 'sys_toast')
-      AND NOT EXISTS (
-        SELECT 1 FROM sys_index i
-        WHERE i.indrelid = c.oid
-          AND i.indkey[0] = con.conkey[1]
-      )
+    $_IDX_MISSING_FROM
+    WHERE $_IDX_MISSING_WHERE
     ORDER BY sut.n_live_tup DESC
     LIMIT ${TOP_N};" \
     | column -t -s '|' || true

@@ -354,30 +354,6 @@ _diag_xid_age() {
 
 # ── 完整模式追加子函数 ──────────────────────────────────────────────────────────
 
-_diag_vacuum_debt() {
-  local rows
-  rows=$(ksql_q "
-    SELECT schemaname, relname, n_dead_tup,
-           round(100.0*n_dead_tup/NULLIF(n_live_tup+n_dead_tup,0),1) AS dead_pct,
-           coalesce(last_autovacuum::date::text, last_vacuum::date::text, 'never') AS last_vac
-    FROM sys_stat_user_tables
-    WHERE n_live_tup+n_dead_tup > 1000
-      AND n_dead_tup::float/NULLIF(n_live_tup+n_dead_tup,0) > 0.20
-    ORDER BY n_dead_tup DESC
-    LIMIT ${TOP_N};" 2>/dev/null || true)
-
-  [[ -z "$rows" ]] && return
-
-  local cnt=0 evidence=""
-  while IFS='|' read -r schema rel dead_tup dead_pct last_vac; do
-    [[ -z "${schema// /}" ]] && continue
-    cnt=$(( cnt + 1 ))
-    evidence="${evidence}    · ${schema// /}.${rel// /}: dead=${dead_tup// /} (${dead_pct// /}%), last vacuum: ${last_vac// /}\n"
-  done <<< "$rows"
-
-  _finding "WARN" "vacuum_debt" "Autovacuum 积压\n  症状：${cnt} 张表 dead tuple 率 > 20%\n  证据:\n${evidence}  建议:\n    · VACUUM (ANALYZE) <table>;\n    · kbdiag advisor vacuum --fix 生成修复 SQL"
-}
-
 _diag_indexes() {
   _advisor_index --collect || true
 }
@@ -386,27 +362,42 @@ _diag_params() {
   _advisor_params --collect || true
 }
 
+# Merges the old separate vacuum_debt(>20%)/bloat(>30%) checks — both queried
+# the same dead-tuple ratio on the same tables and could double-report a
+# single table under two findings. Now one query, severity escalates at
+# KB_FAIL_DEAD_PCT instead of firing a second finding for the same table.
 _diag_bloat() {
   local rows
   rows=$(ksql_q "
-    SELECT schemaname, relname,
+    SELECT schemaname, relname, n_dead_tup,
            pg_size_pretty(pg_relation_size(schemaname||'.'||relname)) AS size,
-           round(100.0*n_dead_tup/NULLIF(n_live_tup+n_dead_tup,0),1) AS dead_pct
+           round(100.0*n_dead_tup/NULLIF(n_live_tup+n_dead_tup,0),1) AS dead_pct,
+           coalesce(last_autovacuum::date::text, last_vacuum::date::text, 'never') AS last_vac
     FROM sys_stat_user_tables
     WHERE n_live_tup+n_dead_tup > 1000
-      AND n_dead_tup::float/NULLIF(n_live_tup+n_dead_tup,0) > 0.30
-    ORDER BY pg_relation_size(schemaname||'.'||relname) DESC
-    LIMIT 5;" 2>/dev/null || true)
+      AND n_dead_tup::float/NULLIF(n_live_tup+n_dead_tup,0) > ${KB_WARN_DEAD_PCT}/100.0
+    ORDER BY n_dead_tup DESC
+    LIMIT ${TOP_N};" 2>/dev/null || true)
 
   [[ -z "$rows" ]] && return
 
-  local evidence=""
-  while IFS='|' read -r schema rel size dead_pct; do
+  local cnt=0 warn_evidence="" fail_evidence=""
+  while IFS='|' read -r schema rel dead_tup size dead_pct last_vac; do
     [[ -z "${schema// /}" ]] && continue
-    evidence="${evidence}    · ${schema// /}.${rel// /}: ${size// /}, dead=${dead_pct// /}%\n"
+    cnt=$(( cnt + 1 ))
+    local pct="${dead_pct// /}"
+    if awk "BEGIN{exit !(${pct} > ${KB_FAIL_DEAD_PCT})}"; then
+      fail_evidence="${fail_evidence}    · ${schema// /}.${rel// /}: ${size// /}, dead=${pct}% (${dead_tup// /} tuples), last vacuum: ${last_vac// /}\n"
+    else
+      warn_evidence="${warn_evidence}    · ${schema// /}.${rel// /}: dead=${pct}% (${dead_tup// /} tuples), last vacuum: ${last_vac// /}\n"
+    fi
   done <<< "$rows"
 
-  _finding "WARN" "bloat" "表膨胀\n  症状：存在 dead tuple 率 > 30% 的表\n  证据:\n${evidence}  建议:\n    · VACUUM (ANALYZE) <table>;\n    · 考虑 pg_repack 在线整理"
+  if [[ -n "$fail_evidence" ]]; then
+    _finding "CRITICAL" "bloat" "表膨胀严重\n  症状：${cnt} 张表 dead tuple 率 > ${KB_WARN_DEAD_PCT}%，其中部分已超过 ${KB_FAIL_DEAD_PCT}%\n  证据:\n${fail_evidence}${warn_evidence}  建议:\n    · VACUUM (ANALYZE) <table>;\n    · 考虑 pg_repack 在线整理\n    · kbdiag advisor vacuum --fix 生成修复 SQL"
+  else
+    _finding "WARN" "bloat" "Autovacuum 积压\n  症状：${cnt} 张表 dead tuple 率 > ${KB_WARN_DEAD_PCT}%\n  证据:\n${warn_evidence}  建议:\n    · VACUUM (ANALYZE) <table>;\n    · kbdiag advisor vacuum --fix 生成修复 SQL"
+  fi
 }
 
 _diag_buffer_hit() {
@@ -565,7 +556,6 @@ cmd_diagnose() {
   _diag_xid_age
 
   if [[ $full_mode -eq 1 ]]; then
-    _diag_vacuum_debt
     _diag_indexes
     _diag_params
     _diag_bloat
