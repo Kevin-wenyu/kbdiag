@@ -30,7 +30,17 @@
 
 ---
 
-## Phase 0：现有功能消重与分类审计（当前优先级最高）
+## Phase 0：现有功能消重与分类审计（已完成，2026-07-05）
+
+**状态：本节列出的 6 项重构已全部落地并推送（commit e2b650e → 1514a9b）：**
+- ✅ advisor↔idx 复用（advisor.sh 直接调用 idx.sh 的 unused/dup/missing 查询）
+- ✅ 表膨胀/死元组阈值统一到 `core.sh` 的 `KB_WARN_DEAD_PCT`/`KB_FAIL_DEAD_PCT`/`KB_WARN_FRAG_PCT`，diagnose.sh 的 vacuum_debt+bloat 双重上报 bug 一并修掉
+- ✅ 等待事件查询统一到 `cmd_wait.sh` 的 `_WAIT_EVENT_WHERE`（wait/perf wait/stat 三处引用）
+- ✅ Top SQL 的扩展探测和 `calls > 0` 过滤统一到 `cmd_stmt.sh` 的 `_stmt_check_ext`/`_STMT_ACTIVE_WHERE`
+- ✅ `conf` 默认视图收窄（不再重复 `params` 的非默认参数列表，只保留 restart-pending 信号 + `diff`）
+- ✅ `--help`/README 改成三段 `[OPS]`/`[DBA]`/`[ROOT-CAUSE]`，`diagnose`/`advisor` 归位到 ROOT-CAUSE；同时补上了此前 `--help` 里完全缺失的 `idx`/`kill` 两个命令
+
+以下小节保留原始审计记录（发现时的原文，未回填"已修复"标注到每一条），作为这次重构的依据存档。checkpoint/bgwriter 重叠（0.2 倒数第二条）和 ANALYZE drift 公式重叠（0.2 倒数第三条）**尚未处理**，影响较小，未纳入本轮 6 项任务范围。
 
 通读了 `lib/cmd_*.sh` 全部 24 个命令文件 + `core.sh` + `build.sh` 后，逐条核实（非猜测）的发现如下。
 
