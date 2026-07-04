@@ -72,7 +72,9 @@ kbdiag [global-flags] <command> [subcommand] [command-flags]
 
 ## Command Reference
 
-### [OPS] Operations Commands
+### [OPS] Quick Fact Lookup
+
+One command, one deterministic answer — no interpretation required.
 
 | Command | Description |
 |---------|-------------|
@@ -82,9 +84,12 @@ kbdiag [global-flags] <command> [subcommand] [command-flags]
 | `replication` | Replication lag / standby connections |
 | `check` | 14-item health threshold check — exit 0=OK / 1=WARN / 2=FAIL |
 | `space [frag]` | Disk, tables, WAL, archive; `frag` adds fragmentation |
-| `diagnose [--full]` | Root-cause diagnostic report (fast <15s; `--full` ~90s) |
+| `params [pattern]` | Instance parameters |
+| `update` | Update kbdiag to the latest version from GitHub |
 
-### [DBA] Deep-Dive Commands
+### [DBA] Single-Dimension Deep Query
+
+Answers one specific question in depth; also used to verify a ROOT-CAUSE finding.
 
 | Command | Description |
 |---------|-------------|
@@ -95,19 +100,31 @@ kbdiag [global-flags] <command> [subcommand] [command-flags]
 | `stmt [queryid]` | SQL history stats — Top N by mean/total/IO/calls (AWR-style) |
 | `wait` | Wait event distribution |
 | `progress` | Long-running operation progress |
-| `params [pattern]` | Instance parameters |
 | `stat` | Throughput metrics (TPS, buffer hit rate) |
 | `obj <schema.table>` | Object deep-dive: size, indexes, constraints |
 | `colstat <schema.table> [--col <col>]` | Column statistics (n_distinct, MCV, correlation) |
 | `temp` | Temp file and sort spill analysis |
-| `watch <N> <cmd>` | Repeat any command every N seconds |
-| `conf [diff]` | Configuration audit / node comparison |
+| `idx [unused\|dup\|bloat\|missing]` | Index health analysis |
+| `kill [--terminate] [pid\|--long N\|--idle-txn N] [--dry-run] [--force]` | Cancel or terminate queries |
+| `conf [diff]` | Configuration restart-pending status / cross-node comparison |
 | `audit` | Security and compliance checks |
 | `logs` | Log file analysis (slow queries, errors) |
+
+### [ROOT-CAUSE] Multi-Dimension Correlation
+
+Full diagnostic chain: symptom → evidence → cause → fix. Each conclusion traces back to a DBA-tier command for verification.
+
+| Command | Description |
+|---------|-------------|
+| `diagnose [--full]` | Root-cause diagnostic report (fast <15s; `--full` ~90s) |
+| `advisor [index\|vacuum\|params\|analyze] [--fix]` | Consolidated DBA recommendations; `--fix` emits executable SQL |
+
+### [UTIL]
+
+| Command | Description |
+|---------|-------------|
+| `watch <N> <cmd>` | Repeat any command every N seconds |
 | `remote <nodes> <cmd>` | Multi-node batch diagnostics |
-| `kill [--terminate] [pid\|--long N\|--idle-txn N] [--dry-run] [--force]` | Cancel or terminate queries |
-| `idx [unused\|dup\|bloat\|missing]` | Index health analysis |
-| `advisor [index\|vacuum\|params\|analyze] [--fix]` | DBA recommendations; `--fix` emits executable SQL |
 | `all` | Run all checks |
 
 ## Configuration File

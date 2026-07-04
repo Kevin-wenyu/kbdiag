@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-39-gdd3a41c-dirty"
+KBDIAG_VERSION="v1.0.0-40-g8015533-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -3777,17 +3777,17 @@ Global flags:
   --no-color          Disable ANSI colors
   --timeout N         DB query timeout seconds (default: 10)
 
-[OPS] Commands (no DBA context required):
+[OPS] Quick fact lookup — one command, one deterministic answer:
   status              Instance process, connectivity, role, uptime
   license             License validity and expiry
   cluster             Repmgr cluster topology
   replication         Replication lag / standby connections
-  diagnose [--full]   Root-cause diagnostic report (fast <15s; --full ~90s)
   check               14-item health check, exit 0=OK 1=WARN 2=FAIL
   space [frag]        Disk, tables, WAL, archive, fragmentation
+  params [pattern]    Instance parameters
   update              Update kbdiag to the latest version from GitHub
 
-[DBA] Commands (requires interpretation):
+[DBA] Single-dimension deep query — also used to verify a ROOT-CAUSE finding:
   sessions            Non-idle sessions
   locks [hold|wait|deadlock]   Lock analysis
   perf [slow|bloat|vacuum|wait|io|wal|top]   Performance diagnostics
@@ -3795,19 +3795,23 @@ Global flags:
   stmt [queryid]      SQL history statistics — Top N by mean/total/IO/calls (AWR-style)
   wait                Wait event distribution
   progress            Long-running operation progress
-  params [pattern]    Instance parameters
   stat                Throughput metrics (TPS, buffer hit rate)
   obj <schema.table>  Object deep-dive (size, indexes, constraints)
   colstat <schema.table> [--col <col>]  Column statistics deep-dive (n_distinct, MCV, correlation)
   temp                Temp file and sort spill analysis
-  watch <N> <cmd>     Repeat any command every N seconds
-  conf [diff]         Configuration audit / node comparison
+  idx [unused|dup|bloat|missing]  Index health analysis
+  kill [--terminate] [pid|--long N|--idle-txn N] [--dry-run] [--force]  Cancel or terminate queries
+  conf [diff]         Configuration restart-pending status / cross-node comparison
   audit               Security and compliance checks
   logs                Log file analysis (slow queries, errors)
-  remote <nodes> <cmd>  Multi-node batch diagnostics
+
+[ROOT-CAUSE] Multi-dimension correlation — full chain: symptom -> evidence -> cause -> fix:
+  diagnose [--full]   Root-cause diagnostic report (fast <15s; --full ~90s)
   advisor [index|vacuum|params|analyze] [--fix]  Consolidated DBA recommendations
 
-[ALL]
+[UTIL]
+  watch <N> <cmd>     Repeat any command every N seconds
+  remote <nodes> <cmd>  Multi-node batch diagnostics
   all                 Run all checks
 
 Connection overrides: KB_PORT KB_BIN_DIR KB_DATA_DIR KB_REPMGR_CONF KB_SUPERUSER KB_DB
