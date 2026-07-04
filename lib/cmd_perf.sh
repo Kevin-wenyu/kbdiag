@@ -88,7 +88,7 @@ _perf_wait() {
     SELECT wait_event_type, wait_event, count(*) AS cnt,
            round(avg(EXTRACT(EPOCH FROM (now()-query_start))),1) AS avg_sec
     FROM sys_stat_activity
-    WHERE wait_event IS NOT NULL AND state <> 'idle'
+    WHERE $_WAIT_EVENT_WHERE
     GROUP BY wait_event_type, wait_event
     ORDER BY cnt DESC LIMIT ${TOP_N};" \
     | column -t -s '|' || true

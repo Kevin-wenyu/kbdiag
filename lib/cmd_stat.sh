@@ -51,7 +51,7 @@ _stat_section_wait_events() {
   printf "%-20s %-20s %s\n" "--------------------" "--------------------" "-----"
   ksql_q "SELECT wait_event_type, wait_event, count(*) AS cnt
     FROM sys_stat_activity
-    WHERE wait_event IS NOT NULL AND state != 'idle'
+    WHERE $_WAIT_EVENT_WHERE
     GROUP BY wait_event_type, wait_event
     ORDER BY cnt DESC
     LIMIT 5;" 2>/dev/null \
