@@ -107,10 +107,12 @@
 
 ### Phase 2：安全合规深度（利用已装的企业扩展，`audit` 是当前查询深度最浅的命令，优先做）
 
-| 命令 | 层 | 内容 |
-|------|-----|------|
-| `audit` 扩展 | 查 | sysaudit 是否启用、审计策略覆盖了哪些对象；敏感列是否配置 sys_anon/sysmac 脱敏；SSL 是否强制（`ssl` 参数 + `sslmode` 检查）；密码过期策略（`VALID UNTIL`）；连接来源白名单（pg_hba 等价物） |
-| `audit --report` (可选) | 查 | 解析 sysaudit 日志，输出近 N 天的异常登录/权限变更事件 |
+| 命令 | 层 | 内容 | 状态 |
+|------|-----|------|------|
+| `audit` 扩展 | 查 | sysaudit 是否启用、审计规则数；sysmac 策略/enforcement 数；sys_anon 脱敏策略数；SSL 是否启用；sepapower 三权分立状态；密码过期策略（`VALID UNTIL`） | ✅ 已完成并推送（commit c72b5e3，2026-07-06） |
+| `audit --report` (可选) | 查 | 解析 sysaudit 日志，输出近 N 天的异常登录/权限变更事件 | 未做——sysaudit 日志表对 DBA(system) 角色 permission-denied（三权分立架构限制，非配置问题），需要 sso/sao 角色才能读，暂不可行 |
+
+**已验证的关键行为**（VM 实测，V8R6）：sysaudit 的规则/日志表在 C 函数层面对 `system` 超级用户硬性拒绝，与 GRANT/ACL、`sepapower.separate_power_grant` 开关状态均无关；sys_anon 的策略视图是 schema 级 ACL 拒绝（`permission denied for schema anon`）；两者的 permission-denied 都被 audit 命令报告为"合规"而非"检查失败"。sysmac 则可以被 `system` 直接查询。连接来源白名单（pg_hba 等价物）未纳入本轮，留待后续。
 
 ### Phase 3：性能深度（架构分叉已否决，收窄为单次深挖，不做趋势/回归）
 
