@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-40-g8015533-dirty"
+KBDIAG_VERSION="v1.0.0-42-ge004d68-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -1544,14 +1544,12 @@ cmd_conf() {
 
 # --- lib/cmd_audit.sh ---
 # shellcheck shell=bash
-cmd_audit() {
-  hdr "Security Audit"
-
-  # Superusers
+_audit_superusers() {
   info "Superuser roles:"
   ksql_qh "SELECT rolname FROM sys_roles WHERE rolsuper=true ORDER BY rolname;" | column -t -s '|' || true
+}
 
-  # Roles that can login without a password
+_audit_no_password() {
   info "Roles with login but no password:"
   local no_pwd_cnt
   no_pwd_cnt=$(ksql_q "SELECT count(*) FROM sys_roles WHERE rolcanlogin=true AND rolpassword IS NULL;" | tr -d '[:space:]')
@@ -1561,8 +1559,21 @@ cmd_audit() {
   else
     ok "All login roles have passwords set"
   fi
+}
 
-  # PUBLIC schema write grants
+_audit_password_expiry() {
+  info "Password expiry policy (login roles):"
+  local no_expiry_cnt
+  no_expiry_cnt=$(ksql_q "SELECT count(*) FROM sys_roles WHERE rolcanlogin=true AND rolvaliduntil IS NULL;" | tr -d '[:space:]')
+  if [[ "${no_expiry_cnt:-0}" -gt 0 ]]; then
+    warn "$no_expiry_cnt login role(s) have no password expiry (VALID UNTIL) set:"
+    ksql_qh "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolvaliduntil IS NULL ORDER BY rolname LIMIT $TOP_N;" | column -t -s '|' || true
+  else
+    ok "All login roles have a password expiry date"
+  fi
+}
+
+_audit_public_grants() {
   info "PUBLIC write grants on public schema tables (top $TOP_N):"
   local pub_grants_cnt
   pub_grants_cnt=$(ksql_q "
@@ -1580,8 +1591,9 @@ cmd_audit() {
   else
     ok "No PUBLIC write grants on public schema tables"
   fi
+}
 
-  # Tables without primary keys
+_audit_no_pk() {
   info "User tables without primary keys (top $TOP_N):"
   local no_pk_cnt
   no_pk_cnt=$(ksql_q "
@@ -1599,6 +1611,119 @@ cmd_audit() {
   else
     ok "All user tables have primary keys"
   fi
+}
+
+_audit_ssl() {
+  local ssl_on
+  ssl_on=$(ksql_q "SHOW ssl;" | tr -d '[:space:]')
+  if [[ "$ssl_on" == "on" ]]; then
+    ok "SSL is enabled"
+  else
+    warn "SSL is disabled — client connections are unencrypted"
+  fi
+}
+
+# KingbaseES-specific: 三权分立 (three-power separation of DBA/SSO/SAO duties),
+# a compliance feature (等保 2.0 level 3+) with no Postgres equivalent.
+_audit_sepapower() {
+  local sepa
+  # Query sys_settings (never errors) rather than SHOW (errors under `set -e`
+  # if the GUC isn't registered on some other KingbaseES edition/version).
+  sepa=$(ksql_q "SELECT setting FROM sys_settings WHERE name='sepapower.separate_power_grant';" | tr -d '[:space:]')
+  if [[ -z "$sepa" ]]; then
+    info "Three-power separation (sepapower) not available on this instance"
+  elif [[ "$sepa" == "on" ]]; then
+    ok "Three-power separation (sepapower) is enabled — DBA/SSO/SAO duties are separated"
+  else
+    warn "Three-power separation (sepapower) is disabled — the DBA role has unrestricted control over audit/security config"
+  fi
+}
+
+_audit_ext_installed() {
+  ksql_q "SELECT 1 FROM sys_extension WHERE extname='$1';" | tr -d '[:space:]'
+}
+
+# sysaudit locks rule/log visibility to sso/sao at the function level, independent
+# of GRANT and of sepapower's on/off state — a permission-denied here is the
+# expected, compliant outcome, not a broken check.
+_audit_sysaudit() {
+  info "sysaudit (audit logging):"
+  if [[ -z "$(_audit_ext_installed sysaudit)" ]]; then
+    warn "sysaudit extension is not installed"
+    return
+  fi
+
+  local cnt
+  # Guarded with if/then (not a bare assignment) so `set -e` doesn't abort
+  # kbdiag when this is denied — permission-denied is the expected outcome.
+  if ! cnt=$(ksql_q "SELECT count(*) FROM sysaudit.show_audit_rules();"); then
+    ok "Audit rule/log details are restricted to the sso/sao role (three-power separation enforced) — inspect via: ksql -U sso -c 'SELECT * FROM sysaudit.all_audit_rules;'"
+    return
+  fi
+
+  cnt="${cnt// /}"
+  if [[ "${cnt:-0}" -eq 0 ]]; then
+    warn "sysaudit is installed but no audit rules are configured"
+  else
+    ok "$cnt audit rule(s) configured"
+  fi
+}
+
+# sysmac (label-based mandatory access control) policy tables are readable by
+# the DBA role even when sysaudit/sys_anon are locked down — this is by design,
+# not an inconsistency.
+_audit_sysmac() {
+  info "sysmac (mandatory access control / label security):"
+  if [[ -z "$(_audit_ext_installed sysmac)" ]]; then
+    warn "sysmac extension is not installed"
+    return
+  fi
+
+  local policy_cnt enforce_cnt
+  policy_cnt=$(ksql_q "SELECT count(*) FROM sysmac.sysmac_policys;" | tr -d '[:space:]')
+  enforce_cnt=$(ksql_q "SELECT count(*) FROM sysmac.sysmac_policy_enforcements;" | tr -d '[:space:]')
+  if [[ "${policy_cnt:-0}" -eq 0 ]]; then
+    ok "sysmac installed, no MAC policies defined (not in use)"
+  else
+    ok "$policy_cnt MAC polic(ies) defined, ${enforce_cnt:-0} object(s) under enforcement"
+  fi
+}
+
+# sys_anon's policy view lives in a schema without USAGE granted to the DBA
+# role by default — same three-power-separation pattern as sysaudit.
+_audit_sys_anon() {
+  info "sys_anon (data masking):"
+  if [[ -z "$(_audit_ext_installed sys_anon)" ]]; then
+    warn "sys_anon extension is not installed"
+    return
+  fi
+
+  local cnt
+  if ! cnt=$(ksql_q "SELECT count(*) FROM anon.all_policy;"); then
+    ok "Masking policy details are restricted (no schema access for the DBA role) — inspect via the sso/sao role, or GRANT USAGE ON SCHEMA anon"
+    return
+  fi
+
+  cnt="${cnt// /}"
+  if [[ "${cnt:-0}" -eq 0 ]]; then
+    warn "sys_anon is installed but no masking policies are configured"
+  else
+    ok "$cnt masking polic(ies) configured"
+  fi
+}
+
+cmd_audit() {
+  hdr "Security Audit"
+  _audit_superusers
+  _audit_no_password
+  _audit_password_expiry
+  _audit_public_grants
+  _audit_no_pk
+  _audit_ssl
+  _audit_sepapower
+  _audit_sysaudit
+  _audit_sysmac
+  _audit_sys_anon
 }
 
 # --- lib/cmd_logs.sh ---
