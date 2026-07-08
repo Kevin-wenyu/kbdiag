@@ -29,6 +29,7 @@ cluster|15
 replication|10
 check|30
 space|15
+backup|15
 params|10
 sessions|10
 locks|10

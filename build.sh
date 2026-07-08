@@ -27,6 +27,7 @@ KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
             lib/cmd_stmt.sh \
             lib/cmd_diagnose.sh \
             lib/cmd_license.sh \
+            lib/cmd_backup.sh \
             lib/cmd_update.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
@@ -65,6 +66,7 @@ case "$CMD" in
   watch)       cmd_watch "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   conf)        cmd_conf "$SUBCMD" ;;
   audit)       cmd_audit ;;
+  backup)      cmd_backup ;;
   logs)        cmd_logs ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   remote)      cmd_remote "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   kill)        cmd_kill "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
@@ -101,6 +103,7 @@ Global flags:
   replication         Replication lag / standby connections
   check               14-item health check, exit 0=OK 1=WARN 2=FAIL
   space [frag]        Disk, tables, WAL, archive, fragmentation
+  backup              Backup and WAL archiving readiness (archiver, sys_rman, slots)
   params [pattern]    Instance parameters
   update              Update kbdiag to the latest version from GitHub
 
