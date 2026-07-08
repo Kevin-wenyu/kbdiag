@@ -29,6 +29,7 @@ KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
             lib/cmd_license.sh \
             lib/cmd_backup.sh \
             lib/cmd_explain.sh \
+            lib/cmd_jobs.sh \
             lib/cmd_update.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
@@ -71,6 +72,7 @@ case "$CMD" in
   # shift 2 above is a no-op when only the command name was given, leaving the
   # command name itself in CMD_ARGS — only forward args when SUBCMD exists.
   explain)     cmd_explain ${SUBCMD:+"$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}"} ;;
+  jobs)        cmd_jobs ;;
   logs)        cmd_logs ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   remote)      cmd_remote "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   kill)        cmd_kill "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
@@ -120,6 +122,7 @@ Global flags:
   explain <queryid|"SQL">  Plan analysis: EXPLAIN + red flags (seq scan, nested loop, sort)
   wait                Wait event distribution
   progress            Long-running operation progress
+  jobs                Scheduler job health (kdb_schedule: broken jobs, failed runs)
   stat                Throughput metrics (TPS, buffer hit rate)
   obj <schema.table>  Object deep-dive (size, indexes, constraints)
   colstat <schema.table> [--col <col>]  Column statistics deep-dive (n_distinct, MCV, correlation)
