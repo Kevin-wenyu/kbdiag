@@ -280,6 +280,31 @@ cmd_check() {
     json_item "oldest_txn" "ok" "${oldest_txn}s" ""
   fi
 
+  # 15. WAL 归档状态（archive_mode=off 时视为 ok，是否该开归档由 backup 命令提示）
+  local arch_mode arch_row
+  arch_mode=$(ksql_q "SELECT setting FROM sys_settings WHERE name='archive_mode';" | tr -d '[:space:]')
+  if [[ -z "$arch_mode" || "$arch_mode" == "off" ]]; then
+    ok "WAL archiving: disabled (archive_mode=off)"
+    json_item "wal_archiving" "ok" "disabled" ""
+  elif arch_row=$(_backup_archiver_row); then
+    local arch_verdict arch_failed arch_fail_time ready_cnt
+    IFS='|' read -r arch_verdict _ arch_failed _ arch_fail_time _ <<< "$arch_row"
+    arch_verdict="${arch_verdict// /}"
+    ready_cnt=$(find "${KB_DATA_DIR}/sys_wal/archive_status" -name '*.ready' 2>/dev/null | wc -l | tr -d '[:space:]')
+    if [[ "$arch_verdict" == "failing" && "${ready_cnt:-0}" -ge "${KB_FAIL_WAL_READY:-100}" ]]; then
+      fail "WAL archiving: FAILING with ${ready_cnt} segments backlogged — disk will fill; run: kbdiag backup"
+      _exit=$(_check_level "$_exit" 2)
+      json_item "wal_archiving" "fail" "failing" "${arch_failed} failures, ${ready_cnt} pending"
+    elif [[ "$arch_verdict" == "failing" ]]; then
+      warn "WAL archiving: failing (${arch_failed} failures, last: ${arch_fail_time}) — run: kbdiag backup"
+      _exit=$(_check_level "$_exit" 1)
+      json_item "wal_archiving" "warn" "failing" "${arch_failed} failures"
+    else
+      ok "WAL archiving: ${arch_verdict}"
+      json_item "wal_archiving" "ok" "${arch_verdict}" ""
+    fi
+  fi
+
   [[ "$OUTPUT_FMT" == "json" ]] && json_end
   return "$_exit"
 }

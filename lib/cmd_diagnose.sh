@@ -322,6 +322,39 @@ _diag_disk() {
   _finding "$level" "disk" "$body"
 }
 
+# WAL 归档失败根因链：症状（WAL 积压）→ 证据（archiver 失败计数/最后失败段）
+# → 根因（archive_command 执行失败）→ 建议（用 kbdiag backup 验证）。
+# 复用 cmd_backup.sh 的 _backup_archiver_row。
+_diag_archiver() {
+  local arch_mode
+  arch_mode=$(ksql_q "SELECT setting FROM sys_settings WHERE name='archive_mode';" | tr -d '[:space:]')
+  [[ -z "$arch_mode" || "$arch_mode" == "off" ]] && return
+
+  local row
+  row=$(_backup_archiver_row) || return
+  local verdict failed last_ok last_fail fail_wal
+  IFS='|' read -r verdict _ failed last_ok last_fail fail_wal <<< "$row"
+  verdict="${verdict// /}"
+  [[ "$verdict" != "failing" ]] && return
+
+  local ready_cnt arch_cmd
+  ready_cnt=$(find "${KB_DATA_DIR}/sys_wal/archive_status" -name '*.ready' 2>/dev/null | wc -l | tr -d '[:space:]')
+  arch_cmd=$(ksql_q "SELECT setting FROM sys_settings WHERE name='archive_command';")
+
+  local level="WARN"
+  [[ "${ready_cnt:-0}" -ge "${KB_FAIL_WAL_READY:-100}" ]] && level="CRITICAL"
+
+  local body="WAL 归档失败\n"
+  body="${body}  症状：${ready_cnt:-0} 个 WAL 段待归档（.ready 积压），持续增长会撑满磁盘\n"
+  body="${body}  证据：archiver 累计失败 ${failed} 次 | 最后失败段: ${fail_wal} @ ${last_fail} | 最后成功: ${last_ok}\n"
+  body="${body}  根因：archive_command 执行失败: ${arch_cmd# }\n"
+  body="${body}  建议:\n"
+  body="${body}    · kbdiag backup 查看完整归档/备份链检查\n"
+  body="${body}    · 以 kingbase 用户手工执行 archive_command（替换 %p 为任一 WAL 段路径）看真实报错\n"
+  body="${body}    · sys_rman 场景：检查 config/stanza/仓库目录权限与磁盘空间"
+  _finding "$level" "wal_archiving" "$body"
+}
+
 _diag_xid_age() {
   local max_age
   max_age=$(ksql_q "
@@ -551,6 +584,7 @@ cmd_diagnose() {
   _diag_slow_queries
   _diag_replication
   _diag_disk
+  _diag_archiver
   _diag_xid_age
 
   if [[ $full_mode -eq 1 ]]; then

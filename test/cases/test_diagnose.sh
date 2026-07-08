@@ -154,3 +154,16 @@ test_diagnose_section_stmt_top_skip_or_data() {
     _fail "expected stmt_top section or skip message; got: $(echo "$out" | tail -5)"
   fi
 }
+
+test_diagnose_archiver_finding_consistent_with_backup() {
+  # 环境自适应：archiver 失败时 diagnose 必须给出归档根因链；
+  # archiver 健康时不应出现该 finding（以 backup 的裁决为基准）
+  local diag bk
+  diag=$(ssh_node1 "$KBDIAG_REMOTE diagnose")
+  bk=$(ssh_node1 "$KBDIAG_REMOTE backup")
+  if echo "$bk" | grep -q "Archiver is FAILING"; then
+    assert_contains "$diag" "WAL 归档失败"
+  else
+    assert_not_contains "$diag" "WAL 归档失败"
+  fi
+}

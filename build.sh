@@ -101,7 +101,7 @@ Global flags:
   license             License validity and expiry
   cluster             Repmgr cluster topology
   replication         Replication lag / standby connections
-  check               14-item health check, exit 0=OK 1=WARN 2=FAIL
+  check               15-item health check, exit 0=OK 1=WARN 2=FAIL
   space [frag]        Disk, tables, WAL, archive, fragmentation
   backup              Backup and WAL archiving readiness (archiver, sys_rman, slots)
   params [pattern]    Instance parameters

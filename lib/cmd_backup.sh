@@ -27,15 +27,12 @@ _backup_archive_config() {
   [[ -n "$arch_cmd" ]] && info "archive_command: $arch_cmd"
 }
 
-_backup_archiver_stats() {
-  local mode="$1"
-  if [[ "$mode" == "off" || -z "$mode" ]]; then
-    return 0
-  fi
-
-  # Verdict computed in SQL so the timestamp comparison happens server-side.
-  local row
-  row=$(ksql_q "
+# Shared with cmd_check's WAL-archiving item and cmd_diagnose's _diag_archiver.
+# Echoes "verdict|archived_count|failed_count|last_ok|last_fail|fail_wal";
+# returns nonzero if sys_stat_archiver is unreadable. Verdict computed in SQL
+# so the timestamp comparison happens server-side.
+_backup_archiver_row() {
+  ksql_q "
     SELECT CASE
              WHEN failed_count > 0 AND (last_archived_time IS NULL
                                         OR last_failed_time > last_archived_time)
@@ -49,7 +46,17 @@ _backup_archiver_stats() {
            || '|' || coalesce(last_archived_time::text, 'never')
            || '|' || coalesce(last_failed_time::text, 'never')
            || '|' || coalesce(last_failed_wal, '-')
-    FROM sys_stat_archiver;" 2>/dev/null) || return 0
+    FROM sys_stat_archiver;" 2>/dev/null
+}
+
+_backup_archiver_stats() {
+  local mode="$1"
+  if [[ "$mode" == "off" || -z "$mode" ]]; then
+    return 0
+  fi
+
+  local row
+  row=$(_backup_archiver_row) || return 0
 
   local verdict archived failed last_ok last_fail fail_wal
   IFS='|' read -r verdict archived failed last_ok last_fail fail_wal <<< "$row"

@@ -47,3 +47,8 @@ test_check_oldest_txn_present() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE check")
   assert_contains "$out" "oldest"
 }
+
+test_check_wal_archiving_item_present() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE check")
+  assert_contains "$out" "WAL archiving"
+}
