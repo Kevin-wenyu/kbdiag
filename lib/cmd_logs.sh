@@ -78,5 +78,5 @@ cmd_logs() {
     sed 's/.*ERROR: //; s/.*FATAL: //' | sort | uniq -c | sort -rn | head -"$TOP_N" || true
 
   # Cleanup temp file
-  [[ -n "$tmp_file" && -f "$tmp_file" ]] && rm -f "$tmp_file" || true
+  if [[ -n "$tmp_file" && -f "$tmp_file" ]]; then rm -f "$tmp_file"; fi
 }

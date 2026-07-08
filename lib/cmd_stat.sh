@@ -35,7 +35,7 @@ cmd_stat() {
       }'
 
     i=$(( i + 1 ))
-    [[ $i -lt $count ]] && sleep 0 || true
+    if [[ $i -lt $count ]]; then sleep 0; fi
   done
 
   _stat_section_wait_events "$interval"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-46-g72d70a6-dirty"
+KBDIAG_VERSION="v1.0.0-47-gd2b6a9e-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -1297,7 +1297,7 @@ cmd_stat() {
       }'
 
     i=$(( i + 1 ))
-    [[ $i -lt $count ]] && sleep 0 || true
+    if [[ $i -lt $count ]]; then sleep 0; fi
   done
 
   _stat_section_wait_events "$interval"
@@ -1532,9 +1532,9 @@ cmd_conf() {
   if [[ "$subcmd" == "diff" ]]; then
     # Compare this node's parameters with the peer node
     local peer="${KB_PEER_HOST:-}"
-    if [[ -z "$peer" ]]; then
+    if [[ -z "$peer" ]] && repmgr_available; then
       # Infer peer from repmgr
-      peer=$(repmgr_available && "$REPMGR" -f "$KB_REPMGR_CONF" cluster show 2>/dev/null | \
+      peer=$("$REPMGR" -f "$KB_REPMGR_CONF" cluster show 2>/dev/null | \
              awk '/standby|primary/ && !/\*/ {match($0,"host=([^ ]+)",a); if(a[1]) print a[1]; exit}' || true)
     fi
     if [[ -z "$peer" ]]; then
@@ -1832,7 +1832,7 @@ cmd_logs() {
     sed 's/.*ERROR: //; s/.*FATAL: //' | sort | uniq -c | sort -rn | head -"$TOP_N" || true
 
   # Cleanup temp file
-  [[ -n "$tmp_file" && -f "$tmp_file" ]] && rm -f "$tmp_file" || true
+  if [[ -n "$tmp_file" && -f "$tmp_file" ]]; then rm -f "$tmp_file"; fi
 }
 
 # --- lib/cmd_remote.sh ---

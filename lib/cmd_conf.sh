@@ -6,9 +6,9 @@ cmd_conf() {
   if [[ "$subcmd" == "diff" ]]; then
     # Compare this node's parameters with the peer node
     local peer="${KB_PEER_HOST:-}"
-    if [[ -z "$peer" ]]; then
+    if [[ -z "$peer" ]] && repmgr_available; then
       # Infer peer from repmgr
-      peer=$(repmgr_available && "$REPMGR" -f "$KB_REPMGR_CONF" cluster show 2>/dev/null | \
+      peer=$("$REPMGR" -f "$KB_REPMGR_CONF" cluster show 2>/dev/null | \
              awk '/standby|primary/ && !/\*/ {match($0,"host=([^ ]+)",a); if(a[1]) print a[1]; exit}' || true)
     fi
     if [[ -z "$peer" ]]; then
