@@ -28,6 +28,7 @@ KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
             lib/cmd_diagnose.sh \
             lib/cmd_license.sh \
             lib/cmd_backup.sh \
+            lib/cmd_explain.sh \
             lib/cmd_update.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
@@ -67,6 +68,9 @@ case "$CMD" in
   conf)        cmd_conf "$SUBCMD" ;;
   audit)       cmd_audit ;;
   backup)      cmd_backup ;;
+  # shift 2 above is a no-op when only the command name was given, leaving the
+  # command name itself in CMD_ARGS — only forward args when SUBCMD exists.
+  explain)     cmd_explain ${SUBCMD:+"$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}"} ;;
   logs)        cmd_logs ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   remote)      cmd_remote "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   kill)        cmd_kill "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
@@ -113,6 +117,7 @@ Global flags:
   perf [slow|bloat|vacuum|wait|io|wal|top]   Performance diagnostics
   sql [pid|all]       SQL text + EXPLAIN for a session
   stmt [queryid]      SQL history statistics — Top N by mean/total/IO/calls (AWR-style)
+  explain <queryid|"SQL">  Plan analysis: EXPLAIN + red flags (seq scan, nested loop, sort)
   wait                Wait event distribution
   progress            Long-running operation progress
   stat                Throughput metrics (TPS, buffer hit rate)

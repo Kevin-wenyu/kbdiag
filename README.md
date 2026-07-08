@@ -99,6 +99,7 @@ Answers one specific question in depth; also used to verify a ROOT-CAUSE finding
 | `perf [slow\|bloat\|vacuum\|wait\|io\|wal\|top]` | Performance diagnostics |
 | `sql [pid\|all]` | SQL text + EXPLAIN for a session |
 | `stmt [queryid]` | SQL history stats — Top N by mean/total/IO/calls (AWR-style) |
+| `explain <queryid\|"SQL">` | Plan analysis: EXPLAIN + red flags (seq scans, nested loops, sorts) |
 | `wait` | Wait event distribution |
 | `progress` | Long-running operation progress |
 | `stat` | Throughput metrics (TPS, buffer hit rate) |
@@ -251,6 +252,7 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | `perf [slow\|bloat\|vacuum\|wait\|io\|wal\|top]` | 慢查询 / 表膨胀 / 垃圾回收 / 等待事件 / IO / WAL / Top SQL |
 | `sql [pid\|all]` | 会话 SQL 全文 + EXPLAIN 计划 |
 | `stmt [queryid]` | SQL 历史统计 AWR 报告（均值/总耗时/IO/调用频率 Top N）；指定 queryid 下钻 |
+| `explain <queryid\|"SQL">` | 执行计划分析：EXPLAIN + 红旗提示（顺序扫描、嵌套循环、排序） |
 | `wait` | 等待事件分布 |
 | `progress` | 长时间操作进度（VACUUM、CREATE INDEX 等） |
 | `params [pattern]` | 实例参数查询（支持模糊匹配） |
