@@ -539,7 +539,9 @@ _diag_render() {
   if [[ $critical -eq 0 && $warn_ct -eq 0 && $info_ct -eq 0 ]]; then
     # shellcheck disable=SC2059
     printf "${GREEN}● 未发现异常${RESET}\n"
-    [[ "$full_mode" -eq 0 ]] && echo "  加 --full 可运行完整检查（预计约 90s）"
+    if [[ "$full_mode" -eq 0 ]]; then
+      echo "  加 --full 可运行完整检查（预计约 90s）"
+    fi
     return
   fi
 
@@ -557,7 +559,32 @@ _diag_render() {
     done
   done
 
-  [[ "$full_mode" -eq 0 ]] && echo "  加 --full 可运行完整检查（预计约 90s）"
+  if [[ "$full_mode" -eq 0 ]]; then
+    echo "  加 --full 可运行完整检查（预计约 90s）"
+  fi
+}
+
+# 每个诊断维度经 _diag_run 执行，记录"查了什么、发现几项"——阴性证据也是
+# 证据：报告尾部的已检查清单让"无发现"可信，同时给回归测试一个与环境
+# 健康状态无关的确定性断言点。
+_diag_run() {
+  local label="$1" fn="$2"
+  local before=${#FINDINGS_LEVEL[@]}
+  "$fn"
+  _DIAG_CHECKED_LABELS+=("$label")
+  _DIAG_CHECKED_COUNTS+=( $(( ${#FINDINGS_LEVEL[@]} - before )) )
+}
+
+_diag_footer() {
+  local i line="已检查维度:"
+  for i in "${!_DIAG_CHECKED_LABELS[@]}"; do
+    if [[ "${_DIAG_CHECKED_COUNTS[$i]}" -gt 0 ]]; then
+      line="$line ${_DIAG_CHECKED_LABELS[$i]}(${_DIAG_CHECKED_COUNTS[$i]}项)"
+    else
+      line="$line ${_DIAG_CHECKED_LABELS[$i]}✓"
+    fi
+  done
+  printf "\n%s\n" "$line"
 }
 
 # ── 入口 ─────────────────────────────────────────────────────────────────────────
@@ -575,28 +602,33 @@ cmd_diagnose() {
   FINDINGS_CATEGORY=()
   FINDINGS_BODY=()
   _JSON_FINDINGS=""
+  _DIAG_CHECKED_LABELS=()
+  _DIAG_CHECKED_COUNTS=()
 
   local t_start; t_start=$(date +%s)
 
-  _diag_long_txn
-  _diag_connections
-  _diag_locks
-  _diag_slow_queries
-  _diag_replication
-  _diag_disk
-  _diag_archiver
-  _diag_xid_age
+  _diag_run "长事务" _diag_long_txn
+  _diag_run "连接数" _diag_connections
+  _diag_run "锁等待" _diag_locks
+  _diag_run "慢查询" _diag_slow_queries
+  _diag_run "复制状态" _diag_replication
+  _diag_run "磁盘空间" _diag_disk
+  _diag_run "WAL归档" _diag_archiver
+  _diag_run "XID年龄" _diag_xid_age
 
   if [[ $full_mode -eq 1 ]]; then
-    _diag_indexes
-    _diag_params
-    _diag_bloat
-    _diag_buffer_hit
-    _diag_checkpoint
-    _diag_temp
-    _diag_stmt_top
+    _diag_run "索引健康" _diag_indexes
+    _diag_run "参数配置" _diag_params
+    _diag_run "表膨胀/真空债" _diag_bloat
+    _diag_run "缓冲命中" _diag_buffer_hit
+    _diag_run "checkpoint频率" _diag_checkpoint
+    _diag_run "临时文件" _diag_temp
+    _diag_run "Top SQL" _diag_stmt_top
   fi
 
   local t_end; t_end=$(date +%s)
   _diag_render "$full_mode" $(( t_end - t_start ))
+  if [[ "$OUTPUT_FMT" != "json" ]]; then
+    _diag_footer
+  fi
 }

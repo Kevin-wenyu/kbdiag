@@ -107,7 +107,7 @@ test_diagnose_section_xid_age() {
 }
 
 test_diagnose_section_vacuum_debt() {
-  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose")
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose --full")
   assert_contains "$out" "真空"
 }
 
@@ -117,12 +117,12 @@ test_diagnose_section_bloat() {
 }
 
 test_diagnose_section_buffer_hit() {
-  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose")
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose --full")
   assert_contains "$out" "缓冲"
 }
 
 test_diagnose_section_checkpoint() {
-  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose")
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose --full")
   if echo "$out" | grep -qiE 'checkpoint|检查点'; then
     _pass
   else
@@ -131,7 +131,7 @@ test_diagnose_section_checkpoint() {
 }
 
 test_diagnose_section_temp() {
-  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose")
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE diagnose --full")
   assert_contains "$out" "临时文件"
 }
 
