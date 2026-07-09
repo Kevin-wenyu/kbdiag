@@ -207,6 +207,30 @@ ksql_qh() {
     -AXc "$1" 2>/dev/null
 }
 
+# ─── shared data sources ─────────────────────────────────────────────────────
+# ANALYZE drift: percent deviation of live tuples from the planner's reltuples
+# estimate. advisor (whole-DB sweep) and colstat (single-table deep dive) must
+# stay on the same math — reference this fragment instead of re-deriving it.
+# Requires n_live_tup (sys_stat_user_tables) and reltuples (sys_class) in scope.
+# shellcheck disable=SC2034  # referenced from cmd_advisor.sh / cmd_colstat.sh
+KB_DRIFT_EXPR="(n_live_tup - reltuples::bigint) * 100.0 / NULLIF(reltuples::bigint, 0)"
+
+# Single source for sys_stat_bgwriter counters; perf/stat consume different
+# fields at their own display granularity. One row:
+#   checkpoints_timed|checkpoints_req|write_s|sync_s|
+#   buffers_checkpoint|buffers_clean|buffers_backend|
+#   ckpt_bytes|bgwriter_bytes|backend_bytes
+bgwriter_stats() {
+  ksql_q "SELECT checkpoints_timed, checkpoints_req,
+      round(checkpoint_write_time/1000.0, 1),
+      round(checkpoint_sync_time/1000.0, 1),
+      buffers_checkpoint, buffers_clean, buffers_backend,
+      pg_size_pretty(buffers_checkpoint*8192::bigint),
+      pg_size_pretty(buffers_clean*8192::bigint),
+      pg_size_pretty(buffers_backend*8192::bigint)
+    FROM sys_stat_bgwriter;"
+}
+
 repmgr_available() {
   [[ -x "$REPMGR" && -f "$KB_REPMGR_CONF" ]]
 }

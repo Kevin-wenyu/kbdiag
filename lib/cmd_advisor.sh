@@ -334,18 +334,18 @@ _advisor_analyze() {
 
   local stale_rows
   stale_rows=$(ksql_q "
-    SELECT schemaname, relname,
-           coalesce(last_analyze, last_autoanalyze, 'never')::text AS last_analyze,
-           round(100.0*(n_live_tup - reltuples::bigint)/NULLIF(reltuples::bigint,0),1) AS drift_pct
-    FROM sys_stat_user_tables
-    JOIN sys_class sc ON sc.relname = sys_stat_user_tables.relname
+    SELECT t.schemaname, t.relname,
+           coalesce(t.last_analyze, t.last_autoanalyze, 'never')::text AS last_analyze,
+           round((${KB_DRIFT_EXPR})::numeric, 1) AS drift_pct
+    FROM sys_stat_user_tables t
+    JOIN sys_class sc ON sc.relname = t.relname
     JOIN sys_namespace ns ON ns.oid = sc.relnamespace
-      AND ns.nspname = sys_stat_user_tables.schemaname
+      AND ns.nspname = t.schemaname
     WHERE n_live_tup > 1000
       AND (
         coalesce(last_analyze, last_autoanalyze) < now() - interval '7 days'
         OR coalesce(last_analyze, last_autoanalyze) IS NULL
-        OR abs(n_live_tup - reltuples::bigint) * 100.0 / NULLIF(reltuples::bigint, 0) > 10
+        OR abs(${KB_DRIFT_EXPR}) > 10
       )
     ORDER BY abs(n_live_tup - reltuples::bigint) DESC
     LIMIT ${TOP_N};" 2>/dev/null || true)

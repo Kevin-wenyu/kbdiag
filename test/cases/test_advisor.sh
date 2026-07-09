@@ -85,32 +85,34 @@ test_advisor_standby_runs() {
 
 # ── --fix SQL 语法验证 ────────────────────────────────────────
 
+# Match statement lines only — section headers ("==> Advisor: Vacuum") and
+# comment lines also contain the keywords and used to shadow the statements.
 test_advisor_fix_vacuum_sql_parseable() {
-  local sql; sql=$(ssh_node1 "$KBDIAG_REMOTE advisor vacuum --fix" 2>/dev/null | grep -i 'VACUUM' | head -1 || true)
+  local sql; sql=$(ssh_node1 "$KBDIAG_REMOTE advisor vacuum --fix" 2>/dev/null | grep -E '^VACUUM ' | head -1 || true)
   [[ -z "$sql" ]] && { _pass; return; }
-  if echo "$sql" | grep -qiE '^VACUUM'; then
+  if echo "$sql" | grep -qE '^VACUUM .+;$'; then
     _pass
   else
-    _fail "expected VACUUM statement, got: $sql"
+    _fail "malformed VACUUM statement: $sql"
   fi
 }
 
 test_advisor_fix_analyze_sql_parseable() {
-  local sql; sql=$(ssh_node1 "$KBDIAG_REMOTE advisor analyze --fix" 2>/dev/null | grep -i 'ANALYZE' | head -1 || true)
+  local sql; sql=$(ssh_node1 "$KBDIAG_REMOTE advisor analyze --fix" 2>/dev/null | grep -E '^ANALYZE ' | head -1 || true)
   [[ -z "$sql" ]] && { _pass; return; }
-  if echo "$sql" | grep -qiE '^ANALYZE'; then
+  if echo "$sql" | grep -qE '^ANALYZE .+;$'; then
     _pass
   else
-    _fail "expected ANALYZE statement, got: $sql"
+    _fail "malformed ANALYZE statement: $sql"
   fi
 }
 
 test_advisor_fix_index_sql_executable() {
-  local sql; sql=$(ssh_node1 "$KBDIAG_REMOTE advisor index --fix" 2>/dev/null | grep -i 'CREATE INDEX' | head -1 || true)
+  local sql; sql=$(ssh_node1 "$KBDIAG_REMOTE advisor index --fix" 2>/dev/null | grep -E '^(CREATE|DROP) INDEX ' | head -1 || true)
   [[ -z "$sql" ]] && { _pass; return; }
-  if echo "$sql" | grep -qiE '^DROP INDEX'; then
+  if echo "$sql" | grep -qE '^(CREATE|DROP) INDEX CONCURRENTLY .+;$'; then
     _pass
   else
-    _fail "expected DROP INDEX statement from advisor index --fix, got: $sql"
+    _fail "malformed index statement: $sql"
   fi
 }

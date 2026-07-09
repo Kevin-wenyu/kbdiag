@@ -108,13 +108,11 @@ _perf_io() {
 
 _perf_wal() {
   hdr "WAL and checkpoint statistics"
-  ksql_qh "
-    SELECT checkpoints_timed, checkpoints_req,
-           pg_size_pretty(buffers_checkpoint*8192::bigint) AS ckpt_bytes,
-           pg_size_pretty(buffers_clean*8192::bigint) AS bgwriter_bytes,
-           pg_size_pretty(buffers_backend*8192::bigint) AS backend_bytes
-    FROM sys_stat_bgwriter;" \
-    | column -t -s '|' || true
+  { echo "checkpoints_timed|checkpoints_req|ckpt_bytes|bgwriter_bytes|backend_bytes"
+    bgwriter_stats | while IFS='|' read -r timed req _ _ _ _ _ ckpt bgw backend; do
+      echo "${timed}|${req}|${ckpt}|${bgw}|${backend}"
+    done
+  } | column -t -s '|' || true
 }
 
 _perf_top() {

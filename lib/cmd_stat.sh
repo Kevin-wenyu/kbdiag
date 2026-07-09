@@ -78,12 +78,8 @@ _stat_section_temp_files() {
 
 _stat_section_checkpoints() {
   printf "\nCheckpoint activity:\n"
-  ksql_q "SELECT checkpoints_timed, checkpoints_req,
-    round(checkpoint_write_time/1000.0, 1) AS write_s,
-    round(checkpoint_sync_time/1000.0, 1)  AS sync_s,
-    buffers_checkpoint
-    FROM sys_stat_bgwriter;" 2>/dev/null \
-  | while IFS='|' read -r timed req write_s sync_s bufs; do
+  bgwriter_stats \
+  | while IFS='|' read -r timed req write_s sync_s bufs _; do
       printf "Checkpoints timed/req: %s / %s\n" \
         "${timed// /}" "${req// /}"
       printf "Write time (s):        %s\n" "${write_s// /}"

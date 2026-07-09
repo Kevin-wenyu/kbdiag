@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-53-gf8c2645-dirty"
+KBDIAG_VERSION="v1.0.0-54-gc7872e9-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -212,6 +212,30 @@ ksql_q() {
 ksql_qh() {
   timeout "$KB_QUERY_TIMEOUT" "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
     -AXc "$1" 2>/dev/null
+}
+
+# ─── shared data sources ─────────────────────────────────────────────────────
+# ANALYZE drift: percent deviation of live tuples from the planner's reltuples
+# estimate. advisor (whole-DB sweep) and colstat (single-table deep dive) must
+# stay on the same math — reference this fragment instead of re-deriving it.
+# Requires n_live_tup (sys_stat_user_tables) and reltuples (sys_class) in scope.
+# shellcheck disable=SC2034  # referenced from cmd_advisor.sh / cmd_colstat.sh
+KB_DRIFT_EXPR="(n_live_tup - reltuples::bigint) * 100.0 / NULLIF(reltuples::bigint, 0)"
+
+# Single source for sys_stat_bgwriter counters; perf/stat consume different
+# fields at their own display granularity. One row:
+#   checkpoints_timed|checkpoints_req|write_s|sync_s|
+#   buffers_checkpoint|buffers_clean|buffers_backend|
+#   ckpt_bytes|bgwriter_bytes|backend_bytes
+bgwriter_stats() {
+  ksql_q "SELECT checkpoints_timed, checkpoints_req,
+      round(checkpoint_write_time/1000.0, 1),
+      round(checkpoint_sync_time/1000.0, 1),
+      buffers_checkpoint, buffers_clean, buffers_backend,
+      pg_size_pretty(buffers_checkpoint*8192::bigint),
+      pg_size_pretty(buffers_clean*8192::bigint),
+      pg_size_pretty(buffers_backend*8192::bigint)
+    FROM sys_stat_bgwriter;"
 }
 
 repmgr_available() {
@@ -861,13 +885,11 @@ _perf_io() {
 
 _perf_wal() {
   hdr "WAL and checkpoint statistics"
-  ksql_qh "
-    SELECT checkpoints_timed, checkpoints_req,
-           pg_size_pretty(buffers_checkpoint*8192::bigint) AS ckpt_bytes,
-           pg_size_pretty(buffers_clean*8192::bigint) AS bgwriter_bytes,
-           pg_size_pretty(buffers_backend*8192::bigint) AS backend_bytes
-    FROM sys_stat_bgwriter;" \
-    | column -t -s '|' || true
+  { echo "checkpoints_timed|checkpoints_req|ckpt_bytes|bgwriter_bytes|backend_bytes"
+    bgwriter_stats | while IFS='|' read -r timed req _ _ _ _ _ ckpt bgw backend; do
+      echo "${timed}|${req}|${ckpt}|${bgw}|${backend}"
+    done
+  } | column -t -s '|' || true
 }
 
 _perf_top() {
@@ -1340,12 +1362,8 @@ _stat_section_temp_files() {
 
 _stat_section_checkpoints() {
   printf "\nCheckpoint activity:\n"
-  ksql_q "SELECT checkpoints_timed, checkpoints_req,
-    round(checkpoint_write_time/1000.0, 1) AS write_s,
-    round(checkpoint_sync_time/1000.0, 1)  AS sync_s,
-    buffers_checkpoint
-    FROM sys_stat_bgwriter;" 2>/dev/null \
-  | while IFS='|' read -r timed req write_s sync_s bufs; do
+  bgwriter_stats \
+  | while IFS='|' read -r timed req write_s sync_s bufs _; do
       printf "Checkpoints timed/req: %s / %s\n" \
         "${timed// /}" "${req// /}"
       printf "Write time (s):        %s\n" "${write_s// /}"
@@ -2419,30 +2437,27 @@ cmd_colstat() {
     return 1
   fi
 
-  # Table-level metadata
+  # Table-level metadata; drift comes from the shared KB_DRIFT_EXPR so this
+  # stays on the same math as advisor's whole-DB sweep.
   local last_analyze n_live_tup reltuples drift_pct
   local meta
   meta=$(ksql_q "
     SELECT coalesce(last_analyze::text, last_autoanalyze::text, 'never') AS last_analyze,
            n_live_tup::text,
-           coalesce((SELECT reltuples::bigint::text FROM sys_class
-            JOIN sys_namespace n ON n.oid=relnamespace
-            WHERE n.nspname='${schema}' AND relname='${table}'), '0') AS reltuples
-    FROM sys_stat_user_tables
-    WHERE schemaname='${schema}' AND relname='${table}';")
+           reltuples::bigint::text,
+           coalesce(round((${KB_DRIFT_EXPR})::numeric, 1)::text, '0') AS drift_pct
+    FROM sys_stat_user_tables t
+    JOIN sys_class sc ON sc.relname = t.relname
+    JOIN sys_namespace ns ON ns.oid = sc.relnamespace
+      AND ns.nspname = t.schemaname
+    WHERE t.schemaname='${schema}' AND t.relname='${table}';")
 
-  IFS='|' read -r last_analyze n_live_tup reltuples <<< "$meta"
+  IFS='|' read -r last_analyze n_live_tup reltuples drift_pct <<< "$meta"
   last_analyze="${last_analyze:-never}"
   last_analyze="$(echo "$last_analyze" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
   n_live_tup="$(echo "${n_live_tup:-0}" | tr -d '[:space:]')"
   reltuples="$(echo "${reltuples:-0}" | tr -d '[:space:]')"
-
-  # Drift percent
-  if [[ "${reltuples:-0}" -gt 0 ]]; then
-    drift_pct=$(awk "BEGIN{printf \"%.1f\", (${n_live_tup} - ${reltuples}) * 100.0 / ${reltuples}}" 2>/dev/null || echo "0")
-  else
-    drift_pct="0"
-  fi
+  drift_pct="$(echo "${drift_pct:-0}" | tr -d '[:space:]')"
 
   local _exit=0
   local warnings=()
@@ -2922,18 +2937,18 @@ _advisor_analyze() {
 
   local stale_rows
   stale_rows=$(ksql_q "
-    SELECT schemaname, relname,
-           coalesce(last_analyze, last_autoanalyze, 'never')::text AS last_analyze,
-           round(100.0*(n_live_tup - reltuples::bigint)/NULLIF(reltuples::bigint,0),1) AS drift_pct
-    FROM sys_stat_user_tables
-    JOIN sys_class sc ON sc.relname = sys_stat_user_tables.relname
+    SELECT t.schemaname, t.relname,
+           coalesce(t.last_analyze, t.last_autoanalyze, 'never')::text AS last_analyze,
+           round((${KB_DRIFT_EXPR})::numeric, 1) AS drift_pct
+    FROM sys_stat_user_tables t
+    JOIN sys_class sc ON sc.relname = t.relname
     JOIN sys_namespace ns ON ns.oid = sc.relnamespace
-      AND ns.nspname = sys_stat_user_tables.schemaname
+      AND ns.nspname = t.schemaname
     WHERE n_live_tup > 1000
       AND (
         coalesce(last_analyze, last_autoanalyze) < now() - interval '7 days'
         OR coalesce(last_analyze, last_autoanalyze) IS NULL
-        OR abs(n_live_tup - reltuples::bigint) * 100.0 / NULLIF(reltuples::bigint, 0) > 10
+        OR abs(${KB_DRIFT_EXPR}) > 10
       )
     ORDER BY abs(n_live_tup - reltuples::bigint) DESC
     LIMIT ${TOP_N};" 2>/dev/null || true)

@@ -63,30 +63,27 @@ cmd_colstat() {
     return 1
   fi
 
-  # Table-level metadata
+  # Table-level metadata; drift comes from the shared KB_DRIFT_EXPR so this
+  # stays on the same math as advisor's whole-DB sweep.
   local last_analyze n_live_tup reltuples drift_pct
   local meta
   meta=$(ksql_q "
     SELECT coalesce(last_analyze::text, last_autoanalyze::text, 'never') AS last_analyze,
            n_live_tup::text,
-           coalesce((SELECT reltuples::bigint::text FROM sys_class
-            JOIN sys_namespace n ON n.oid=relnamespace
-            WHERE n.nspname='${schema}' AND relname='${table}'), '0') AS reltuples
-    FROM sys_stat_user_tables
-    WHERE schemaname='${schema}' AND relname='${table}';")
+           reltuples::bigint::text,
+           coalesce(round((${KB_DRIFT_EXPR})::numeric, 1)::text, '0') AS drift_pct
+    FROM sys_stat_user_tables t
+    JOIN sys_class sc ON sc.relname = t.relname
+    JOIN sys_namespace ns ON ns.oid = sc.relnamespace
+      AND ns.nspname = t.schemaname
+    WHERE t.schemaname='${schema}' AND t.relname='${table}';")
 
-  IFS='|' read -r last_analyze n_live_tup reltuples <<< "$meta"
+  IFS='|' read -r last_analyze n_live_tup reltuples drift_pct <<< "$meta"
   last_analyze="${last_analyze:-never}"
   last_analyze="$(echo "$last_analyze" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
   n_live_tup="$(echo "${n_live_tup:-0}" | tr -d '[:space:]')"
   reltuples="$(echo "${reltuples:-0}" | tr -d '[:space:]')"
-
-  # Drift percent
-  if [[ "${reltuples:-0}" -gt 0 ]]; then
-    drift_pct=$(awk "BEGIN{printf \"%.1f\", (${n_live_tup} - ${reltuples}) * 100.0 / ${reltuples}}" 2>/dev/null || echo "0")
-  else
-    drift_pct="0"
-  fi
+  drift_pct="$(echo "${drift_pct:-0}" | tr -d '[:space:]')"
 
   local _exit=0
   local warnings=()
