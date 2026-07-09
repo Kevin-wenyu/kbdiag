@@ -68,6 +68,63 @@ _audit_no_pk() {
   fi
 }
 
+# Connection-source whitelist. Reads sys_hba_file_rules (what the server
+# actually loaded, including parse errors) instead of parsing sys_hba.conf —
+# the file on disk may differ from the active config until a reload.
+_audit_hba() {
+  info "Connection whitelist (sys_hba.conf):"
+  local total
+  # Guarded: the view may be absent or restricted on older/other editions.
+  if ! total=$(ksql_q "SELECT count(*) FROM sys_hba_file_rules;"); then
+    info "sys_hba_file_rules view not available — inspect sys_hba.conf manually"
+    return
+  fi
+  total="${total// /}"
+
+  local risky_where="
+    error IS NOT NULL
+    OR auth_method IN ('trust','password','md5')
+    OR (address='0.0.0.0' AND netmask='0.0.0.0')
+    OR (address='::' AND netmask='::')
+    OR address='all'"
+
+  local risky_cnt
+  risky_cnt=$(ksql_q "SELECT count(*) FROM sys_hba_file_rules WHERE $risky_where;" | tr -d '[:space:]')
+  if [[ "${risky_cnt:-0}" -eq 0 ]]; then
+    ok "$total hba rule(s) loaded — no trust, wide-open or weak-auth entries"
+    return
+  fi
+
+  warn "$risky_cnt of $total hba rule(s) need review:"
+  ksql_qh "
+    SELECT line_number AS line, coalesce(type,'?') AS type,
+           coalesce(array_to_string(database,','),'?') AS database,
+           coalesce(array_to_string(user_name,','),'?') AS users,
+           -- KingbaseES concat treats NULL as '' (Oracle mode), so a
+           -- coalesce(address||'/'||netmask, ...) fallback never fires.
+           CASE WHEN address IS NULL THEN 'local'
+                WHEN netmask IS NULL THEN address
+                ELSE address || '/' || netmask END AS source,
+           coalesce(auth_method,'?') AS auth,
+           concat_ws('; ',
+             CASE WHEN error IS NOT NULL THEN 'parse error: ' || error END,
+             CASE WHEN auth_method='trust' AND type <> 'local'
+                    THEN 'no authentication over network'
+                  WHEN auth_method='trust'
+                    THEN 'any local OS user connects unauthenticated' END,
+             CASE WHEN (address='0.0.0.0' AND netmask='0.0.0.0')
+                    OR (address='::' AND netmask='::') OR address='all'
+                  THEN CASE WHEN 'replication' = ANY(database)
+                         THEN 'replication open to any host'
+                         ELSE 'open to any host' END END,
+             CASE WHEN auth_method IN ('password','md5')
+                    THEN 'weak auth method' END
+           ) AS risk
+    FROM sys_hba_file_rules
+    WHERE $risky_where
+    ORDER BY line_number LIMIT $TOP_N;" | column -t -s '|' || true
+}
+
 _audit_ssl() {
   local ssl_on
   ssl_on=$(ksql_q "SHOW ssl;" | tr -d '[:space:]')
@@ -174,6 +231,7 @@ cmd_audit() {
   _audit_password_expiry
   _audit_public_grants
   _audit_no_pk
+  _audit_hba
   _audit_ssl
   _audit_sepapower
   _audit_sysaudit

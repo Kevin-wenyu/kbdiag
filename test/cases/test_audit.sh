@@ -34,3 +34,20 @@ test_audit_superuser_has_column_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE audit")
   assert_contains "$out" "rolname"
 }
+
+test_audit_shows_hba_section() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE audit")
+  assert_contains "$out" "sys_hba.conf"
+}
+
+# The test VMs ship a wide-open hba (0.0.0.0/0 + local trust), so the risky-rule
+# table must appear with per-rule reasons.
+test_audit_hba_flags_wide_open_rule() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE audit")
+  assert_contains "$out" "open to any host"
+}
+
+test_audit_hba_flags_trust_rule() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE audit")
+  assert_contains "$out" "unauthenticated"
+}
