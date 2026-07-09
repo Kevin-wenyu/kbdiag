@@ -52,8 +52,12 @@ advisor|30
 
 # Time one command inside the VM; echoes elapsed milliseconds.
 # </dev/null keeps ssh from draining the heredoc that feeds the caller's loop.
+# /proc/uptime is monotonic — wall-clock (date) steps under NTP inside the
+# VM and occasionally produced negative timings. Bash builtins only: quotes
+# don't survive the limactl→sudo -i→bash -c relay (10ms resolution is fine
+# for second-scale budgets).
 time_cmd_ms() {
-  ssh_node1 "s=\$(date +%s%N); $KBDIAG_REMOTE $1 >/dev/null 2>&1; e=\$(date +%s%N); echo \$(( (e-s)/1000000 ))" </dev/null
+  ssh_node1 "read s _ < /proc/uptime; $KBDIAG_REMOTE $1 >/dev/null 2>&1; read e _ < /proc/uptime; echo \$(( (\${e/.} - \${s/.}) * 10 ))" </dev/null
 }
 
 FAILED=0
@@ -62,8 +66,10 @@ printf "%-14s %10s %10s  %s\n" "command" "ms" "budget_s" "result"
 while IFS='|' read -r cmd budget; do
   [[ -z "$cmd" ]] && continue
   ms=$(time_cmd_ms "$cmd" | tr -d '[:space:]')
-  if [[ -z "$ms" ]]; then
-    printf "%-14s %10s %10s  %s\n" "$cmd" "n/a" "$budget" "FAIL (no timing)"
+  # ms <= 0 means the measurement itself broke (SSH round-trip alone is
+  # ~200ms) — fail loudly instead of passing on nonsense.
+  if [[ -z "$ms" ]] || (( ms <= 0 )); then
+    printf "%-14s %10s %10s  %s\n" "$cmd" "${ms:-n/a}" "$budget" "FAIL (no timing)"
     FAILED=1
     continue
   fi
