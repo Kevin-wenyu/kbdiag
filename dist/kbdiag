@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-57-g6908c09-dirty"
+KBDIAG_VERSION="v1.0.0-59-ge1edea1-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -1361,11 +1361,13 @@ cmd_stat() {
 
   hdr "Instance throughput (${interval}s sample)"
 
+  # One snapshot pair feeds both the throughput and temp-files deltas —
+  # a separate sleep per section doubled stat's runtime.
+  local snap1 snap2
   while [[ $i -lt $count ]]; do
-    local snap1 snap2
-    snap1=$(ksql_q "SELECT xact_commit, xact_rollback, blks_read, blks_hit, deadlocks FROM sys_stat_database WHERE datname=current_database();")
+    snap1=$(ksql_q "SELECT xact_commit, xact_rollback, blks_read, blks_hit, deadlocks, temp_files, temp_bytes FROM sys_stat_database WHERE datname=current_database();")
     sleep "$interval"
-    snap2=$(ksql_q "SELECT xact_commit, xact_rollback, blks_read, blks_hit, deadlocks FROM sys_stat_database WHERE datname=current_database();")
+    snap2=$(ksql_q "SELECT xact_commit, xact_rollback, blks_read, blks_hit, deadlocks, temp_files, temp_bytes FROM sys_stat_database WHERE datname=current_database();")
 
     printf "%s\n%s\n" "$snap1" "$snap2" | awk -F'|' -v interval="$interval" '
       NR==1 { c1=$1; r1=$2; br1=$3; bh1=$4; d1=$5 }
@@ -1383,7 +1385,7 @@ cmd_stat() {
   done
 
   _stat_section_wait_events "$interval"
-  _stat_section_temp_files "$interval"
+  _stat_section_temp_files "$interval" "$snap1" "$snap2"
   _stat_section_checkpoints
   _stat_section_top_sql
 }
@@ -1405,16 +1407,14 @@ _stat_section_wait_events() {
     done || true
 }
 
+# Consumes the throughput snapshot pair (fields 6-7: temp_files, temp_bytes)
+# instead of sleeping through its own sampling window.
 _stat_section_temp_files() {
-  local interval="${1:-5}"
+  local interval="${1:-5}" s1="$2" s2="$3"
   printf "\nTemp files (%ss delta):\n" "$interval"
-  local s1 s2
-  s1=$(ksql_q "SELECT temp_files, temp_bytes FROM sys_stat_database WHERE datname=current_database();" 2>/dev/null)
-  sleep "$interval"
-  s2=$(ksql_q "SELECT temp_files, temp_bytes FROM sys_stat_database WHERE datname=current_database();" 2>/dev/null)
   printf "%s\n%s\n" "$s1" "$s2" | awk -F'|' -v interval="$interval" '
-    NR==1 { f1=$1; b1=$2 }
-    NR==2 { f2=$1; b2=$2
+    NR==1 { f1=$6; b1=$7 }
+    NR==2 { f2=$6; b2=$7
       printf "Temp files/s:    %.2f\n", (f2-f1)/interval
       printf "Temp bytes/s:    %.0f\n", (b2-b1)/interval
     }' || true
