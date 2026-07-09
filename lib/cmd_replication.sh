@@ -5,6 +5,43 @@ cmd_replication() {
   local is_standby
   is_standby=$(ksql_q "SELECT pg_is_in_recovery()::text;" | tr -d '[:space:]')
 
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    json_begin "replication"
+    if [[ "$is_standby" == "false" ]]; then
+      json_item "role" "ok" "primary" ""
+      local rows scnt=0
+      rows=$(ksql_q "
+        SELECT coalesce(client_addr::text, 'local'), state, sync_state,
+               pg_size_pretty(sent_lsn - replay_lsn)
+        FROM sys_stat_replication;")
+      while IFS='|' read -r addr state sync lag; do
+        [[ -z "$addr" ]] && continue
+        json_row "client_addr=$addr" "state=$state" \
+          "sync_state=$sync" "replay_lag=$lag"
+        scnt=$((scnt + 1))
+      done <<< "$rows"
+      if [[ $scnt -eq 0 ]]; then
+        json_item "standbys" "warn" "0" "no standbys connected"
+      else
+        json_item "standbys" "ok" "$scnt" ""
+      fi
+    else
+      json_item "role" "ok" "standby" ""
+      local wal_status
+      wal_status=$(ksql_q "SELECT status FROM sys_stat_wal_receiver LIMIT 1;" | tr -d '[:space:]')
+      if [[ -z "$wal_status" ]]; then
+        json_item "wal_receiver" "warn" "down" "WAL receiver not running"
+      else
+        json_item "wal_receiver" "ok" "$wal_status" ""
+      fi
+      json_item "replay_delay" "ok" "$(ksql_q "SELECT date_trunc('second', now() - pg_last_xact_replay_timestamp())::text;" | tr -d '[:space:]')" ""
+      json_item "receive_lsn" "ok" "$(ksql_q "SELECT pg_last_wal_receive_lsn()::text;" | tr -d '[:space:]')" ""
+      json_item "replay_lsn" "ok" "$(ksql_q "SELECT pg_last_wal_replay_lsn()::text;" | tr -d '[:space:]')" ""
+    fi
+    json_end
+    return 0
+  fi
+
   if [[ "$is_standby" == "false" ]]; then
     info "Standby connections:"
     if [[ -n "$VERBOSE" ]]; then
