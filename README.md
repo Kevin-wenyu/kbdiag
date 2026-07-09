@@ -103,6 +103,7 @@ Answers one specific question in depth; also used to verify a ROOT-CAUSE finding
 | `wait` | Wait event distribution |
 | `progress` | Long-running operation progress |
 | `jobs` | Scheduler job health (kdb_schedule: broken jobs, failed runs) |
+| `partition` | Partition table health: missing DEFAULT, size skew, orphan (empty) partitions |
 | `stat` | Throughput metrics (TPS, buffer hit rate) |
 | `obj <schema.table>` | Object deep-dive: size, indexes, constraints |
 | `colstat <schema.table> [--col <col>]` | Column statistics (n_distinct, MCV, correlation) |
@@ -257,6 +258,7 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | `wait` | 等待事件分布 |
 | `progress` | 长时间操作进度（VACUUM、CREATE INDEX 等） |
 | `jobs` | 定时任务健康（kdb_schedule:损坏作业、失败运行） |
+| `partition` | 分区表健康：缺失 DEFAULT 分区、数据倾斜、空分区 |
 | `params [pattern]` | 实例参数查询（支持模糊匹配） |
 | `stat` | 吞吐量指标（TPS、Buffer 命中率，差值采样） |
 | `obj <schema.table>` | 对象深查：大小、索引、约束 |

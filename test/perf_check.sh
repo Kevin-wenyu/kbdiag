@@ -37,6 +37,7 @@ perf|30
 wait|10
 progress|10
 jobs|10
+partition|10
 stat|20
 stmt|15
 explain SELECT relname FROM sys_class WHERE oid=1259|10
