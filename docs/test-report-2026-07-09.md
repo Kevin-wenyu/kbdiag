@@ -78,8 +78,8 @@
 
 ## 遗留问题清单
 
-| # | 问题 | 严重度 | 建议 |
+| # | 问题 | 严重度 | 状态 |
 |---|------|--------|------|
-| 1 | `sessions`/`replication` 不支持 `--format json` | 低（功能缺口） | 补实现，复用 json helpers |
-| 2 | perf_check.sh 计时可能出现负值 | 低（工具瑕疵） | 改毫秒级时间戳 |
-| 3 | `stat` 耗时 10.3s，距预算最近 | 低（性能余量） | 优化 Top SQL 段或单独设预算 |
+| 1 | `sessions`/`replication` 不支持 `--format json` | 低（功能缺口） | ✅ 已修复（PR #1，commit 84ab8dc），套件回到 349/349 |
+| 2 | perf_check.sh 计时可能出现负值 | 低（工具瑕疵） | ✅ 已修复（PR #1）：改 /proc/uptime 单调时钟，ms≤0 判失败 |
+| 3 | `stat` 耗时 10.3s，距预算最近 | 低（性能余量） | 待办：优化 Top SQL 段或单独设预算 |
