@@ -65,7 +65,9 @@ kbdiag [global-flags] <command> [subcommand] [command-flags]
   -v, --verbose       Show full underlying data
   -q, --quiet         Only show WARN/FAIL (suppress OK/INFO)
   -n N, --top N       Limit result rows (default: 10)
-  --format text|json  Output format (default: text)
+  --format text|json  Output format (default: text). JSON is supported by:
+                      check diagnose advisor sessions replication
+                      colstat idx kill license stmt
   --no-color          Disable ANSI colors
   --timeout N         DB query timeout in seconds (default: 10)
 ```
@@ -111,7 +113,7 @@ Answers one specific question in depth; also used to verify a ROOT-CAUSE finding
 | `idx [unused\|dup\|bloat\|missing]` | Index health analysis |
 | `kill [--terminate] [pid\|--long N\|--idle-txn N] [--dry-run] [--force]` | Cancel or terminate queries |
 | `conf [diff]` | Configuration restart-pending status / cross-node comparison |
-| `audit` | Security and compliance checks |
+| `audit` | Security and compliance checks (roles, hba connection whitelist, KingbaseES security extensions) |
 | `logs` | Log file analysis (slow queries, errors) |
 
 ### [ROOT-CAUSE] Multi-Dimension Correlation
@@ -225,7 +227,9 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
   -v, --verbose       显示底层完整数据
   -q, --quiet         仅显示 WARN/FAIL（屏蔽 OK/INFO）
   -n N, --top N       限制结果行数（默认：10）
-  --format text|json  输出格式（默认：text）
+  --format text|json  输出格式（默认：text）。支持 JSON 的命令：
+                      check diagnose advisor sessions replication
+                      colstat idx kill license stmt
   --no-color          关闭 ANSI 颜色
   --timeout N         数据库查询超时秒数（默认：10）
 ```
@@ -266,7 +270,7 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | `temp` | 临时文件与排序溢出分析 |
 | `watch <N> <cmd>` | 每隔 N 秒重复执行任意 kbdiag 命令 |
 | `conf [diff]` | 配置审计；`diff` 比对节点差异 |
-| `audit` | 安全与合规检查 |
+| `audit` | 安全与合规检查（角色、hba 连接白名单、KingbaseES 安全扩展） |
 | `logs` | 日志文件分析（慢查询、报错） |
 | `remote <nodes> <cmd>` | 多节点批量诊断 |
 | `kill [--terminate] [pid\|--long N\|--idle-txn N] [--dry-run] [--force]` | 取消或终止查询 / 会话 |
