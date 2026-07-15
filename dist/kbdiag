@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-63-g28a17c4-dirty"
+KBDIAG_VERSION="v1.0.0-64-g838834c-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -790,6 +790,8 @@ _check_level() {
 }
 
 cmd_check() {
+  local want_os=""
+  [[ "${1:-}" == "--os" || "${1:-}" == "os" ]] && want_os=1
   [[ "$OUTPUT_FMT" == "json" ]] && json_begin "check"
   hdr "Health check"
   local _exit=0   # 0=OK, 1=WARN, 2=FAIL
@@ -1090,7 +1092,174 @@ cmd_check() {
     fi
   fi
 
+  if [[ -n "$want_os" ]]; then
+    local os_rc=0
+    _check_os || os_rc=$?
+    _exit=$(_check_level "$_exit" "$os_rc")
+  fi
+
   [[ "$OUTPUT_FMT" == "json" ]] && json_end
+  return "$_exit"
+}
+
+# OS-level conformance checks (check --os). Scope rule: only settings with a
+# direct, explainable impact on the database. Runs as the kingbase user with
+# no sudo — anything unreadable is a SKIP, never an error.
+_check_os() {
+  local _exit=0
+  hdr "OS check"
+
+  # THP 'always' causes latency spikes when the kernel compacts memory
+  local thp="" f cur
+  for f in /sys/kernel/mm/transparent_hugepage/enabled \
+           /sys/kernel/mm/redhat_transparent_hugepage/enabled; do
+    [[ -r "$f" ]] && { thp=$(cat "$f" 2>/dev/null); break; }
+  done
+  if [[ -z "$thp" ]]; then
+    info "THP: sysfs entry not found — SKIP"
+    json_item "os_thp" "skip" "n/a" "sysfs entry not found"
+  elif [[ "$thp" == *"[always]"* ]]; then
+    warn "THP: always — memory compaction latency spikes; set to madvise or never"
+    json_item "os_thp" "warn" "always" "set madvise/never"
+    _exit=$(_check_level "$_exit" 1)
+  else
+    cur=$(echo "$thp" | sed -E 's/.*\[([a-z]+)\].*/\1/')
+    ok "THP: $cur"
+    json_item "os_thp" "ok" "$cur" ""
+  fi
+
+  # high swappiness lets the kernel page out database buffers
+  local swp warn_swp="${KB_WARN_SWAPPINESS:-10}"
+  swp=$(cat /proc/sys/vm/swappiness 2>/dev/null)
+  if [[ -z "$swp" ]]; then
+    info "Swappiness: unreadable — SKIP"
+    json_item "os_swappiness" "skip" "n/a" ""
+  elif [[ "$swp" -gt "$warn_swp" ]]; then
+    warn "Swappiness: $swp > $warn_swp — database memory may be paged out"
+    json_item "os_swappiness" "warn" "$swp" "> $warn_swp"
+    _exit=$(_check_level "$_exit" 1)
+  else
+    ok "Swappiness: $swp"
+    json_item "os_swappiness" "ok" "$swp" ""
+  fi
+
+  # swap actually in use signals memory pressure
+  local swap_total swap_free swap_used_pct
+  swap_total=$(awk '/^SwapTotal/{print $2}' /proc/meminfo 2>/dev/null)
+  swap_free=$(awk '/^SwapFree/{print $2}' /proc/meminfo 2>/dev/null)
+  if [[ -z "$swap_total" ]]; then
+    info "Swap usage: unreadable — SKIP"
+    json_item "os_swap_usage" "skip" "n/a" ""
+  elif [[ "$swap_total" -eq 0 ]]; then
+    ok "Swap usage: no swap configured"
+    json_item "os_swap_usage" "ok" "no swap" ""
+  else
+    swap_used_pct=$(( (swap_total - swap_free) * 100 / swap_total ))
+    if [[ $swap_used_pct -gt 20 ]]; then
+      warn "Swap usage: ${swap_used_pct}% — memory pressure, database pages may be swapped"
+      json_item "os_swap_usage" "warn" "${swap_used_pct}%" "> 20%"
+      _exit=$(_check_level "$_exit" 1)
+    else
+      ok "Swap usage: ${swap_used_pct}%"
+      json_item "os_swap_usage" "ok" "${swap_used_pct}%" ""
+    fi
+  fi
+
+  # overcommit_memory=2 keeps the OOM killer away from database processes
+  local oc
+  oc=$(cat /proc/sys/vm/overcommit_memory 2>/dev/null)
+  if [[ -z "$oc" ]]; then
+    info "Overcommit: unreadable — SKIP"
+    json_item "os_overcommit" "skip" "n/a" ""
+  elif [[ "$oc" == "2" ]]; then
+    ok "Overcommit: vm.overcommit_memory=2"
+    json_item "os_overcommit" "ok" "2" ""
+  else
+    warn "Overcommit: vm.overcommit_memory=$oc — OOM killer may target the database; recommend 2"
+    json_item "os_overcommit" "warn" "$oc" "recommend 2"
+    _exit=$(_check_level "$_exit" 1)
+  fi
+
+  # ulimits of this user ARE the database process limits
+  local nofile nproc warn_nofile="${KB_WARN_NOFILE:-65536}" warn_nproc="${KB_WARN_NPROC:-4096}"
+  nofile=$(ulimit -n 2>/dev/null)
+  nproc=$(ulimit -u 2>/dev/null)
+  if [[ "$nofile" == "unlimited" || ( "$nofile" =~ ^[0-9]+$ && "$nofile" -ge "$warn_nofile" ) ]]; then
+    ok "Open files limit: $nofile"
+    json_item "os_nofile" "ok" "$nofile" ""
+  else
+    warn "Open files limit: $nofile < $warn_nofile — connection/file handle exhaustion risk"
+    json_item "os_nofile" "warn" "$nofile" "< $warn_nofile"
+    _exit=$(_check_level "$_exit" 1)
+  fi
+  if [[ "$nproc" == "unlimited" || ( "$nproc" =~ ^[0-9]+$ && "$nproc" -ge "$warn_nproc" ) ]]; then
+    ok "Max processes limit: $nproc"
+    json_item "os_nproc" "ok" "$nproc" ""
+  else
+    warn "Max processes limit: $nproc < $warn_nproc — backend fork may fail"
+    json_item "os_nproc" "warn" "$nproc" "< $warn_nproc"
+    _exit=$(_check_level "$_exit" 1)
+  fi
+
+  # unsynced clocks skew replication lag math and PITR timestamps
+  local ntp=""
+  if command -v timedatectl >/dev/null 2>&1; then
+    ntp=$(timedatectl show -p NTPSynchronized --value 2>/dev/null)
+  fi
+  if [[ -z "$ntp" ]] && command -v chronyc >/dev/null 2>&1; then
+    local stratum
+    stratum=$(chronyc tracking 2>/dev/null | awk -F': *' '/^Stratum/{print $2}')
+    [[ "$stratum" =~ ^[0-9]+$ && "$stratum" -gt 0 ]] && ntp=yes || ntp=no
+  fi
+  if [[ -z "$ntp" ]]; then
+    info "Clock sync: no timedatectl/chronyc — SKIP"
+    json_item "os_clock_sync" "skip" "n/a" ""
+  elif [[ "$ntp" == "yes" ]]; then
+    ok "Clock sync: NTP synchronized"
+    json_item "os_clock_sync" "ok" "synchronized" ""
+  else
+    warn "Clock sync: NOT synchronized — replication lag and PITR timestamps unreliable"
+    json_item "os_clock_sync" "warn" "unsynchronized" ""
+    _exit=$(_check_level "$_exit" 1)
+  fi
+
+  # network filesystems have risky fsync semantics for a database
+  local data_dir fs_row fs_type fs_opts
+  data_dir=$(ksql_q "SELECT setting FROM sys_settings WHERE name='data_directory';" | tr -d '[:space:]')
+  fs_row=""
+  [[ -n "$data_dir" ]] && command -v findmnt >/dev/null 2>&1 && \
+    fs_row=$(findmnt -no FSTYPE,OPTIONS -T "$data_dir" 2>/dev/null | tr -s '[:space:]' ' ' | sed 's/^ //;s/ $//')
+  if [[ -z "$fs_row" ]]; then
+    info "Data dir filesystem: cannot determine — SKIP"
+    json_item "os_data_fs" "skip" "n/a" ""
+  else
+    fs_type=${fs_row%% *}
+    fs_opts=${fs_row#* }
+    if [[ "$fs_type" == nfs* || "$fs_type" == cifs ]]; then
+      warn "Data dir filesystem: $fs_type — network FS fsync semantics risk data durability"
+      json_item "os_data_fs" "warn" "$fs_type" "network filesystem"
+      _exit=$(_check_level "$_exit" 1)
+    else
+      ok "Data dir filesystem: $fs_type ($fs_opts)"
+      json_item "os_data_fs" "ok" "$fs_type" "$fs_opts"
+    fi
+  fi
+
+  # powersave governor throttles CPU frequency under bursty query load
+  local gov
+  gov=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null)
+  if [[ -z "$gov" ]]; then
+    info "CPU governor: no cpufreq (typical for VMs) — SKIP"
+    json_item "os_cpu_governor" "skip" "n/a" "no cpufreq"
+  elif [[ "$gov" == "powersave" ]]; then
+    warn "CPU governor: powersave — query latency suffers; recommend performance"
+    json_item "os_cpu_governor" "warn" "powersave" "recommend performance"
+    _exit=$(_check_level "$_exit" 1)
+  else
+    ok "CPU governor: $gov"
+    json_item "os_cpu_governor" "ok" "$gov" ""
+  fi
+
   return "$_exit"
 }
 
@@ -4792,7 +4961,7 @@ cmd_report() {
 
   _report_section "Instance status"     cmd_status
   _report_section "License"             cmd_license
-  _report_section "Health check"        cmd_check
+  _report_section "Health check"        cmd_check --os
   _report_section "Failover readiness"  cmd_cluster ready
   _report_section "Replication"         cmd_replication
   _report_section "Capacity"            cmd_space
@@ -4901,7 +5070,7 @@ case "$CMD" in
   replication) cmd_replication ;;
   sessions)    cmd_sessions ;;
   locks)       cmd_locks "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
-  check)       cmd_check || exit $? ;;
+  check)       cmd_check "$SUBCMD" || exit $? ;;
   perf)        cmd_perf "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   space)       cmd_space "$SUBCMD" ;;
   sql)         cmd_sql "$SUBCMD" ;;
@@ -4955,7 +5124,8 @@ Global flags:
   cluster [ready]     Repmgr cluster topology; 'ready' = failover readiness
                       checklist, exit 0=OK 1=WARN 2=FAIL
   replication         Replication lag / standby connections
-  check               15-item health check, exit 0=OK 1=WARN 2=FAIL
+  check [--os]        15-item health check, exit 0=OK 1=WARN 2=FAIL;
+                      --os adds OS conformance (THP, swap, ulimit, NTP, FS)
   space [frag]        Disk, tables, WAL, archive, fragmentation
   backup              Backup and WAL archiving readiness (archiver, sys_rman, slots)
   report [file]       Verdict-first Markdown inspection report assembled from

@@ -59,7 +59,7 @@ cmd_report() {
 
   _report_section "Instance status"     cmd_status
   _report_section "License"             cmd_license
-  _report_section "Health check"        cmd_check
+  _report_section "Health check"        cmd_check --os
   _report_section "Failover readiness"  cmd_cluster ready
   _report_section "Replication"         cmd_replication
   _report_section "Capacity"            cmd_space

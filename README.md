@@ -84,7 +84,7 @@ One command, one deterministic answer — no interpretation required.
 | `license` | License validity, expiry date, type (trial/commercial) |
 | `cluster [ready]` | Repmgr cluster topology; `ready` = failover readiness checklist (topology, repmgrd, arbitration, slots, standby promotability, VIP), exit 0/1/2 |
 | `replication` | Replication lag / standby connections |
-| `check` | 15-item health threshold check — exit 0=OK / 1=WARN / 2=FAIL |
+| `check [--os]` | 15-item health threshold check — exit 0=OK / 1=WARN / 2=FAIL; `--os` adds OS conformance (THP, swappiness, swap, overcommit, ulimits, NTP, data-dir FS, CPU governor) |
 | `space [frag]` | Disk, tables, WAL, archive; `frag` adds fragmentation |
 | `backup` | Backup & WAL archiving readiness: archiver state, pending WAL, sys_rman, slots |
 | `report [file]` | Verdict-first Markdown inspection report assembled from existing checks, exit 0/1/2 |
@@ -157,6 +157,8 @@ KB_SLOW_THRESHOLD=3
 | `KB_WARN_CONN` / `KB_FAIL_CONN` | `70` / `90` | Connection usage % |
 | `KB_WARN_LAG` / `KB_FAIL_LAG` | `30` / `300` | Replication lag (seconds) |
 | `KB_SLOW_THRESHOLD` | `5` | Slow query threshold (seconds) |
+| `KB_WARN_SWAPPINESS` | `10` | vm.swappiness upper bound (`check --os`) |
+| `KB_WARN_NOFILE` / `KB_WARN_NPROC` | `65536` / `4096` | ulimit lower bounds (`check --os`) |
 | `KB_WARN_HIT` / `KB_FAIL_HIT` | `95` / `90` | Buffer hit rate % lower bound |
 
 ## Requirements
@@ -245,7 +247,7 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | `license` | 授权有效期、类型（试用/正式）、序列号 |
 | `cluster [ready]` | Repmgr 集群拓扑；`ready` = failover 就绪检查清单（拓扑、repmgrd、仲裁、复制槽、standby 可提升性、VIP），exit 0/1/2 |
 | `replication` | 复制延迟 / 备节点连接数 |
-| `check` | 15 项健康阈值检查，exit 0=正常 / 1=告警 / 2=故障 |
+| `check [--os]` | 15 项健康阈值检查，exit 0=正常 / 1=告警 / 2=故障；`--os` 增加 OS 符合性检查（THP、swappiness、swap、overcommit、ulimit、NTP、数据目录文件系统、CPU 调频）|
 | `space [frag]` | 磁盘、表大小、WAL、归档；`frag` 增加碎片分析 |
 | `backup` | 备份与归档可用性：归档器状态、积压 WAL、sys_rman、复制槽 |
 | `report [file]` | 一键巡检报告（Markdown 单文件）：结论先行、WARN/FAIL 汇总表 + 全部检查明细，exit 0/1/2 |

@@ -58,7 +58,7 @@ case "$CMD" in
   replication) cmd_replication ;;
   sessions)    cmd_sessions ;;
   locks)       cmd_locks "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
-  check)       cmd_check || exit $? ;;
+  check)       cmd_check "$SUBCMD" || exit $? ;;
   perf)        cmd_perf "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   space)       cmd_space "$SUBCMD" ;;
   sql)         cmd_sql "$SUBCMD" ;;
@@ -112,7 +112,8 @@ Global flags:
   cluster [ready]     Repmgr cluster topology; 'ready' = failover readiness
                       checklist, exit 0=OK 1=WARN 2=FAIL
   replication         Replication lag / standby connections
-  check               15-item health check, exit 0=OK 1=WARN 2=FAIL
+  check [--os]        15-item health check, exit 0=OK 1=WARN 2=FAIL;
+                      --os adds OS conformance (THP, swap, ulimit, NTP, FS)
   space [frag]        Disk, tables, WAL, archive, fragmentation
   backup              Backup and WAL archiving readiness (archiver, sys_rman, slots)
   report [file]       Verdict-first Markdown inspection report assembled from
