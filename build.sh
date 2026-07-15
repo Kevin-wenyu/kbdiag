@@ -3,7 +3,11 @@ set -euo pipefail
 OUT=dist/kbdiag
 mkdir -p dist
 
-KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+# tag + commits-since-tag + build date. No commit hash and no -dirty: dist is
+# built by the pre-commit hook before the new commit exists, so a hash would
+# always point one commit back and the tree is dirty by definition.
+KBDIAG_VERSION=$(git describe --tags --always 2>/dev/null || echo "dev")
+KBDIAG_VERSION="${KBDIAG_VERSION%%-g*} ($(date +%Y-%m-%d))"
 
 {
   echo '#!/usr/bin/env bash'
