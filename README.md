@@ -87,6 +87,7 @@ One command, one deterministic answer — no interpretation required.
 | `check` | 15-item health threshold check — exit 0=OK / 1=WARN / 2=FAIL |
 | `space [frag]` | Disk, tables, WAL, archive; `frag` adds fragmentation |
 | `backup` | Backup & WAL archiving readiness: archiver state, pending WAL, sys_rman, slots |
+| `report [file]` | Verdict-first Markdown inspection report assembled from existing checks, exit 0/1/2 |
 | `params [pattern]` | Instance parameters |
 | `update` | Update kbdiag to the latest version from GitHub |
 
@@ -247,6 +248,7 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | `check` | 15 项健康阈值检查，exit 0=正常 / 1=告警 / 2=故障 |
 | `space [frag]` | 磁盘、表大小、WAL、归档；`frag` 增加碎片分析 |
 | `backup` | 备份与归档可用性：归档器状态、积压 WAL、sys_rman、复制槽 |
+| `report [file]` | 一键巡检报告（Markdown 单文件）：结论先行、WARN/FAIL 汇总表 + 全部检查明细，exit 0/1/2 |
 | `diagnose [--full]` | 根因诊断报告（快速 <15s；`--full` 完整约 90s） |
 
 ### [查] DBA 精准深查命令

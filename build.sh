@@ -31,6 +31,7 @@ KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
             lib/cmd_explain.sh \
             lib/cmd_jobs.sh \
             lib/cmd_partition.sh \
+            lib/cmd_report.sh \
             lib/cmd_update.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
@@ -53,6 +54,7 @@ CMD_ARGS=("$@")
 case "$CMD" in
   status)      cmd_status ;;
   cluster)     cmd_cluster "$SUBCMD" || exit $? ;;
+  report)      cmd_report "$SUBCMD" || exit $? ;;
   replication) cmd_replication ;;
   sessions)    cmd_sessions ;;
   locks)       cmd_locks "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
@@ -113,6 +115,8 @@ Global flags:
   check               15-item health check, exit 0=OK 1=WARN 2=FAIL
   space [frag]        Disk, tables, WAL, archive, fragmentation
   backup              Backup and WAL archiving readiness (archiver, sys_rman, slots)
+  report [file]       Verdict-first Markdown inspection report assembled from
+                      existing checks (default: kbdiag-report-<host>-<ts>.md)
   params [pattern]    Instance parameters
   update              Update kbdiag to the latest version from GitHub
 
