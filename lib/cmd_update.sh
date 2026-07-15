@@ -17,7 +17,9 @@ cmd_update() {
 
   local tmp
   tmp=$(mktemp)
-  trap 'rm -f "$tmp"' EXIT
+  # the trap fires at process exit, after this function's locals are gone —
+  # ${tmp:-} keeps it safe under set -u
+  trap 'rm -f "${tmp:-}"' EXIT
   if curl -fsSL "$url" -o "$tmp" 2>/dev/null; then
     local new_ver
     new_ver=$(grep 'KBDIAG_VERSION=' "$tmp" | head -1 | sed 's/.*="\(.*\)"/\1/')
@@ -28,6 +30,7 @@ cmd_update() {
     fi
     chmod +x "$tmp"
     mv "$tmp" "$self"
+    trap - EXIT
     printf "Updated : kbdiag %s\n" "$new_ver"
   else
     rm -f "$tmp"
