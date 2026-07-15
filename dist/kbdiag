@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-64-g838834c-dirty"
+KBDIAG_VERSION="v1.0.0-65-g6dc55e7-dirty"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -2320,6 +2320,16 @@ cmd_audit() {
 # shellcheck shell=bash
 # cmd_logs.sh — log file analysis (slow queries, errors, fatals)
 
+# Newest server log file, or empty when none found. Shared by logs and snapshot.
+_logs_latest_file() {
+  local log_dir
+  log_dir=$(ksql_q "SELECT setting FROM sys_settings WHERE name='log_directory';" 2>/dev/null | tr -d '[:space:]') || log_dir=""
+  [[ -z "$log_dir" ]] && log_dir="log"
+  [[ "${log_dir}" != /* ]] && log_dir="$KB_DATA_DIR/$log_dir"
+  # shellcheck disable=SC2012
+  ls -t "${log_dir}/"*.log 2>/dev/null | head -1 || true
+}
+
 cmd_logs() {
   local log_file="" since=""
   while [[ $# -gt 0 ]]; do
@@ -2336,16 +2346,7 @@ cmd_logs() {
   done
 
   # Auto-detect log path if not specified
-  if [[ -z "$log_file" ]]; then
-    local log_dir
-    log_dir=$(ksql_q "SELECT setting FROM sys_settings WHERE name='log_directory';" 2>/dev/null | tr -d '[:space:]') || log_dir=""
-    if [[ -z "$log_dir" ]]; then
-      log_dir="log"
-    fi
-    [[ "${log_dir}" != /* ]] && log_dir="$KB_DATA_DIR/$log_dir"
-    # shellcheck disable=SC2012
-    log_file=$(ls -t "${log_dir}/"*.log 2>/dev/null | head -1 || true)
-  fi
+  [[ -z "$log_file" ]] && log_file=$(_logs_latest_file)
 
   if [[ -z "$log_file" || ! -r "$log_file" ]]; then
     warn "Log file not found or not readable. Set KB_LOG_FILE or use --file."
@@ -5013,6 +5014,114 @@ cmd_report() {
   return "$_exit"
 }
 
+# --- lib/cmd_snapshot.sh ---
+# shellcheck shell=bash
+# snapshot — pack volatile incident state into one tarball for later analysis
+# or a vendor ticket. Collection only, no judgment. NOT a backup: nothing in
+# the archive can restore data. Must keep working when the DB is unreachable —
+# that is exactly when a snapshot matters most.
+
+# Mask string literals in captured text: business data hides in quoted
+# literals, and diagnosis needs structure, not data.
+_snap_redact() {
+  sed "s/'[^']*'/'***'/g"
+}
+
+# Capture one command's plain-text output into the snapshot dir.
+# $1=filename, $2...=command. Nonzero rc is a health verdict, not a
+# collection failure — the output is kept either way.
+_snap_capture() {
+  local name="$1"; shift
+  local out
+  out=$(OUTPUT_FMT="" QUIET="" "$@" 2>&1) || true
+  printf '%s\n' "$out" | _snap_redact > "$_SNAP_DIR/$name"
+  json_item "${name%.txt}" "ok" "$(wc -c < "$_SNAP_DIR/$name" | tr -d '[:space:]')b" ""
+  info "  captured: $name"
+}
+
+cmd_snapshot() {
+  local outfile="${1:-}"
+  local host stamp
+  host=$(hostname -s 2>/dev/null || hostname)
+  stamp=$(date +%Y%m%d-%H%M%S)
+  [[ -z "$outfile" ]] && outfile="kbdiag-snapshot-${host}-${stamp}.tar.gz"
+
+  [[ "$OUTPUT_FMT" == "json" ]] && json_begin "snapshot"
+  hdr "Incident snapshot"
+
+  # captured files are plain text — no ANSI
+  # shellcheck disable=SC2034  # consumed by _init_colors in core.sh
+  NO_COLOR=1; _init_colors
+
+  local base="kbdiag-snapshot-${host}-${stamp}" tmp
+  tmp=$(mktemp -d) || { fail "Cannot create temp dir"; return 2; }
+  _SNAP_DIR="$tmp/$base"
+  mkdir -p "$_SNAP_DIR"
+
+  # metadata works even with the DB down
+  local db_version role
+  db_version=$(ksql_q "SELECT version();" | head -1)
+  if [[ -z "$db_version" ]]; then
+    db_version="unreachable"; role="unknown"
+  else
+    role="primary"
+    _is_true "$(ksql_q 'SELECT pg_is_in_recovery()::text;')" && role="standby"
+  fi
+  {
+    echo "host: $host"
+    echo "generated: $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "kbdiag: ${KBDIAG_VERSION:-dev}"
+    echo "db_version: $db_version"
+    echo "role: $role"
+    echo "note: string literals are masked ('***'); this snapshot is NOT a backup"
+  } > "$_SNAP_DIR/metadata.txt"
+
+  _snap_capture status.txt      cmd_status
+  _snap_capture check.txt       cmd_check --os
+  _snap_capture sessions.txt    cmd_sessions
+  _snap_capture locks.txt       cmd_locks
+  _snap_capture wait.txt        cmd_wait
+  _snap_capture perf.txt        cmd_perf
+  _snap_capture progress.txt    cmd_progress
+  _snap_capture temp.txt        cmd_temp
+  _snap_capture stat.txt        cmd_stat
+  _snap_capture replication.txt cmd_replication
+  _snap_capture cluster.txt     cmd_cluster ready
+
+  # full parameter dump (raw sys_settings, not the params view filter)
+  ksql_qh "SELECT name, setting, unit, source FROM sys_settings ORDER BY name;" \
+    2>/dev/null | _snap_redact > "$_SNAP_DIR/params.txt" || true
+  info "  captured: params.txt"
+
+  # tail of the newest server log
+  local log_file
+  log_file=$(_logs_latest_file)
+  if [[ -n "$log_file" && -r "$log_file" ]]; then
+    { echo "# source: $log_file (last ${KB_SNAP_LOG_LINES:-2000} lines, literals masked)";
+      tail -n "${KB_SNAP_LOG_LINES:-2000}" "$log_file" | _snap_redact; } > "$_SNAP_DIR/log_tail.txt"
+    info "  captured: log_tail.txt"
+  else
+    echo "no readable log file found" > "$_SNAP_DIR/log_tail.txt"
+    info "  log file not found — placeholder written"
+  fi
+
+  if ! tar -czf "$outfile" -C "$tmp" "$base" 2>/dev/null; then
+    rm -rf "$tmp"
+    fail "Cannot write $outfile"
+    json_item "snapshot_file" "fail" "$outfile" "tar failed"
+    [[ "$OUTPUT_FMT" == "json" ]] && json_end
+    return 2
+  fi
+  rm -rf "$tmp"
+
+  local size
+  size=$(du -h "$outfile" 2>/dev/null | awk '{print $1}')
+  ok "Snapshot: $outfile (${size:-?}) — incident state only, NOT a backup"
+  json_item "snapshot_file" "ok" "$outfile" "size ${size:-?}"
+  [[ "$OUTPUT_FMT" == "json" ]] && json_end
+  return 0
+}
+
 # --- lib/cmd_update.sh ---
 # shellcheck shell=bash
 # cmd_update.sh — self-update from GitHub
@@ -5067,6 +5176,7 @@ case "$CMD" in
   status)      cmd_status ;;
   cluster)     cmd_cluster "$SUBCMD" || exit $? ;;
   report)      cmd_report "$SUBCMD" || exit $? ;;
+  snapshot)    cmd_snapshot "$SUBCMD" || exit $? ;;
   replication) cmd_replication ;;
   sessions)    cmd_sessions ;;
   locks)       cmd_locks "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
@@ -5153,6 +5263,8 @@ Global flags:
   conf [diff]         Configuration restart-pending status / cross-node comparison
   audit               Security and compliance checks
   logs                Log file analysis (slow queries, errors)
+  snapshot [file]     Pack volatile incident state (sessions, locks, waits,
+                      perf, log tail) into a literal-masked tar.gz; not a backup
 
 [ROOT-CAUSE] Multi-dimension correlation — full chain: symptom -> evidence -> cause -> fix:
   diagnose [--full]   Root-cause diagnostic report (fast <15s; --full ~90s)

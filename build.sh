@@ -32,6 +32,7 @@ KBDIAG_VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
             lib/cmd_jobs.sh \
             lib/cmd_partition.sh \
             lib/cmd_report.sh \
+            lib/cmd_snapshot.sh \
             lib/cmd_update.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
@@ -55,6 +56,7 @@ case "$CMD" in
   status)      cmd_status ;;
   cluster)     cmd_cluster "$SUBCMD" || exit $? ;;
   report)      cmd_report "$SUBCMD" || exit $? ;;
+  snapshot)    cmd_snapshot "$SUBCMD" || exit $? ;;
   replication) cmd_replication ;;
   sessions)    cmd_sessions ;;
   locks)       cmd_locks "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
@@ -141,6 +143,8 @@ Global flags:
   conf [diff]         Configuration restart-pending status / cross-node comparison
   audit               Security and compliance checks
   logs                Log file analysis (slow queries, errors)
+  snapshot [file]     Pack volatile incident state (sessions, locks, waits,
+                      perf, log tail) into a literal-masked tar.gz; not a backup
 
 [ROOT-CAUSE] Multi-dimension correlation — full chain: symptom -> evidence -> cause -> fix:
   diagnose [--full]   Root-cause diagnostic report (fast <15s; --full ~90s)

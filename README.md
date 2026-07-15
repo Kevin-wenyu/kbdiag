@@ -116,6 +116,7 @@ Answers one specific question in depth; also used to verify a ROOT-CAUSE finding
 | `conf [diff]` | Configuration restart-pending status / cross-node comparison |
 | `audit` | Security and compliance checks (roles, hba connection whitelist, KingbaseES security extensions) |
 | `logs` | Log file analysis (slow queries, errors) |
+| `snapshot [file]` | Pack volatile incident state (sessions, locks, waits, perf, log tail) into a literal-masked tar.gz — not a backup |
 
 ### [ROOT-CAUSE] Multi-Dimension Correlation
 
@@ -276,6 +277,7 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | `conf [diff]` | 配置审计；`diff` 比对节点差异 |
 | `audit` | 安全与合规检查（角色、hba 连接白名单、KingbaseES 安全扩展） |
 | `logs` | 日志文件分析（慢查询、报错） |
+| `snapshot [file]` | 故障现场一键打包（会话/锁/等待/性能/日志尾部）为脱敏 tar.gz，供事后分析或提交原厂——不是备份 |
 | `remote <nodes> <cmd>` | 多节点批量诊断 |
 | `kill [--terminate] [pid\|--long N\|--idle-txn N] [--dry-run] [--force]` | 取消或终止查询 / 会话 |
 | `idx [unused\|dup\|bloat\|missing]` | 索引健康分析 |

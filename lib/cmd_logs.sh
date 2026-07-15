@@ -1,6 +1,16 @@
 # shellcheck shell=bash
 # cmd_logs.sh — log file analysis (slow queries, errors, fatals)
 
+# Newest server log file, or empty when none found. Shared by logs and snapshot.
+_logs_latest_file() {
+  local log_dir
+  log_dir=$(ksql_q "SELECT setting FROM sys_settings WHERE name='log_directory';" 2>/dev/null | tr -d '[:space:]') || log_dir=""
+  [[ -z "$log_dir" ]] && log_dir="log"
+  [[ "${log_dir}" != /* ]] && log_dir="$KB_DATA_DIR/$log_dir"
+  # shellcheck disable=SC2012
+  ls -t "${log_dir}/"*.log 2>/dev/null | head -1 || true
+}
+
 cmd_logs() {
   local log_file="" since=""
   while [[ $# -gt 0 ]]; do
@@ -17,16 +27,7 @@ cmd_logs() {
   done
 
   # Auto-detect log path if not specified
-  if [[ -z "$log_file" ]]; then
-    local log_dir
-    log_dir=$(ksql_q "SELECT setting FROM sys_settings WHERE name='log_directory';" 2>/dev/null | tr -d '[:space:]') || log_dir=""
-    if [[ -z "$log_dir" ]]; then
-      log_dir="log"
-    fi
-    [[ "${log_dir}" != /* ]] && log_dir="$KB_DATA_DIR/$log_dir"
-    # shellcheck disable=SC2012
-    log_file=$(ls -t "${log_dir}/"*.log 2>/dev/null | head -1 || true)
-  fi
+  [[ -z "$log_file" ]] && log_file=$(_logs_latest_file)
 
   if [[ -z "$log_file" || ! -r "$log_file" ]]; then
     warn "Log file not found or not readable. Set KB_LOG_FILE or use --file."
