@@ -82,7 +82,7 @@ One command, one deterministic answer — no interpretation required.
 |---------|-------------|
 | `status` | Process, connectivity, role, uptime |
 | `license` | License validity, expiry date, type (trial/commercial) |
-| `cluster` | Repmgr cluster topology |
+| `cluster [ready]` | Repmgr cluster topology; `ready` = failover readiness checklist (topology, repmgrd, arbitration, slots, standby promotability, VIP), exit 0/1/2 |
 | `replication` | Replication lag / standby connections |
 | `check` | 15-item health threshold check — exit 0=OK / 1=WARN / 2=FAIL |
 | `space [frag]` | Disk, tables, WAL, archive; `frag` adds fragmentation |
@@ -242,7 +242,7 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 |------|------|
 | `status` | 进程状态、连接性、角色、运行时长 |
 | `license` | 授权有效期、类型（试用/正式）、序列号 |
-| `cluster` | Repmgr 集群拓扑 |
+| `cluster [ready]` | Repmgr 集群拓扑；`ready` = failover 就绪检查清单（拓扑、repmgrd、仲裁、复制槽、standby 可提升性、VIP），exit 0/1/2 |
 | `replication` | 复制延迟 / 备节点连接数 |
 | `check` | 15 项健康阈值检查，exit 0=正常 / 1=告警 / 2=故障 |
 | `space [frag]` | 磁盘、表大小、WAL、归档；`frag` 增加碎片分析 |

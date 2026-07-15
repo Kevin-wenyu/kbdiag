@@ -79,12 +79,10 @@ _backup_archiver_stats() {
   esac
 }
 
-_backup_pending_wal() {
-  local mode="$1"
-  if [[ "$mode" == "off" || -z "$mode" ]]; then
-    return 0
-  fi
-
+# Count .ready files awaiting archive. Prints the count; prints nothing when
+# archiving is off or the status dir is missing. Shared by backup and
+# cluster ready — thresholds stay KB_WARN_WAL_READY / KB_FAIL_WAL_READY.
+_pending_wal_count() {
   local data_dir wal_dir
   data_dir=$(ksql_q "SELECT setting FROM sys_settings WHERE name='data_directory';" | tr -d '[:space:]')
   [[ -z "$data_dir" ]] && return 0
@@ -92,9 +90,18 @@ _backup_pending_wal() {
   wal_dir="$data_dir/sys_wal"
   [[ -d "$wal_dir" ]] || wal_dir="$data_dir/pg_wal"
   [[ -d "$wal_dir/archive_status" ]] || return 0
+  find "$wal_dir/archive_status" -name '*.ready' 2>/dev/null | wc -l | tr -d '[:space:]'
+}
+
+_backup_pending_wal() {
+  local mode="$1"
+  if [[ "$mode" == "off" || -z "$mode" ]]; then
+    return 0
+  fi
 
   local ready_cnt
-  ready_cnt=$(find "$wal_dir/archive_status" -name '*.ready' 2>/dev/null | wc -l | tr -d '[:space:]')
+  ready_cnt=$(_pending_wal_count)
+  [[ -z "$ready_cnt" ]] && return 0
   local warn_thr="${KB_WARN_WAL_READY:-10}" fail_thr="${KB_FAIL_WAL_READY:-100}"
   if (( ready_cnt >= fail_thr )); then
     fail "$ready_cnt WAL segment(s) pending archive (.ready) — archiving is stuck, disk will eventually fill"

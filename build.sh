@@ -52,7 +52,7 @@ CMD_ARGS=("$@")
 
 case "$CMD" in
   status)      cmd_status ;;
-  cluster)     cmd_cluster ;;
+  cluster)     cmd_cluster "$SUBCMD" || exit $? ;;
   replication) cmd_replication ;;
   sessions)    cmd_sessions ;;
   locks)       cmd_locks "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
@@ -107,7 +107,8 @@ Global flags:
 [OPS] Quick fact lookup — one command, one deterministic answer:
   status              Instance process, connectivity, role, uptime
   license             License validity and expiry
-  cluster             Repmgr cluster topology
+  cluster [ready]     Repmgr cluster topology; 'ready' = failover readiness
+                      checklist, exit 0=OK 1=WARN 2=FAIL
   replication         Replication lag / standby connections
   check               15-item health check, exit 0=OK 1=WARN 2=FAIL
   space [frag]        Disk, tables, WAL, archive, fragmentation

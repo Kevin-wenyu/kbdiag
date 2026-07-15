@@ -3,6 +3,10 @@
 KB_BIN_DIR="${KB_BIN_DIR:-/home/kingbase/cluster/install/kingbase/bin}"
 KB_DATA_DIR="${KB_DATA_DIR:-/home/kingbase/cluster/install/kingbase/data}"
 KB_REPMGR_CONF="${KB_REPMGR_CONF:-/home/kingbase/cluster/install/kingbase/etc/repmgr.conf}"
+# repmgr metadata connection: repmgr.nodes / repmgr.events live in this db,
+# and the esrep user has passwordless access to every node (repmgr prerequisite)
+KB_REPMGR_USER="${KB_REPMGR_USER:-esrep}"
+KB_REPMGR_DB="${KB_REPMGR_DB:-esrep}"
 KB_PORT="${KB_PORT:-54321}"
 KB_SUPERUSER="${KB_SUPERUSER:-system}"
 KB_DB="${KB_DB:-test}"
