@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-67 (2026-07-15)"
+KBDIAG_VERSION="v1.0.0-68 (2026-07-17)"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -824,8 +824,11 @@ cmd_check() {
   local is_standby
   is_standby=$(ksql_q "SELECT pg_is_in_recovery()::text;" | tr -d '[:space:]')
   if [[ "$is_standby" == "true" ]]; then
+    # on an idle primary the last replayed commit timestamp goes stale even
+    # though the standby is fully caught up — treat receive==replay LSN as 0 lag
     local lag_sec
-    lag_sec=$(ksql_q "SELECT EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))::int;" | tr -d '[:space:]')
+    lag_sec=$(ksql_q "SELECT CASE WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 0
+      ELSE COALESCE(EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))::int, 0) END;" | tr -d '[:space:]')
     lag_sec=${lag_sec:-0}
     if [[ $lag_sec -ge $KB_FAIL_LAG ]]; then
       fail "Replication lag: ${lag_sec}s >= FAIL threshold ${KB_FAIL_LAG}s"
@@ -1201,15 +1204,21 @@ _check_os() {
     _exit=$(_check_level "$_exit" 1)
   fi
 
-  # unsynced clocks skew replication lag math and PITR timestamps
+  # unsynced clocks skew replication lag math and PITR timestamps.
+  # chronyd's own tracking state is authoritative when it runs — the kernel
+  # STA_UNSYNC flag behind timedatectl flaps on VMs with large clock drift
+  # even while chronyd holds sub-ms sync
   local ntp=""
-  if command -v timedatectl >/dev/null 2>&1; then
-    ntp=$(timedatectl show -p NTPSynchronized --value 2>/dev/null)
+  if command -v chronyc >/dev/null 2>&1; then
+    local leap
+    leap=$(chronyc tracking 2>/dev/null | awk -F': *' '/^Leap status/{print $2}')
+    case "$leap" in
+      Normal|"Insert second"|"Delete second") ntp=yes ;;
+      "Not synchronised") ntp=no ;;
+    esac
   fi
-  if [[ -z "$ntp" ]] && command -v chronyc >/dev/null 2>&1; then
-    local stratum
-    stratum=$(chronyc tracking 2>/dev/null | awk -F': *' '/^Stratum/{print $2}')
-    [[ "$stratum" =~ ^[0-9]+$ && "$stratum" -gt 0 ]] && ntp=yes || ntp=no
+  if [[ -z "$ntp" ]] && command -v timedatectl >/dev/null 2>&1; then
+    ntp=$(timedatectl show -p NTPSynchronized --value 2>/dev/null)
   fi
   if [[ -z "$ntp" ]]; then
     info "Clock sync: no timedatectl/chronyc — SKIP"
