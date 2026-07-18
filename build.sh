@@ -111,6 +111,8 @@ Global flags:
   --format text|json  Output format (default: text)
   --no-color          Disable ANSI colors
   --timeout N         DB query timeout seconds (default: 10)
+  --exit-code         Reflect worst verdict in exit code (0=OK 1=WARN 2=FAIL);
+                      without it, data commands always exit 0 on success
 
 [OPS] Quick fact lookup — one command, one deterministic answer:
   status              Instance process, connectivity, role, uptime

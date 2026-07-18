@@ -51,6 +51,7 @@ KB_WARN_FRAG_PCT="${KB_WARN_FRAG_PCT:-10}"
 # ─── global flags (set by parse_global_args) ──────────────────────────────────
 VERBOSE="${VERBOSE:-}"
 QUIET="${QUIET:-}"
+EXIT_CODE_MODE="${EXIT_CODE_MODE:-}"
 TOP_N="${TOP_N:-10}"
 OUTPUT_FMT="${OUTPUT_FMT:-text}"
 NO_COLOR="${NO_COLOR:-}"
@@ -91,6 +92,7 @@ parse_global_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -v|--verbose)   VERBOSE=1 ;;
+      --exit-code)    EXIT_CODE_MODE=1 ;;
       -q|--quiet)     QUIET=1 ;;
       --no-color)     NO_COLOR=1; _init_colors ;;
       -n|--top)       TOP_N="$2"; shift ;;
