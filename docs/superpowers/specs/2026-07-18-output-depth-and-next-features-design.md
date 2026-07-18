@@ -70,7 +70,7 @@
 | partition | 缺 DEFAULT 分区 / 大小倾斜 > 10x / 孤儿分区 | WARN |
 | stat | 命中率 < 90%；rollback 占比 > 10% | WARN |
 | obj | 呈现 + last analyze > 7d WARN | WARN |
-| colstat / temp | 呈现（temp 单会话 > 1GB WARN） | WARN |
+| colstat / temp | 呈现（KingbaseES 无会话级实时 temp 列——实施中发现旧版该功能从未工作过，已改为库级累计 + 语句级 Top） | — |
 | idx | 重复索引 / 膨胀 > 30% / 疑似缺失 WARN；unused 仅 INFO | WARN |
 | conf | pending_restart > 0；diff 跨节点不一致 | WARN |
 | audit / logs | 既有判定性质保持，补数值 | 既有 |

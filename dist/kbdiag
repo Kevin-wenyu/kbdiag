@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-70 (2026-07-18)"
+KBDIAG_VERSION="v1.0.0-71 (2026-07-18)"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -1730,39 +1730,82 @@ cmd_sql() {
 
 # Shared with cmd_perf.sh's _perf_wait and cmd_stat.sh's _stat_section_wait_events —
 # edit only here to change what counts as "currently waiting".
-_WAIT_EVENT_WHERE="wait_event IS NOT NULL AND state <> 'idle'"
+# Activity-type events are background processes' normal idle loops (WalSenderMain,
+# BgWriterMain, ...) and Client-type events mean waiting on the client, not the DB
+# (idle-in-txn is sessions' concern) — both excluded per ecosystem convention
+_WAIT_EVENT_WHERE="wait_event IS NOT NULL AND state <> 'idle' AND wait_event_type NOT IN ('Activity', 'Client')"
 
 cmd_wait() {
   hdr "Wait event analysis"
+  local _exit=0
 
-  local cnt
-  cnt=$(ksql_q "SELECT count(*) FROM sys_stat_activity WHERE $_WAIT_EVENT_WHERE;" | tr -d '[:space:]')
+  # one query captures all waiting sessions; verdicts, the default distribution
+  # and the -v per-session table all derive from this same captured result
+  local rows
+  rows=$(ksql_q "
+    SELECT coalesce(wait_event_type, ''), coalesce(wait_event, ''), pid,
+           coalesce(extract(epoch FROM now() - query_start)::int::text, '0'),
+           translate(left(query, 100), E'\n\r|', '   ')
+    FROM sys_stat_activity
+    WHERE $_WAIT_EVENT_WHERE
+    ORDER BY wait_event_type, wait_event, pid;")
 
-  if [[ "${cnt:-0}" -eq 0 ]]; then
-    ok "No wait events currently"
+  local cnt lock_cnt max_wait
+  cnt=$(awk 'NF { c++ } END { print c+0 }' <<< "$rows")
+  read -r lock_cnt max_wait < <(awk -F'|' '
+    NF { if ($4+0 > m) m = $4+0 }
+    $1 ~ /Lock/ { c++ }
+    END { print c+0, m+0 }' <<< "$rows")
+  [[ "$lock_cnt" -gt 0 ]] && _exit=1
+
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    json_begin "wait"
+    if [[ "$lock_cnt" -gt 0 ]]; then
+      json_item "lock_waits" "warn" "$lock_cnt" "longest ${max_wait}s"
+    else
+      json_item "lock_waits" "ok" "0" ""
+    fi
+    json_item "waiting_sessions" "ok" "$cnt" "longest ${max_wait}s"
+    while IFS='|' read -r wtype wevent pid wait_s query; do
+      [[ -z "${pid// /}" ]] && continue
+      json_row "wait_event_type=$wtype" "wait_event=$wevent" "pid=${pid// /}" \
+        "wait_seconds=${wait_s// /}" "query=$query"
+    done <<< "$rows"
+    json_end
+    [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
     return 0
   fi
 
-  info "Wait event distribution ($cnt session(s) waiting):"
-  ksql_qh "
-    SELECT wait_event_type, wait_event, count(*) AS sessions,
-           round(avg(EXTRACT(EPOCH FROM (now()-query_start))),1) AS avg_wait_sec
-    FROM sys_stat_activity
-    WHERE $_WAIT_EVENT_WHERE
-    GROUP BY wait_event_type, wait_event
-    ORDER BY sessions DESC LIMIT $TOP_N;" | column -t -s '|' || true
-
-  if [[ -n "$VERBOSE" ]]; then
-    echo ""
-    info "Session details by wait event:"
-    ksql_qh "
-      SELECT wait_event_type, wait_event, pid,
-             left(query, 80) AS query
-      FROM sys_stat_activity
-      WHERE $_WAIT_EVENT_WHERE
-      ORDER BY wait_event_type, wait_event, pid
-      LIMIT $TOP_N;" | column -t -s '|' || true
+  if [[ "$lock_cnt" -gt 0 ]]; then
+    warn "Lock waits: $lock_cnt session(s) waiting on locks (longest ${max_wait}s)"
+  else
+    ok "Lock waits: none"
   fi
+  if [[ "$cnt" -gt 0 ]]; then
+    info "Waiting sessions: $cnt (longest wait ${max_wait}s)"
+  else
+    ok "Waiting sessions: none"
+  fi
+
+  if [[ -z "$QUIET" && "$cnt" -gt 0 ]]; then
+    echo
+    if [[ -n "$VERBOSE" ]]; then
+      { echo "TYPE|EVENT|PID|WAIT_S|QUERY"
+        awk -F'|' 'NF' <<< "$rows"
+      } | column -t -s '|' || true
+    else
+      { echo "TYPE|EVENT|SESSIONS|AVG_WAIT_S"
+        awk -F'|' 'NF {
+          k = $1 "|" $2; c[k]++; s[k] += $4 + 0
+        } END {
+          for (k in c) printf "%s|%d|%.1f\n", k, c[k], s[k] / c[k]
+        }' <<< "$rows" | sort -t '|' -k3,3nr | head -n "$TOP_N"
+      } | column -t -s '|' || true
+    fi
+  fi
+
+  [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+  return 0
 }
 
 # --- lib/cmd_progress.sh ---
@@ -2032,47 +2075,76 @@ cmd_obj() {
 
 # --- lib/cmd_temp.sh ---
 # shellcheck shell=bash
+# Presentation-type command: KingbaseES has no per-session live temp columns in
+# sys_stat_activity (verified), so only cumulative db-level and per-statement
+# figures exist — no live threshold to judge, hence INFO verdicts only.
 cmd_temp() {
   hdr "Temp file usage"
 
-  # ── Cumulative temp file stats per database ──────────────────────────────────
-  info "Cumulative temp file stats (all time):"
-  local db_cnt
-  db_cnt=$(ksql_q "SELECT count(*) FROM sys_stat_database WHERE temp_bytes > 0;" 2>/dev/null | tr -d '[:space:]' || echo 0)
-  if [[ "${db_cnt:-0}" -eq 0 ]]; then
-    info "No temp file usage recorded"
-  else
-    ksql_qh "
-      SELECT datname, temp_files, pg_size_pretty(temp_bytes) AS temp_size
-      FROM sys_stat_database WHERE temp_bytes > 0 ORDER BY temp_bytes DESC;
-    " 2>/dev/null | column -t -s '|' || true
+  local dbrows db_cnt tot_files tot_mb
+  dbrows=$(ksql_q "
+    SELECT datname, temp_files, pg_size_pretty(temp_bytes), temp_bytes
+    FROM sys_stat_database WHERE temp_bytes > 0 ORDER BY temp_bytes DESC;")
+  read -r db_cnt tot_files tot_mb < <(awk -F'|' '
+    NF { n++; f += $2; b += $4 }
+    END { printf "%d %d %.0f\n", n, f, b / 1024 / 1024 }' <<< "$dbrows")
+
+  # per-statement temp usage needs sys_stat_statements; degrade gracefully
+  local stmtrows
+  stmtrows=$(ksql_q "
+    SELECT queryid, calls, pg_size_pretty(temp_blks_written::bigint * 8192),
+           translate(left(query, 100), E'\n\r|', '   ')
+    FROM sys_stat_statements WHERE temp_blks_written > 0
+    ORDER BY temp_blks_written DESC LIMIT $TOP_N;" 2>/dev/null) || stmtrows=""
+
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    json_begin "temp"
+    json_item "temp_cumulative" "ok" "${tot_mb}MB" "$tot_files files across $db_cnt database(s) since stats reset"
+    while IFS='|' read -r db files size bytes; do
+      [[ -z "${db// /}" ]] && continue
+      json_row "scope=database" "datname=${db// /}" "temp_files=${files// /}" \
+        "temp_size=${size# }" "temp_bytes=${bytes// /}"
+    done <<< "$dbrows"
+    while IFS='|' read -r qid calls size query; do
+      [[ -z "${qid// /}" ]] && continue
+      json_row "scope=statement" "queryid=${qid// /}" "calls=${calls// /}" \
+        "temp_written=${size# }" "query=$query"
+    done <<< "$stmtrows"
+    json_end
+    return 0
   fi
 
-  echo ""
-
-  # ── Current sessions using temp files ───────────────────────────────────────
-  info "Current sessions using temp files:"
-  local sess_cnt
-  sess_cnt=$(ksql_q "SELECT count(*) FROM sys_stat_activity WHERE temp_blks_written > 0 AND state <> 'idle';" 2>/dev/null | tr -d '[:space:]' || echo 0)
-  if [[ "${sess_cnt:-0}" -eq 0 ]]; then
-    info "No sessions currently using temp files"
+  if [[ "$db_cnt" -eq 0 ]]; then
+    ok "Temp usage: none recorded since stats reset"
   else
-    ksql_qh "
-      SELECT pid, usename, temp_blks_read, temp_blks_written,
-             left(query, 60) AS query
-      FROM sys_stat_activity
-      WHERE temp_blks_written > 0 AND state <> 'idle';
-    " 2>/dev/null | column -t -s '|' || true
+    info "Temp usage (cumulative): $tot_files files, ${tot_mb}MB across $db_cnt database(s)"
   fi
 
-  echo ""
+  if [[ -z "$QUIET" ]]; then
+    if [[ "$db_cnt" -gt 0 ]]; then
+      echo
+      { echo "DATABASE|TEMP_FILES|TEMP_SIZE"
+        awk -F'|' 'NF { print $1 "|" $2 "|" $3 }' <<< "$dbrows"
+      } | column -t -s '|' || true
+    fi
+    if [[ -n "${stmtrows// /}" ]]; then
+      echo
+      info "Top statements by temp written (cumulative):"
+      { echo "QUERYID|CALLS|TEMP_WRITTEN|QUERY"
+        awk -F'|' 'NF { print $1 "|" $2 "|" $3 "|" substr($4, 1, 60) }' <<< "$stmtrows"
+      } | column -t -s '|' || true
+    fi
+    if [[ -n "$VERBOSE" ]]; then
+      echo
+      info "Related settings:"
+      ksql_qh "
+        SELECT name, setting, unit FROM sys_settings
+        WHERE name IN ('work_mem', 'temp_file_limit', 'maintenance_work_mem')
+        ORDER BY name;" | column -t -s '|' || true
+    fi
+  fi
 
-  # ── Memory settings related to temp file usage ───────────────────────────────
-  info "Related settings:"
-  ksql_qh "
-    SELECT name, setting, unit FROM sys_settings
-    WHERE name IN ('work_mem','temp_file_limit','maintenance_work_mem')
-    ORDER BY name;" | column -t -s '|' || true
+  return 0
 }
 
 # --- lib/cmd_watch.sh ---

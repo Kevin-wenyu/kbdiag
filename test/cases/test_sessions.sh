@@ -5,17 +5,41 @@ test_sessions_runs() {
   [[ "${code:-0}" -eq 0 ]] && _pass || _fail "sessions exited $code"
 }
 
-test_sessions_shows_header_text() {
+test_sessions_verdict_has_values() {
+  # output contract: verdict lines must carry measured values, never bare conclusions
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE sessions" 2>&1)
-  assert_contains "$out" "Active sessions"
+  echo "$out" | grep -qE "Connections: [0-9]+/[0-9]+ \([0-9]+%" \
+    && _pass || _fail "sessions verdict line missing measured values"
+}
+
+test_sessions_verdict_idle_txn_present() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE sessions" 2>&1)
+  assert_contains "$out" "Idle-in-transaction"
 }
 
 test_sessions_has_column_header() {
-  # Force at least one non-idle session, then check usename column header appears.
+  # Force at least one non-idle session, then check the data table renders.
   start_slow_query_bg
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE sessions" 2>&1)
   stop_slow_query_bg
-  echo "$out" | grep -qi "usename" && _pass || _fail "sessions missing 'usename' column header"
+  echo "$out" | grep -q "DURATION" && _pass || _fail "sessions missing DURATION column header"
+}
+
+test_sessions_verbose_detail_columns() {
+  # output contract: -v expands to full columns
+  start_slow_query_bg
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE -v sessions" 2>&1)
+  stop_slow_query_bg
+  echo "$out" | grep -q "XACT_S" && _pass || _fail "sessions -v missing XACT_S detail column"
+}
+
+test_sessions_exit_code_flag() {
+  # KB_WARN_CONN=0 deterministically forces a WARN (connections are never 0%)
+  local code
+  code=$(ssh_node1_exit "KB_WARN_CONN=0 $KBDIAG_REMOTE sessions")
+  [[ "${code:-1}" -eq 0 ]] || { _fail "sessions without --exit-code should exit 0 on WARN, got $code"; return; }
+  code=$(ssh_node1_exit "KB_WARN_CONN=0 $KBDIAG_REMOTE --exit-code sessions")
+  [[ "${code:-0}" -eq 1 ]] && _pass || _fail "sessions --exit-code should exit 1 on WARN, got $code"
 }
 
 # ── sessions 补强 ────────────────────────────────────────────
