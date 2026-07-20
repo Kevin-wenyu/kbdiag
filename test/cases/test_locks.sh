@@ -14,7 +14,7 @@ test_locks_default_runs() {
 
 test_locks_wait_no_locks_shows_ok() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE locks wait")
-  assert_contains "$out" "No waiting locks"
+  assert_contains "$out" "Waiting locks: none"
 }
 
 # ── hold ─────────────────────────────────────────────────────────────────────
@@ -64,11 +64,24 @@ test_locks_unknown_subcmd_errors() {
 test_locks_hold_has_header_or_ok() {
   local out
   out=$(ssh_node1 "$KBDIAG_REMOTE locks hold" 2>&1)
-  echo "$out" | grep -qE 'pid|No lock-holding' && _pass || _fail "missing 'pid' header or 'No lock-holding' message"
+  echo "$out" | grep -qE 'PID|Lock-holding sessions: none' && _pass || _fail "missing 'pid' header or 'No lock-holding' message"
 }
 
 test_locks_wait_has_header_or_ok() {
   local out
   out=$(ssh_node1 "$KBDIAG_REMOTE locks wait" 2>&1)
-  echo "$out" | grep -qE 'wait_pid|No waiting' && _pass || _fail "missing 'wait_pid' header or 'No waiting' message"
+  echo "$out" | grep -qE 'WAIT_PID|Waiting locks: none' && _pass || _fail "missing 'wait_pid' header or 'No waiting' message"
+}
+
+test_locks_exit_code_flag_healthy() {
+  # without contention, --exit-code must still exit 0
+  local code
+  code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code locks")
+  [[ "${code:-1}" -eq 0 ]] && _pass || _fail "locks --exit-code healthy should exit 0, got $code"
+}
+
+test_locks_deadlock_verdict_has_context() {
+  # output contract: verdict carries measured value and scope
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE locks deadlock" 2>&1)
+  echo "$out" | grep -q "since stats reset" && _pass || _fail "deadlock verdict missing 'since stats reset' context"
 }

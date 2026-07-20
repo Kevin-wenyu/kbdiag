@@ -35,6 +35,6 @@ test_wait_produces_output() {
 test_wait_has_column_header_or_empty_ok() {
   # When idle there may be no waits → "No wait events". With load, header appears.
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE wait" 2>&1)
-  echo "$out" | grep -qE 'wait_event|No wait events' && _pass \
-    || _fail "wait missing both 'wait_event' header and 'No wait events' message"
+  echo "$out" | grep -qE 'TYPE|Waiting sessions: none' && _pass \
+    || _fail "wait missing both TYPE header and 'Waiting sessions: none' verdict"
 }

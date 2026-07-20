@@ -52,6 +52,13 @@ KB_WARN_FRAG_PCT="${KB_WARN_FRAG_PCT:-10}"
 VERBOSE="${VERBOSE:-}"
 QUIET="${QUIET:-}"
 EXIT_CODE_MODE="${EXIT_CODE_MODE:-}"
+
+# awk prelude shared by table renderers: fmt(seconds) -> "H:MM:SS", "-" if blank
+# shellcheck disable=SC2034  # consumed by cmd_*.sh after concatenation
+AWK_FMT_DUR='function fmt(s) {
+  if (s ~ /^[ ]*$/) return "-"
+  s += 0; return sprintf("%d:%02d:%02d", s/3600, (s%3600)/60, s%60)
+}'
 TOP_N="${TOP_N:-10}"
 OUTPUT_FMT="${OUTPUT_FMT:-text}"
 NO_COLOR="${NO_COLOR:-}"

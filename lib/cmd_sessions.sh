@@ -84,19 +84,15 @@ cmd_sessions() {
 
   if [[ "$OUTPUT_FMT" != "json" && -z "$QUIET" && ( "$cnt" -gt 0 || -n "$VERBOSE" ) ]]; then
     echo
-    local _fmt_dur='function fmt(s) {
-        if (s ~ /^[ ]*$/) return "-"
-        s += 0; return sprintf("%d:%02d:%02d", s/3600, (s%3600)/60, s%60)
-      }'
     if [[ -n "$VERBOSE" ]]; then
       { echo "PID|USER|APP|ADDR|STATE|XACT_S|DURATION|WAIT_TYPE|WAIT|QUERY"
-        awk -F'|' "$_fmt_dur"'NF {
+        awk -F'|' "$AWK_FMT_DUR"'NF {
           print $1"|"$2"|"$3"|"$4"|"$5"|"$6"|"fmt($7)"|"$8"|"$9"|"$10
         }' <<< "$rows"
       } | column -t -s '|' || true
     else
       { echo "PID|USER|STATE|DURATION|WAIT|QUERY"
-        awk -F'|' "$_fmt_dur"'NF {
+        awk -F'|' "$AWK_FMT_DUR"'NF {
           w = $9; gsub(/ /, "", w); if (w == "") w = "-"
           print $1 "|" $2 "|" $5 "|" fmt($7) "|" w "|" substr($10, 1, 60)
         }' <<< "$rows"
