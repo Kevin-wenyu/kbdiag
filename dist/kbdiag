@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-73 (2026-07-20)"
+KBDIAG_VERSION="v1.0.0-74 (2026-07-20)"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -5239,7 +5239,12 @@ _partition_analyze_one() {
   local strat; strat=$(_partition_strategy_name "$strat_code")
 
   if [[ "$nchild" -eq 0 ]]; then
-    fail "$fq has 0 partitions — every insert will fail (no partition to hold rows, and no DEFAULT)"
+    if [[ "$OUTPUT_FMT" == "json" ]]; then
+      json_item "$fq" "fail" "0 partitions" "every insert will fail (no partition to hold rows, no DEFAULT)"
+    else
+      fail "$fq has 0 partitions — every insert will fail (no partition to hold rows, and no DEFAULT)"
+    fi
+    _PART_EXIT=2
     return
   fi
 
@@ -5258,32 +5263,79 @@ _partition_analyze_one() {
     n=$(( n + 1 ))
   done <<< "$rows"
 
-  ok "$fq ($strat, $nchild partitions, $(_partition_fmt "$total"))"
-
+  # verdict computations shared by text and json renderings
+  local no_default="" default_warn="" skew_warn=""
   if [[ "$has_default" -eq 0 ]]; then
-    info "  no DEFAULT partition — unmatched values are rejected at insert time (may be intentional)"
+    no_default=1
   elif [[ "$total" -gt 10485760 ]]; then
     local pct=$(( default_size * 100 / total ))
     if [[ "$pct" -ge 20 ]]; then
-      warn "  DEFAULT partition holds ${pct}% of table data ($(_partition_fmt "$default_size")) — likely missing explicit partition definitions for new values"
+      default_warn="DEFAULT partition holds ${pct}% of table data ($(_partition_fmt "$default_size"))"
     fi
   fi
-
   if [[ "$n" -gt 1 && "$total" -gt 10485760 ]]; then
     local avg=$(( total / n ))
     if [[ "$avg" -gt 0 && "$max_size" -gt $(( avg * 5 )) ]]; then
-      warn "  partition size skew — largest partition is $(( max_size / avg ))x the average ($(_partition_fmt "$max_size") vs avg $(_partition_fmt "$avg"))"
+      skew_warn="largest partition is $(( max_size / avg ))x the average ($(_partition_fmt "$max_size") vs avg $(_partition_fmt "$avg"))"
     fi
+  fi
+  if [[ -n "$default_warn" || -n "$skew_warn" ]]; then
+    [[ "$_PART_EXIT" -lt 1 ]] && _PART_EXIT=1
+  fi
+
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    local st="ok"
+    [[ -n "$default_warn" || -n "$skew_warn" ]] && st="warn"
+    json_item "$fq" "$st" "$strat, $nchild partitions, $(_partition_fmt "$total")" \
+      "${default_warn}${default_warn:+; }${skew_warn}"
+    while IFS='|' read -r part bytes is_default; do
+      [[ -z "$part" ]] && continue
+      json_row "table=$fq" "partition=$part" "bytes=${bytes:-0}" "is_default=${is_default:-0}"
+    done <<< "$rows"
+    return
+  fi
+
+  ok "$fq ($strat, $nchild partitions, $(_partition_fmt "$total"))"
+  [[ -n "$no_default" ]] && \
+    info "  no DEFAULT partition — unmatched values are rejected at insert time (may be intentional)"
+  [[ -n "$default_warn" ]] && \
+    warn "  $default_warn — likely missing explicit partition definitions for new values"
+  [[ -n "$skew_warn" ]] && \
+    warn "  partition size skew — $skew_warn"
+
+  if [[ -n "$VERBOSE" && -z "$QUIET" && "$n" -gt 0 ]]; then
+    { echo "  PARTITION|SIZE|DEFAULT"
+      while IFS='|' read -r part bytes is_default; do
+        [[ -z "$part" ]] && continue
+        echo "  $part|$(_partition_fmt "${bytes:-0}")|$([[ "$is_default" == "1" ]] && echo yes || echo -)"
+      done <<< "$rows"
+    } | column -t -s '|' || true
   fi
 }
 
 cmd_partition() {
   hdr "Partition Health"
-  local rows
+  _PART_EXIT=0
+  local rows cnt
   rows=$(_partition_list)
-  if [[ -z "$rows" ]]; then
-    info "No partitioned tables found"
+  cnt=$(awk 'NF { c++ } END { print c+0 }' <<< "$rows")
+
+  [[ "$OUTPUT_FMT" == "json" ]] && json_begin "partition"
+
+  if [[ "$cnt" -eq 0 ]]; then
+    if [[ "$OUTPUT_FMT" == "json" ]]; then
+      json_item "partitioned_tables" "ok" "0" "none found"
+      json_end
+    else
+      info "Partitioned tables: none found"
+    fi
     return 0
+  fi
+
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    json_item "partitioned_tables" "ok" "$cnt" "checked"
+  else
+    info "Partitioned tables: $cnt checked"
   fi
 
   local oid fq strat nchild
@@ -5291,6 +5343,10 @@ cmd_partition() {
     [[ -z "$oid" ]] && continue
     _partition_analyze_one "$oid" "$fq" "$strat" "$nchild"
   done <<< "$rows"
+
+  [[ "$OUTPUT_FMT" == "json" ]] && json_end
+  [[ -n "$EXIT_CODE_MODE" ]] && return "$_PART_EXIT"
+  return 0
 }
 
 # --- lib/cmd_report.sh ---
