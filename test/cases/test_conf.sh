@@ -20,7 +20,7 @@ test_conf_default_points_to_params() {
 test_conf_has_column_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE conf")
   # Either a pending-restart param row appears, OR there are none (the common case)
-  if echo "$out" | grep -qE 'name\|setting|No restart-pending'; then _pass; else _fail "no header or OK message in conf output"; fi
+  if echo "$out" | grep -qE 'NAME\|SETTING|Pending restart: [0-9]+'; then _pass; else _fail "no header or OK message in conf output"; fi
 }
 
 test_conf_default_shows_restart_status() {

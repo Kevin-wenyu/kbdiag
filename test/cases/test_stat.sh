@@ -8,7 +8,7 @@ test_stat_runs_with_interval() {
 
 test_stat_has_tps_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval 2")
-  assert_contains "$out" "TPS commits/s"
+  assert_contains "$out" "commits/s"
 }
 
 test_stat_has_buffer_hit_rate() {
@@ -18,17 +18,17 @@ test_stat_has_buffer_hit_rate() {
 
 test_stat_has_deadlocks() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval 2")
-  assert_contains "$out" "Deadlocks/s"
+  assert_contains "$out" "Deadlocks:"
 }
 
 test_stat_has_temp_bytes() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval 2")
-  assert_contains "$out" "Temp bytes/s"
+  assert_contains "$out" "Temp files:"
 }
 
 test_stat_has_rollbacks() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval 2")
-  assert_contains "$out" "TPS rollbacks/s"
+  assert_contains "$out" "rollbacks/s"
 }
 
 test_stat_interval_flag_equals_form() {
@@ -40,7 +40,7 @@ test_stat_interval_flag_equals_form() {
 test_stat_count_flag() {
   # --count 1 with --interval 2 should produce one set of output
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval 2 --count 1")
-  assert_contains "$out" "TPS commits/s"
+  assert_contains "$out" "commits/s"
 }
 
 test_stat_header_shows_interval() {
@@ -48,13 +48,11 @@ test_stat_header_shows_interval() {
   assert_contains "$out" "throughput"
 }
 
-test_stat_shows_wait_events() {
+test_stat_verdicts_present() {
+  # output contract: verdict lines always present with values and thresholds
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE stat --interval=1")
-  if echo "$out" | grep -qiE 'Wait event|wait_event|等待'; then
-    _pass
-  else
-    _fail "stat missing wait events section: $(echo "$out" | tail -5)"
-  fi
+  echo "$out" | grep -qE 'Buffer hit rate: [0-9.]+% .threshold [0-9]+%' \
+    && _pass || _fail "stat missing buffer-hit verdict with values"
 }
 
 test_stat_shows_temp_files() {

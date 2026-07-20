@@ -13,7 +13,7 @@ test_jobs_shows_header() {
 test_jobs_handles_empty_or_lists() {
   # Either no jobs defined (test env default), extension missing, or a job list
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE jobs")
-  if echo "$out" | grep -qE 'No scheduler jobs defined|not installed|job\(s\) defined'; then
+  if echo "$out" | grep -qE 'Scheduler jobs: (none defined|[0-9]+ defined)|not installed'; then
     _pass
   else
     _fail "unexpected jobs output: $(echo "$out" | head -3)"

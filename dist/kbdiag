@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-72 (2026-07-20)"
+KBDIAG_VERSION="v1.0.0-73 (2026-07-20)"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -2020,96 +2020,138 @@ cmd_stat() {
   done
 
   hdr "Instance throughput (${interval}s sample)"
+  local warn_hit="${KB_WARN_HITRATE:-90}" warn_rb="${KB_WARN_ROLLBACK_PCT:-10}" _exit=0
 
   # One snapshot pair feeds both the throughput and temp-files deltas —
-  # a separate sleep per section doubled stat's runtime.
-  local snap1 snap2
+  # a separate sleep per section would double stat's runtime.
+  local snap1 snap2 tps rps hit_pct rb_pct dl_d tf_s tb_s
   while [[ $i -lt $count ]]; do
     snap1=$(ksql_q "SELECT xact_commit, xact_rollback, blks_read, blks_hit, deadlocks, temp_files, temp_bytes FROM sys_stat_database WHERE datname=current_database();")
     sleep "$interval"
     snap2=$(ksql_q "SELECT xact_commit, xact_rollback, blks_read, blks_hit, deadlocks, temp_files, temp_bytes FROM sys_stat_database WHERE datname=current_database();")
 
-    printf "%s\n%s\n" "$snap1" "$snap2" | awk -F'|' -v interval="$interval" '
-      NR==1 { c1=$1; r1=$2; br1=$3; bh1=$4; d1=$5 }
-      NR==2 { c2=$1; r2=$2; br2=$3; bh2=$4; d2=$5
-        printf "TPS commits/s:   %.1f\n", (c2-c1)/interval
-        printf "TPS rollbacks/s: %.1f\n", (r2-r1)/interval
-        total_blk = (bh2-bh1) + (br2-br1)
-        hit_pct = (total_blk > 0) ? 100.0*(bh2-bh1)/total_blk : 100
-        printf "Buffer hit rate: %.1f%%\n", hit_pct
-        printf "Deadlocks/s:     %.2f\n", (d2-d1)/interval
-      }'
+    read -r tps rps hit_pct rb_pct dl_d tf_s tb_s < <(printf "%s\n%s\n" "$snap1" "$snap2" | awk -F'|' -v iv="$interval" '
+      NR==1 { c1=$1; r1=$2; br1=$3; bh1=$4; d1=$5; f1=$6; b1=$7 }
+      NR==2 {
+        dc = $1-c1; dr = $2-r1; dbr = $3-br1; dbh = $4-bh1
+        tot = dbh + dbr
+        hit = (tot > 0) ? 100.0*dbh/tot : 100
+        xact = dc + dr
+        rbp = (xact > 0) ? 100.0*dr/xact : 0
+        printf "%.1f %.1f %.1f %.1f %d %.2f %.0f\n", dc/iv, dr/iv, hit, rbp, $5-d1, ($6-f1)/iv, ($7-b1)/iv
+      }')
 
+    [[ "$OUTPUT_FMT" != "json" ]] && _stat_verdicts
     i=$(( i + 1 ))
-    if [[ $i -lt $count ]]; then sleep 0; fi
   done
+  # verdicts from the last sample drive the exit code
+  awk -v h="$hit_pct" -v wh="$warn_hit" -v r="$rb_pct" -v wr="$warn_rb" -v d="$dl_d" \
+    'BEGIN { exit !(h < wh || r > wr || d > 0) }' && _exit=1
 
-  _stat_section_wait_events "$interval"
-  _stat_section_temp_files "$interval" "$snap1" "$snap2"
-  _stat_section_checkpoints
-  _stat_section_top_sql
+  # capture remaining sections once; text and json render from the same data
+  local wait_rows ckpt_row sql_rows=""
+  wait_rows=$(ksql_q "SELECT wait_event_type, wait_event, count(*)
+    FROM sys_stat_activity WHERE $_WAIT_EVENT_WHERE
+    GROUP BY wait_event_type, wait_event ORDER BY 3 DESC LIMIT 5;" 2>/dev/null) || wait_rows=""
+  ckpt_row=$(bgwriter_stats) || ckpt_row=""
+  if _stmt_check_ext >/dev/null 2>&1; then
+    sql_rows=$(ksql_q "SELECT calls::text,
+      round(total_exec_time::numeric, 1)::text,
+      round(mean_exec_time::numeric, 1)::text,
+      translate(left(query, 100), E'\n\r|', '   ')
+      FROM sys_stat_statements
+      WHERE $_STMT_ACTIVE_WHERE
+      ORDER BY total_exec_time DESC
+      LIMIT 5;" 2>/dev/null) || sql_rows=""
+  fi
+
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    json_begin "stat"
+    json_item "tps_commit" "ok" "$tps" "per second over ${interval}s sample"
+    json_item "tps_rollback" "ok" "$rps" "per second"
+    if awk -v h="$hit_pct" -v t="$warn_hit" 'BEGIN { exit !(h < t) }'; then
+      json_item "buffer_hit_pct" "warn" "$hit_pct" "< threshold ${warn_hit}%"
+    else
+      json_item "buffer_hit_pct" "ok" "$hit_pct" "threshold ${warn_hit}%"
+    fi
+    if awk -v r="$rb_pct" -v t="$warn_rb" 'BEGIN { exit !(r > t) }'; then
+      json_item "rollback_pct" "warn" "$rb_pct" "> threshold ${warn_rb}%"
+    else
+      json_item "rollback_pct" "ok" "$rb_pct" "threshold ${warn_rb}%"
+    fi
+    if [[ "${dl_d:-0}" -gt 0 ]]; then
+      json_item "deadlocks_sample" "warn" "$dl_d" "during ${interval}s sample"
+    else
+      json_item "deadlocks_sample" "ok" "0" "during ${interval}s sample"
+    fi
+    json_item "temp_files_per_s" "ok" "$tf_s" ""
+    json_item "temp_bytes_per_s" "ok" "$tb_s" ""
+    while IFS='|' read -r wtype wevent cnt; do
+      [[ -z "${wtype// /}" ]] && continue
+      json_row "scope=wait_event" "type=${wtype// /}" "event=${wevent// /}" "sessions=${cnt// /}"
+    done <<< "$wait_rows"
+    while IFS='|' read -r calls total_ms mean_ms query; do
+      [[ -z "${calls// /}" ]] && continue
+      json_row "scope=top_sql" "calls=${calls// /}" "total_ms=${total_ms// /}" \
+        "mean_ms=${mean_ms// /}" "query=$query"
+    done <<< "$sql_rows"
+    json_end
+    [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+    return 0
+  fi
+
+  if [[ -z "$QUIET" ]]; then
+    if [[ -n "${wait_rows// /}" ]]; then
+      echo
+      info "Wait events during sample (top 5):"
+      { echo "TYPE|EVENT|SESSIONS"
+        awk -F'|' 'NF' <<< "$wait_rows"
+      } | column -t -s '|' || true
+    fi
+    if [[ -n "${ckpt_row// /}" ]]; then
+      echo
+      info "Checkpoint activity (cumulative):"
+      echo "$ckpt_row" | while IFS='|' read -r timed req write_s sync_s bufs _; do
+        printf "  timed/requested: %s / %s   write %ss   sync %ss   buffers %s\n" \
+          "${timed// /}" "${req// /}" "${write_s// /}" "${sync_s// /}" "${bufs// /}"
+      done || true
+    fi
+    if [[ -n "${sql_rows// /}" ]]; then
+      echo
+      info "Top SQL by total execution time:"
+      { echo "CALLS|TOTAL_MS|MEAN_MS|QUERY"
+        if [[ -n "$VERBOSE" ]]; then
+          awk -F'|' 'NF' <<< "$sql_rows"
+        else
+          awk -F'|' 'NF { print $1 "|" $2 "|" $3 "|" substr($4, 1, 60) }' <<< "$sql_rows"
+        fi
+      } | column -t -s '|' || true
+    fi
+  fi
+
+  [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+  return 0
 }
 
-_stat_section_wait_events() {
-  local interval="${1:-5}"
-  printf "\nWait events (top 5 during %ss sample):\n" "$interval"
-  printf "%-20s %-20s %s\n" "wait_event_type" "wait_event" "count"
-  printf "%-20s %-20s %s\n" "--------------------" "--------------------" "-----"
-  ksql_q "SELECT wait_event_type, wait_event, count(*) AS cnt
-    FROM sys_stat_activity
-    WHERE $_WAIT_EVENT_WHERE
-    GROUP BY wait_event_type, wait_event
-    ORDER BY cnt DESC
-    LIMIT 5;" 2>/dev/null \
-  | while IFS='|' read -r wtype wevent cnt; do
-      printf "%-20s %-20s %s\n" \
-        "${wtype// /}" "${wevent// /}" "${cnt// /}"
-    done || true
-}
-
-# Consumes the throughput snapshot pair (fields 6-7: temp_files, temp_bytes)
-# instead of sleeping through its own sampling window.
-_stat_section_temp_files() {
-  local interval="${1:-5}" s1="$2" s2="$3"
-  printf "\nTemp files (%ss delta):\n" "$interval"
-  printf "%s\n%s\n" "$s1" "$s2" | awk -F'|' -v interval="$interval" '
-    NR==1 { f1=$6; b1=$7 }
-    NR==2 { f2=$6; b2=$7
-      printf "Temp files/s:    %.2f\n", (f2-f1)/interval
-      printf "Temp bytes/s:    %.0f\n", (b2-b1)/interval
-    }' || true
-}
-
-_stat_section_checkpoints() {
-  printf "\nCheckpoint activity:\n"
-  bgwriter_stats \
-  | while IFS='|' read -r timed req write_s sync_s bufs _; do
-      printf "Checkpoints timed/req: %s / %s\n" \
-        "${timed// /}" "${req// /}"
-      printf "Write time (s):        %s\n" "${write_s// /}"
-      printf "Sync time (s):         %s\n" "${sync_s// /}"
-      printf "Buffers written:       %s\n" "${bufs// /}"
-    done || true
-}
-
-_stat_section_top_sql() {
-  _stmt_check_ext || return 0
-
-  printf "\nTop SQL (by total execution time):\n"
-  printf "%-8s %-10s %-10s %s\n" "calls" "total_ms" "mean_ms" "query"
-  printf "%-8s %-10s %-10s %s\n" "--------" "----------" "----------" "---"
-  ksql_q "SELECT calls::text,
-    round(total_exec_time::numeric, 1)::text,
-    round(mean_exec_time::numeric, 1)::text,
-    left(replace(query, E'\n', ' '), 60)
-    FROM sys_stat_statements
-    WHERE $_STMT_ACTIVE_WHERE
-    ORDER BY total_exec_time DESC
-    LIMIT 5;" 2>/dev/null \
-  | while IFS='|' read -r calls total_ms mean_ms sql; do
-      printf "%-8s %-10s %-10s %s\n" \
-        "${calls// /}" "${total_ms// /}" "${mean_ms// /}" "${sql// /}"
-    done || true
+# verdict block for one sample; reads the computed metrics from caller scope
+_stat_verdicts() {
+  info "Throughput: $tps commits/s, $rps rollbacks/s (${interval}s sample)"
+  info "Temp files: ${tf_s}/s, ${tb_s} bytes/s during sample"
+  if awk -v h="$hit_pct" -v t="$warn_hit" 'BEGIN { exit !(h < t) }'; then
+    warn "Buffer hit rate: ${hit_pct}% < threshold ${warn_hit}% (during sample)"
+  else
+    ok "Buffer hit rate: ${hit_pct}% (threshold ${warn_hit}%)"
+  fi
+  if awk -v r="$rb_pct" -v t="$warn_rb" 'BEGIN { exit !(r > t) }'; then
+    warn "Rollback ratio: ${rb_pct}% > threshold ${warn_rb}%"
+  else
+    ok "Rollback ratio: ${rb_pct}% (threshold ${warn_rb}%)"
+  fi
+  if [[ "${dl_d:-0}" -gt 0 ]]; then
+    warn "Deadlocks: $dl_d during ${interval}s sample"
+  else
+    ok "Deadlocks: 0 during sample"
+  fi
 }
 
 # --- lib/cmd_obj.sh ---
@@ -2295,6 +2337,7 @@ cmd_watch() {
 cmd_conf() {
   local subcmd="${1:-}"
   hdr "Configuration"
+  local _exit=0
 
   if [[ "$subcmd" == "diff" ]]; then
     # Compare this node's parameters with the peer node
@@ -2305,33 +2348,89 @@ cmd_conf() {
              awk '/standby|primary/ && !/\*/ {match($0,"host=([^ ]+)",a); if(a[1]) print a[1]; exit}' || true)
     fi
     if [[ -z "$peer" ]]; then
-      warn "Cannot determine peer node. Set KB_PEER_HOST=<ip> to enable diff."
+      warn "Config drift: cannot determine peer node (set KB_PEER_HOST=<ip> to enable diff)"
       return 0
     fi
-    info "Comparing parameters with peer: $peer"
-    local local_params peer_params
+    local local_params peer_params drift drift_cnt
     local_params=$(ksql_q "SELECT name||'='||setting FROM sys_settings WHERE setting<>boot_val ORDER BY name;")
     peer_params=$(ssh -o StrictHostKeyChecking=no "$peer" \
       "sudo -i -u kingbase /home/kingbase/cluster/install/kingbase/bin/ksql -p 54321 -U system test -AXtc \
       'SELECT name||chr(61)||setting FROM sys_settings WHERE setting<>boot_val ORDER BY name;'" 2>/dev/null) || true
-    diff <(echo "$local_params") <(echo "$peer_params") | head -40 || true
+    if [[ -z "$peer_params" ]]; then
+      warn "Config drift: peer $peer unreachable over ssh — cannot compare"
+      return 0
+    fi
+    drift=$(diff <(echo "$local_params") <(echo "$peer_params") || true)
+    drift_cnt=$(grep -c '^[<>]' <<< "$drift" 2>/dev/null || echo 0)
+
+    if [[ "$OUTPUT_FMT" == "json" ]]; then
+      json_begin "conf_diff"
+      if [[ "${drift_cnt:-0}" -gt 0 ]]; then
+        json_item "config_drift" "warn" "$drift_cnt" "differing non-default parameter(s) vs peer $peer"
+      else
+        json_item "config_drift" "ok" "0" "vs peer $peer"
+      fi
+      while read -r line; do
+        [[ "$line" =~ ^[\<\>] ]] || continue
+        json_row "side=$([[ "${line:0:1}" == "<" ]] && echo local || echo peer)" \
+          "entry=${line:2}"
+      done <<< "$drift"
+      json_end
+      [[ -n "$EXIT_CODE_MODE" && "${drift_cnt:-0}" -gt 0 ]] && return 1
+      return 0
+    fi
+
+    if [[ "${drift_cnt:-0}" -gt 0 ]]; then
+      warn "Config drift: $drift_cnt differing non-default parameter(s) vs peer $peer"
+      [[ -z "$QUIET" ]] && { echo; echo "$drift" | head -40; }
+      [[ -n "$EXIT_CODE_MODE" ]] && return 1
+    else
+      ok "Config drift: none (non-default parameters identical to peer $peer)"
+    fi
     return 0
   fi
 
   # conf's job is cross-node comparison (diff) plus the restart-pending signal;
   # the full non-default parameter list lives in `kbdiag params` — don't duplicate it here.
-  local restart_cnt
-  restart_cnt=$(ksql_q "SELECT count(*) FROM sys_settings WHERE pending_restart=true;" | tr -d '[:space:]')
-  if [[ "${restart_cnt:-0}" -gt 0 ]]; then
-    warn "$restart_cnt parameter(s) pending restart"
-    ksql_qh "
-      SELECT name, setting, unit, boot_val
-      FROM sys_settings WHERE pending_restart=true ORDER BY name;" | column -t -s '|' || true
+  local pending restart_cnt
+  pending=$(ksql_q "
+    SELECT name, setting, unit, boot_val
+    FROM sys_settings WHERE pending_restart = true ORDER BY name;")
+  restart_cnt=$(awk 'NF { c++ } END { print c+0 }' <<< "$pending")
+  [[ "$restart_cnt" -gt 0 ]] && _exit=1
+
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    json_begin "conf"
+    if [[ "$restart_cnt" -gt 0 ]]; then
+      json_item "pending_restart" "warn" "$restart_cnt" "parameter(s) need a restart to take effect"
+    else
+      json_item "pending_restart" "ok" "0" ""
+    fi
+    while IFS='|' read -r name setting unit boot; do
+      [[ -z "${name// /}" ]] && continue
+      json_row "name=${name// /}" "setting=${setting// /}" "unit=${unit// /}" "boot_val=${boot// /}"
+    done <<< "$pending"
+    json_end
+    [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+    return 0
+  fi
+
+  if [[ "$restart_cnt" -gt 0 ]]; then
+    warn "Pending restart: $restart_cnt parameter(s) changed but not yet effective"
+    if [[ -z "$QUIET" ]]; then
+      echo
+      { echo "NAME|SETTING|UNIT|BOOT_VAL"
+        awk -F'|' 'NF' <<< "$pending"
+      } | column -t -s '|' || true
+    fi
   else
-    ok "No restart-pending parameters"
+    ok "Pending restart: 0 parameters waiting"
   fi
   info "Non-default parameter list: kbdiag params"
   info "Cross-node comparison:      kbdiag conf diff"
+
+  [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+  return 0
 }
 
 # --- lib/cmd_audit.sh ---
@@ -4985,74 +5084,108 @@ cmd_explain() {
 # Three questions a DBA asks about jobs: what exists, what's broken,
 # what failed recently.
 
-_jobs_ext_installed() {
-  ksql_q "SELECT 1 FROM sys_extension WHERE extname='kdb_schedule';" 2>/dev/null | tr -d '[:space:]'
-}
-
-_jobs_inventory() {
-  local total enabled
-  total=$(ksql_q "SELECT count(*) FROM kdb_schedule.dba_scheduler_jobs;" 2>/dev/null | tr -d '[:space:]') || total=""
-  if [[ -z "$total" ]]; then
-    warn "kdb_schedule installed but dba_scheduler_jobs is not readable"
-    return 1
-  fi
-  if [[ "$total" -eq 0 ]]; then
-    info "No scheduler jobs defined"
-    return 1
-  fi
-
-  enabled=$(ksql_q "SELECT count(*) FROM kdb_schedule.dba_scheduler_jobs WHERE lower(enabled::text)='true';" 2>/dev/null | tr -d '[:space:]')
-  ok "$total job(s) defined, ${enabled:-?} enabled"
-  ksql_qh "SELECT owner, job_name, enabled::text, coalesce(state,'-'),
-                  left(coalesce(repeat_interval,'-'), 40) AS interval
-           FROM kdb_schedule.dba_scheduler_jobs
-           ORDER BY owner, job_name LIMIT $TOP_N;" | column -t -s '|' || true
-  return 0
-}
-
-_jobs_broken() {
-  local cnt
-  cnt=$(ksql_q "SELECT count(*) FROM kdb_schedule.dba_scheduler_jobs
-                WHERE upper(coalesce(state,'')) IN ('BROKEN','FAILED');" 2>/dev/null | tr -d '[:space:]') || return 0
-  if [[ "${cnt:-0}" -gt 0 ]]; then
-    fail "$cnt job(s) in BROKEN/FAILED state:"
-    ksql_qh "SELECT owner, job_name, state
-             FROM kdb_schedule.dba_scheduler_jobs
-             WHERE upper(coalesce(state,'')) IN ('BROKEN','FAILED')
-             ORDER BY owner, job_name LIMIT $TOP_N;" | column -t -s '|' || true
-  else
-    ok "No jobs in BROKEN/FAILED state"
-  fi
-}
-
-_jobs_recent_failures() {
-  local cnt
-  cnt=$(ksql_q "SELECT count(*) FROM kdb_schedule.dba_scheduler_job_run_details
-                WHERE log_date > now() - interval '7 days'
-                  AND upper(coalesce(status,'')) NOT IN ('SUCCEEDED','COMPLETED');" 2>/dev/null | tr -d '[:space:]') || return 0
-  if [[ "${cnt:-0}" -gt 0 ]]; then
-    warn "$cnt non-successful run(s) in the last 7 days:"
-    ksql_qh "SELECT to_char(log_date,'MM-DD HH24:MI') AS at, job_name,
-                    coalesce(status,'-'), left(coalesce(error,''),50) AS error
-             FROM kdb_schedule.dba_scheduler_job_run_details
-             WHERE log_date > now() - interval '7 days'
-               AND upper(coalesce(status,'')) NOT IN ('SUCCEEDED','COMPLETED')
-             ORDER BY log_date DESC LIMIT $TOP_N;" | column -t -s '|' || true
-  else
-    ok "No failed runs in the last 7 days"
-  fi
-}
-
 cmd_jobs() {
   hdr "Scheduler Jobs (kdb_schedule)"
-  if [[ -z "$(_jobs_ext_installed)" ]]; then
+  local _exit=0
+
+  if [[ -z "$(ksql_q "SELECT 1 FROM sys_extension WHERE extname='kdb_schedule';" 2>/dev/null | tr -d '[:space:]')" ]]; then
     info "kdb_schedule extension is not installed — no scheduled jobs to check"
+    [[ "$OUTPUT_FMT" == "json" ]] && { json_begin "jobs"; json_item "kdb_schedule" "skip" "not installed" ""; json_end; }
     return 0
   fi
-  if _jobs_inventory; then
-    _jobs_broken
-    _jobs_recent_failures
+
+  # capture all three dimensions once; verdicts and tables render from these
+  local jobs_rows total enabled
+  jobs_rows=$(ksql_q "
+    SELECT owner, job_name, enabled::text, coalesce(state, '-'),
+           left(coalesce(repeat_interval, '-'), 40)
+    FROM kdb_schedule.dba_scheduler_jobs
+    ORDER BY owner, job_name;" 2>/dev/null) || jobs_rows=""
+  total=$(awk 'NF { c++ } END { print c+0 }' <<< "$jobs_rows")
+  enabled=$(awk -F'|' '$3 ~ /true/ { c++ } END { print c+0 }' <<< "$jobs_rows")
+
+  local broken_rows broken_cnt
+  broken_rows=$(awk -F'|' 'toupper($4) ~ /BROKEN|FAILED/' <<< "$jobs_rows")
+  broken_cnt=$(awk 'NF { c++ } END { print c+0 }' <<< "$broken_rows")
+
+  local failed_rows failed_cnt
+  failed_rows=$(ksql_q "
+    SELECT to_char(log_date, 'MM-DD HH24:MI'), job_name,
+           coalesce(status, '-'), left(coalesce(error, ''), 50)
+    FROM kdb_schedule.dba_scheduler_job_run_details
+    WHERE log_date > now() - interval '7 days'
+      AND upper(coalesce(status, '')) NOT IN ('SUCCEEDED', 'COMPLETED')
+    ORDER BY log_date DESC LIMIT ${TOP_N};" 2>/dev/null) || failed_rows=""
+  failed_cnt=$(awk 'NF { c++ } END { print c+0 }' <<< "$failed_rows")
+
+  [[ "$failed_cnt" -gt 0 ]] && _exit=1
+  [[ "$broken_cnt" -gt 0 ]] && _exit=2
+
+  if [[ "$OUTPUT_FMT" == "json" ]]; then
+    json_begin "jobs"
+    json_item "jobs_defined" "ok" "$total" "$enabled enabled"
+    if [[ "$broken_cnt" -gt 0 ]]; then
+      json_item "broken_jobs" "fail" "$broken_cnt" "in BROKEN/FAILED state"
+    else
+      json_item "broken_jobs" "ok" "0" ""
+    fi
+    if [[ "$failed_cnt" -gt 0 ]]; then
+      json_item "failed_runs_7d" "warn" "$failed_cnt" "non-successful runs in last 7 days"
+    else
+      json_item "failed_runs_7d" "ok" "0" "last 7 days"
+    fi
+    while IFS='|' read -r owner name en state interval; do
+      [[ -z "${owner// /}" ]] && continue
+      json_row "scope=job" "owner=${owner// /}" "job_name=${name// /}" \
+        "enabled=${en// /}" "state=${state// /}" "repeat_interval=${interval# }"
+    done <<< "$jobs_rows"
+    while IFS='|' read -r at name status error; do
+      [[ -z "${at// /}" ]] && continue
+      json_row "scope=failed_run" "at=${at# }" "job_name=${name// /}" \
+        "status=${status// /}" "error=${error# }"
+    done <<< "$failed_rows"
+    json_end
+    [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+    return 0
   fi
+
+  if [[ "$total" -eq 0 ]]; then
+    ok "Scheduler jobs: none defined"
+    [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+    return 0
+  fi
+  info "Scheduler jobs: $total defined, $enabled enabled"
+  if [[ "$broken_cnt" -gt 0 ]]; then
+    fail "Broken jobs: $broken_cnt in BROKEN/FAILED state"
+  else
+    ok "Broken jobs: none (checked $total)"
+  fi
+  if [[ "$failed_cnt" -gt 0 ]]; then
+    warn "Failed runs: $failed_cnt non-successful in last 7 days (showing top ${TOP_N})"
+  else
+    ok "Failed runs: none in last 7 days"
+  fi
+
+  if [[ -z "$QUIET" ]]; then
+    echo
+    { echo "OWNER|JOB|ENABLED|STATE|INTERVAL"
+      if [[ -n "$VERBOSE" ]]; then
+        awk -F'|' 'NF' <<< "$jobs_rows"
+      else
+        awk -F'|' 'NF' <<< "$jobs_rows" | head -n "$TOP_N"
+      fi
+    } | column -t -s '|' || true
+    if [[ "$failed_cnt" -gt 0 ]]; then
+      echo
+      info "Recent non-successful runs:"
+      { echo "AT|JOB|STATUS|ERROR"
+        awk -F'|' 'NF' <<< "$failed_rows"
+      } | column -t -s '|' || true
+    fi
+  fi
+
+  [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+  return 0
 }
 
 # --- lib/cmd_partition.sh ---
