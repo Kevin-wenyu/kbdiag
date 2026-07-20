@@ -132,7 +132,7 @@ Global flags:
 [DBA] Single-dimension deep query — also used to verify a ROOT-CAUSE finding:
   sessions            Non-idle sessions
   locks [hold|wait|deadlock]   Lock analysis
-  perf [slow|bloat|vacuum|wait|io|wal|top]   Performance diagnostics
+  perf [slow|bloat|vacuum|index|wait|io|wal|top [buffers|reads|writes|cpu|temp]]   Performance diagnostics
   sql [pid|all]       SQL text + EXPLAIN for a session
   stmt [queryid]      SQL history statistics — Top N by mean/total/IO/calls (AWR-style)
   explain <queryid|"SQL">  Plan analysis: EXPLAIN + red flags (seq scan, nested loop, sort)

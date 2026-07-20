@@ -141,12 +141,12 @@ test_perf_slow_has_header() {
 
 test_perf_wait_has_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE perf wait" 2>&1)
-  echo "$out" | grep -qi "wait_event" && _pass || _fail "perf wait missing 'wait_event' header"
+  echo "$out" | grep -qi "Waiting sessions" && _pass || _fail "perf wait missing verdict line"
 }
 
 test_perf_io_has_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE perf io" 2>&1)
-  echo "$out" | grep -qi "schemaname" && _pass || _fail "perf io missing 'schemaname' header"
+  echo "$out" | grep -qi "Table I/O" && _pass || _fail "perf io missing verdict line"
 }
 
 test_perf_vacuum_has_header() {
@@ -157,7 +157,7 @@ test_perf_vacuum_has_header() {
 
 test_perf_bloat_has_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE perf bloat" 2>&1)
-  echo "$out" | grep -qi "schemaname" && _pass || _fail "perf bloat missing 'schemaname' header"
+  echo "$out" | grep -qi "Bloated tables" && _pass || _fail "perf bloat missing verdict line"
 }
 
 test_perf_top_has_header() {
@@ -168,5 +168,26 @@ test_perf_top_has_header() {
 
 test_perf_index_has_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE perf index" 2>&1)
-  echo "$out" | grep -qi "schemaname" && _pass || _fail "perf index missing 'schemaname' header"
+  echo "$out" | grep -qi "Unused indexes" && _pass || _fail "perf index missing verdict line"
+}
+
+# ── output-contract: exit codes only reflect verdict with --exit-code ─────────
+
+test_perf_index_exit_code_default_zero() {
+  # Data-layer command: without --exit-code, always exits 0 regardless of verdict
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE perf index")
+  [[ "${code:-1}" -eq 0 ]] && _pass || _fail "perf index without --exit-code exited $code, expected 0"
+}
+
+test_perf_exit_code_flag_reflects_verdict() {
+  # This test DB always has unused indexes present, so --exit-code should surface WARN as rc=1
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code perf index")
+  [[ "${code:-0}" -eq 1 ]] && _pass || _fail "perf --exit-code index exited $code, expected 1 (WARN)"
+}
+
+test_perf_verbose_shows_full_index_list() {
+  # -v should show all 18 unused indexes on this test DB, not just top 10
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE -v perf index" 2>&1)
+  local rows; rows=$(echo "$out" | grep -c "kB\|bytes")
+  [[ "${rows:-0}" -gt 10 ]] && _pass || _fail "expected >10 rows with -v, got $rows"
 }
