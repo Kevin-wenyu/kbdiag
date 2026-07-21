@@ -104,6 +104,21 @@ test_sql_pid_invalid_shows_warn() {
   assert_contains "$out" "No active session"
 }
 
+test_sql_pid_not_found_exit_zero_default() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE sql 999999999")
+  assert_exit_code 0 "$code"
+}
+
+test_sql_pid_not_found_exit_code_flag() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code sql 999999999")
+  assert_exit_code 1 "$code"
+}
+
+test_sql_invalid_arg_fails() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE sql abc")
+  assert_exit_code 1 "$code"
+}
+
 # ── header verification ──────────────────────────────────────────────────────
 
 test_sql_all_has_column_header() {
@@ -111,5 +126,35 @@ test_sql_all_has_column_header() {
   start_slow_query_bg
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE sql all" 2>&1)
   stop_slow_query_bg
-  echo "$out" | grep -qi "usename" && _pass || _fail "sql all missing 'usename' column header"
+  echo "$out" | grep -qi "PID" && _pass || _fail "sql all missing 'PID' column header"
+}
+
+# ── output format ─────────────────────────────────────────────────────────────
+
+test_sql_all_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json sql")
+  assert_json_valid "$out"
+  assert_contains "$out" '"command":"sql"'
+}
+
+test_sql_pid_json_valid() {
+  start_slow_query_bg
+  local pid; pid=$(_get_slow_query_pid)
+  local out
+  if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ ]]; then
+    out=$(ssh_node1 "$KBDIAG_REMOTE --format json sql $pid")
+    stop_slow_query_bg
+    assert_json_valid "$out"
+    assert_contains "$out" '"command":"sql"'
+  else
+    stop_slow_query_bg
+    _fail "could not get slow query pid (got: '$pid')"
+  fi
+}
+
+test_sql_all_verbose_shows_full_query() {
+  start_slow_query_bg
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE -v sql all")
+  stop_slow_query_bg
+  assert_contains "$out" "WAIT_TYPE"
 }
