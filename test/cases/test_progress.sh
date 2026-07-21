@@ -38,3 +38,30 @@ test_progress_quiet_flag() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE -q progress")
   assert_exit_code 0 "${code:-0}"
 }
+
+test_progress_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json progress")
+  assert_json_valid "$out"
+  assert_contains "$out" '"command":"progress"'
+}
+
+test_progress_long_query_warns_with_low_threshold() {
+  start_slow_query_bg
+  local out; out=$(ssh_node1 "KB_WARN_LONG_QUERY=0 $KBDIAG_REMOTE progress")
+  stop_slow_query_bg
+  assert_contains "$out" "long-running quer"
+}
+
+test_progress_long_query_exit_code_flag() {
+  start_slow_query_bg
+  local code; code=$(ssh_node1_exit "KB_WARN_LONG_QUERY=0 $KBDIAG_REMOTE --exit-code progress")
+  stop_slow_query_bg
+  assert_exit_code 1 "${code:-0}"
+}
+
+test_progress_long_query_default_exit_zero() {
+  start_slow_query_bg
+  local code; code=$(ssh_node1_exit "KB_WARN_LONG_QUERY=0 $KBDIAG_REMOTE progress")
+  stop_slow_query_bg
+  assert_exit_code 0 "${code:-0}"
+}
