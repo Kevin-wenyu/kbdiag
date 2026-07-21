@@ -74,12 +74,24 @@ test_colstat_nonexistent_table_error_message() {
   assert_contains "$out" "not found"
 }
 
-test_colstat_exit_ok_when_no_warnings() {
+test_colstat_invalid_identifier_rejected() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE colstat 'bad;name'")
+  assert_exit_code 1 "${code:-0}"
+}
+
+test_colstat_default_exit_zero_even_with_warnings() {
   _colstat_setup
-  # Fresh ANALYZE means no drift warnings
+  # Query-layer command: default exit is always 0 regardless of verdicts.
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE colstat public.kbdiag_colstat_test")
   _colstat_cleanup
-  # exit 0 or 1 (might have correlation warnings depending on data)
+  [[ "${code:-0}" -eq 0 ]] && _pass || _fail "expected exit 0 by default, got $code"
+}
+
+test_colstat_exit_code_flag_reflects_verdict() {
+  _colstat_setup
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code colstat public.kbdiag_colstat_test")
+  _colstat_cleanup
+  # 0 (healthy) or 1 (drift/correlation warn) depending on live data — never usage-error 2+.
   [[ "${code:-0}" -le 1 ]] && _pass || _fail "unexpected exit code $code"
 }
 
@@ -88,6 +100,6 @@ test_colstat_json_valid() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json colstat public.kbdiag_colstat_test")
   _colstat_cleanup
   assert_json_valid "$out"
-  assert_contains "$out" '"table"'
-  assert_contains "$out" '"columns"'
+  assert_contains "$out" '"command":"colstat"'
+  assert_contains "$out" '"rows"'
 }

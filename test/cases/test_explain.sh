@@ -18,8 +18,11 @@ test_explain_sql_shows_plan() {
 }
 
 test_explain_sql_flags_seq_scan() {
-  # count(*) on sys_class without predicate must produce a Seq Scan flag
-  local out; out=$(ssh_node1 "$KBDIAG_REMOTE explain \"SELECT count(*) FROM sys_class\"")
+  # sys_class's plan depends on catalog size/stats and drifts over a long-lived
+  # test DB (index-only scan once the catalog grows enough) — use kbdiag_test's
+  # unindexed "data" column instead, which is always a guaranteed seq scan.
+  setup_test_table
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE explain \"SELECT count(*) FROM kbdiag_test WHERE data = 'zzz_no_such_value_xyz'\"")
   assert_contains "$out" "sequential scan"
 }
 
@@ -51,12 +54,14 @@ test_explain_dml_is_not_executed() {
 }
 
 test_explain_seq_scan_exit_code_flag() {
-  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code explain \"SELECT count(*) FROM sys_class\"")
+  setup_test_table
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code explain \"SELECT count(*) FROM kbdiag_test WHERE data = 'zzz_no_such_value_xyz'\"")
   assert_exit_code 1 "$code"
 }
 
 test_explain_seq_scan_default_exit_zero() {
-  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE explain \"SELECT count(*) FROM sys_class\"")
+  setup_test_table
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE explain \"SELECT count(*) FROM kbdiag_test WHERE data = 'zzz_no_such_value_xyz'\"")
   assert_exit_code 0 "$code"
 }
 
