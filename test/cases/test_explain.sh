@@ -5,9 +5,11 @@ test_explain_no_arg_shows_usage() {
   assert_contains "$out" "Usage"
 }
 
-test_explain_no_arg_exits_zero() {
+test_explain_no_arg_exits_nonzero() {
+  # Missing required argument is a usage error — always non-zero, regardless
+  # of --exit-code (matches idx's unknown-subcommand / sql's invalid-pid convention)
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE explain")
-  assert_exit_code 0 "${code:-0}"
+  assert_exit_code 1 "${code:-0}"
 }
 
 test_explain_sql_shows_plan() {
@@ -46,4 +48,32 @@ test_explain_dml_is_not_executed() {
   local out; out=$(ssh_node1 "ksql -p 54321 -U system test -AXtc \"SELECT count(*) FROM sys_class WHERE relname='kbdiag_explain_probe';\"")
   # CREATE TABLE isn't EXPLAINable → EXPLAIN failed; table must not exist either way
   assert_contains "$out" "0"
+}
+
+test_explain_seq_scan_exit_code_flag() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code explain \"SELECT count(*) FROM sys_class\"")
+  assert_exit_code 1 "$code"
+}
+
+test_explain_seq_scan_default_exit_zero() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE explain \"SELECT count(*) FROM sys_class\"")
+  assert_exit_code 0 "$code"
+}
+
+test_explain_fail_exit_code_flag() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code explain \"SELECT FROM no_such_table_xyz\"")
+  assert_exit_code 2 "$code"
+}
+
+test_explain_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json explain \"SELECT count(*) FROM sys_class\"")
+  assert_json_valid "$out"
+  assert_contains "$out" '"command":"explain"'
+}
+
+test_explain_json_no_arg_exits_nonzero() {
+  # warn() redirects to stderr in JSON mode (dropped by the test harness),
+  # so only the exit code is observable here
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --format json explain")
+  assert_exit_code 1 "${code:-0}"
 }
