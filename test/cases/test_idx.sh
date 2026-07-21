@@ -2,7 +2,7 @@
 
 test_idx_all_runs() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE idx")
-  [[ "${code:-0}" -le 1 ]] && _pass || _fail "idx exited $code"
+  assert_exit_code 0 "$code"
 }
 
 test_idx_all_has_headers() {
@@ -12,7 +12,7 @@ test_idx_all_has_headers() {
 
 test_idx_unused_runs() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE idx unused")
-  [[ "${code:-0}" -le 1 ]] && _pass || _fail "idx unused exited $code"
+  assert_exit_code 0 "$code"
 }
 
 test_idx_unused_shows_ok_when_none() {
@@ -24,17 +24,17 @@ test_idx_unused_shows_ok_when_none() {
 
 test_idx_dup_runs() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE idx dup")
-  [[ "${code:-0}" -le 1 ]] && _pass || _fail "idx dup exited $code"
+  assert_exit_code 0 "$code"
 }
 
 test_idx_bloat_runs() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE idx bloat")
-  [[ "${code:-0}" -le 1 ]] && _pass || _fail "idx bloat exited $code"
+  assert_exit_code 0 "$code"
 }
 
 test_idx_missing_runs() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE idx missing")
-  [[ "${code:-0}" -le 1 ]] && _pass || _fail "idx missing exited $code"
+  assert_exit_code 0 "$code"
 }
 
 test_idx_top_n() {
@@ -71,4 +71,44 @@ test_idx_missing_has_header() {
 test_idx_unknown_sub_fails() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE idx badsubcmd 2>/dev/null" 2>/dev/null || true)
   [[ "${code:-0}" -ne 0 ]] && _pass || _fail "expected non-zero exit for unknown subcommand"
+}
+
+test_idx_default_exit_zero_even_with_warn() {
+  # Query-layer default: exit 0 regardless of verdict, unless --exit-code is passed
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE idx bloat")
+  assert_exit_code 0 "$code"
+}
+
+test_idx_exit_code_flag_reflects_verdict() {
+  local out code
+  out=$(ssh_node1 "$KBDIAG_REMOTE idx bloat")
+  code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code idx bloat")
+  if echo "$out" | grep -q '\[WARN\]'; then
+    assert_exit_code 1 "$code"
+  else
+    assert_exit_code 0 "$code"
+  fi
+}
+
+test_idx_verbose_shows_full_list() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE -v idx bloat")
+  assert_not_contains "$out" "use -v for full list"
+}
+
+test_idx_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json idx")
+  assert_json_valid "$out"
+  assert_contains "$out" '"command":"idx"'
+}
+
+test_idx_json_no_table_leakage() {
+  # Raw column -t table text must not appear in JSON output
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json idx")
+  assert_not_contains "$out" "indexrelname  "
+}
+
+test_idx_json_rows_use_raw_bytes() {
+  # index_size must be raw numeric bytes, not "13 MB"-style pretty text
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json idx")
+  assert_not_contains "$out" "index_size\":\""
 }
