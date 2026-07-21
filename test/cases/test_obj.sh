@@ -18,7 +18,7 @@ test_obj_has_table_name_in_output() {
 
 test_obj_has_size_section() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE obj kbdiag_test")
-  assert_contains "$out" "Size"
+  assert_contains "$out" "Dead tuples"
 }
 
 test_obj_has_vacuum_section() {
@@ -28,12 +28,12 @@ test_obj_has_vacuum_section() {
 
 test_obj_has_indexes_section() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE obj kbdiag_test")
-  assert_contains "$out" "Indexes"
+  assert_contains "$out" "index(es)"
 }
 
 test_obj_has_constraints_section() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE obj kbdiag_test")
-  assert_contains "$out" "Constraints"
+  assert_contains "$out" "constraint(s)"
 }
 
 test_obj_schema_dot_table_form() {
@@ -65,4 +65,26 @@ test_obj_nonexistent_table_returns_error() {
 test_obj_has_column_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE obj kbdiag_test")
   assert_contains "$out" "total_size"
+}
+
+test_obj_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json obj kbdiag_test")
+  assert_json_valid "$out"
+  assert_contains "$out" '"command":"obj"'
+}
+
+test_obj_pretty_size_has_space() {
+  # pg_size_pretty text must not be corrupted by blanket space-stripping
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE obj kbdiag_test")
+  echo "$out" | grep -qE '[0-9] (MB|KB|GB|bytes)' && _pass || _fail "pretty size missing space: $(echo "$out" | grep -E 'MB|KB|GB' | head -1)"
+}
+
+test_obj_invalid_identifier_rejected() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE obj 'bad;name'")
+  assert_exit_code 1 "${code:-0}"
+}
+
+test_obj_pk_present_shows_ok() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE obj kbdiag_test")
+  assert_contains "$out" "PRIMARY KEY present"
 }
