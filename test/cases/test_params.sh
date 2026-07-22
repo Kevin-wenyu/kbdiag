@@ -54,3 +54,9 @@ test_params_has_column_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE params work_mem")
   assert_contains "$out" "name"
 }
+
+test_params_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json params work_mem")
+  assert_json_valid "$out"
+  assert_contains "$out" '"name":"work_mem"'
+}
