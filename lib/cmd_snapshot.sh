@@ -15,10 +15,11 @@ _snap_redact() {
 # collection failure — the output is kept either way.
 _snap_capture() {
   local name="$1"; shift
-  local out
+  local out bytes
   out=$(OUTPUT_FMT="" QUIET="" "$@" 2>&1) || true
   printf '%s\n' "$out" | _snap_redact > "$_SNAP_DIR/$name"
-  json_item "${name%.txt}" "ok" "$(wc -c < "$_SNAP_DIR/$name" | tr -d '[:space:]')b" ""
+  bytes=$(wc -c < "$_SNAP_DIR/$name" | tr -d '[:space:]')
+  json_item "${name%.txt}" "ok" "$bytes" "bytes"
   info "  captured: $name"
 }
 
@@ -58,6 +59,7 @@ cmd_snapshot() {
     echo "role: $role"
     echo "note: string literals are masked ('***'); this snapshot is NOT a backup"
   } > "$_SNAP_DIR/metadata.txt"
+  json_item "metadata" "ok" "$role" "db_version=$db_version"
 
   _snap_capture status.txt      cmd_status
   _snap_capture check.txt       cmd_check --os
@@ -72,19 +74,25 @@ cmd_snapshot() {
   _snap_capture cluster.txt     cmd_cluster ready
 
   # full parameter dump (raw sys_settings, not the params view filter)
+  local params_bytes
   ksql_qh "SELECT name, setting, unit, source FROM sys_settings ORDER BY name;" \
     2>/dev/null | _snap_redact > "$_SNAP_DIR/params.txt" || true
+  params_bytes=$(wc -c < "$_SNAP_DIR/params.txt" | tr -d '[:space:]')
+  json_item "params" "ok" "$params_bytes" "bytes"
   info "  captured: params.txt"
 
   # tail of the newest server log
-  local log_file
+  local log_file log_bytes
   log_file=$(_logs_latest_file)
   if [[ -n "$log_file" && -r "$log_file" ]]; then
     { echo "# source: $log_file (last ${KB_SNAP_LOG_LINES:-2000} lines, literals masked)";
       tail -n "${KB_SNAP_LOG_LINES:-2000}" "$log_file" | _snap_redact; } > "$_SNAP_DIR/log_tail.txt"
+    log_bytes=$(wc -c < "$_SNAP_DIR/log_tail.txt" | tr -d '[:space:]')
+    json_item "log_tail" "ok" "$log_bytes" "bytes"
     info "  captured: log_tail.txt"
   else
     echo "no readable log file found" > "$_SNAP_DIR/log_tail.txt"
+    json_item "log_tail" "warn" "0" "log file not found"
     info "  log file not found — placeholder written"
   fi
 
