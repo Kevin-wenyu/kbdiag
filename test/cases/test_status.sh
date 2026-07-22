@@ -23,3 +23,13 @@ test_status_quiet_hides_ok() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE -q status")
   assert_not_contains "$out" "[OK]"
 }
+
+test_status_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json status" 2>/dev/null)
+  assert_json_valid "$out"
+}
+
+test_status_json_has_license_item() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json status" 2>/dev/null)
+  assert_contains "$out" '"name":"license"'
+}
