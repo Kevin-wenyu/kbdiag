@@ -102,3 +102,31 @@ test_logs_top_n_exits_zero() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --top 5 logs --file $log_file")
   [[ "${code:-0}" -eq 0 ]] && _pass || _fail "logs --top 5 exited $code"
 }
+
+# ── exit-code gating / JSON ──────────────────────────────────────────────────
+
+test_logs_missing_file_exit_code_flag() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code logs --file /nonexistent/no.log")
+  assert_exit_code 1 "$code"
+}
+
+test_logs_json_valid() {
+  local log_file; log_file=$(_find_log_file)
+  if [[ -z "$log_file" ]]; then
+    _pass
+    return
+  fi
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json logs --file $log_file")
+  assert_json_valid "$out"
+  assert_contains "$out" '"command":"logs"'
+}
+
+test_logs_detects_errors_without_leading_space() {
+  # KingbaseES's default log_line_prefix has no separator before the level
+  # (e.g. "...client=%hERROR:  ...") — a leading-space-anchored regex would
+  # silently find zero errors. Force one, then confirm it's actually counted.
+  local ksql_bin="/home/kingbase/cluster/install/kingbase/bin/ksql"
+  ssh_node1 "$ksql_bin -p 54321 -U system test -c 'SELECT * FROM kbdiag_no_such_table_logtest;' >/dev/null 2>&1" || true
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE logs")
+  assert_contains "$out" "entries found"
+}
