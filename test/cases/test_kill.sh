@@ -78,3 +78,36 @@ test_kill_idle_txn_dry_run() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE kill --idle-txn 1 --dry-run")
   assert_contains "$out" "Sessions matching"
 }
+
+test_kill_query_text_not_mangled() {
+  # _kill_show_sessions used to blanket-strip all spaces from the query
+  # column, turning "SELECT pg_sleep(30)" into "SELECTpg_sleep(30)".
+  start_slow_query_bg
+  sleep 2
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE kill --long 1 --dry-run")
+  stop_slow_query_bg
+  assert_contains "$out" "SELECT pg_sleep"
+}
+
+test_kill_force_acts_on_all_matches_beyond_display_cap() {
+  # Batch queries used to bake LIMIT $TOP_N into the SQL, so --force only
+  # cancelled the displayed top N sessions. With --top 1 and 2 matching
+  # slow queries, both must be cancelled even though only 1 is displayed.
+  start_slow_query_bg
+  start_slow_query_bg
+  sleep 4
+  ssh_node1 "$KBDIAG_REMOTE --top 1 kill --long 1 --force" > /dev/null
+  sleep 1
+  # Exclude our own backend: this counting query's text contains the literal
+  # substring "pg_sleep" (in the LIKE pattern itself), so without excluding
+  # sys_backend_pid() it always matches itself and cnt could never reach 0.
+  local cnt; cnt=$(_kill_ksql_node1 "SELECT count(*) FROM sys_stat_activity WHERE query LIKE '%pg_sleep%' AND state='active' AND pid <> sys_backend_pid();" | tr -d '[:space:]')
+  stop_slow_query_bg
+  [[ "${cnt:-0}" -eq 0 ]] && _pass || _fail "expected all matching sessions cancelled despite --top 1 cap, cnt=$cnt"
+}
+
+test_kill_json_has_verdict_item() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json kill --idle-txn 9999 --dry-run")
+  assert_json_valid "$out"
+  assert_contains "$out" '"name":"idle_txn"'
+}

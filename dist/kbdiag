@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-84 (2026-07-22)"
+KBDIAG_VERSION="v1.0.0-85 (2026-07-22)"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -3460,17 +3460,23 @@ cmd_remote() {
 
 # --- lib/cmd_kill.sh ---
 # shellcheck shell=bash
+# cmd_kill.sh — cancel/terminate sessions by pid, or in bulk by --long /
+# --idle-txn filters. This is an action/judgment command (D2): exit codes
+# reflect action outcome directly and unconditionally, no --exit-code needed.
+
 _kill_usage() {
-  echo "Usage: kbdiag kill [options] [pid...]"
-  echo ""
-  echo "  <pid>              Cancel query on pid (soft, keeps connection)"
-  echo "  --terminate <pid>  Terminate connection (hard)"
-  echo "  --long N           Cancel all queries running > N seconds"
-  echo "  --idle-txn N       Terminate sessions idle-in-transaction > N seconds"
-  echo "  --user <name>      Filter by username (combine with --long/--idle-txn)"
-  echo "  --db <name>        Filter by database name"
-  echo "  --dry-run          List targets without executing"
-  echo "  --force            Skip confirmation for batch operations"
+  cat <<'EOF'
+Usage: kbdiag kill <pid> [pid...] [--terminate|-T]
+       kbdiag kill --long N [--user U] [--db D] [--dry-run|--force]
+       kbdiag kill --idle-txn N [--user U] [--db D] [--dry-run|--force]
+
+  <pid>          Cancel (or --terminate) the query/session on this pid
+  --long N       Batch: sessions with an active query running > N seconds
+  --idle-txn N   Batch: sessions idle-in-transaction for > N seconds
+  --user/--db    Filter batch mode to a specific user/database
+  --dry-run      Batch: list matches only, take no action
+  --force        Batch: required to actually cancel/terminate matches
+EOF
 }
 
 _kill_where_clause() {
@@ -3481,17 +3487,29 @@ _kill_where_clause() {
   echo "$extra"
 }
 
+# Render a captured "$rows" result set as a table, capped at $limit rows —
+# the query column keeps its internal spaces (only trimmed, not blanket
+# space-stripped, unlike the single-token pid/user/db/dur columns).
 _kill_show_sessions() {
-  local rows="$1"
+  local rows="$1" limit="${2:-999999}"
   if [[ -z "$rows" ]]; then
     echo "  (no matching sessions)"
     return
   fi
+  local total; total=$(echo "$rows" | grep -c . || true)
   printf "  %-8s %-12s %-8s %-10s %s\n" "PID" "USER" "DB" "DURATION" "QUERY"
+  local shown=0
   while IFS='|' read -r pid user db dur query; do
+    [[ -z "${pid// /}" ]] && continue
+    shown=$((shown + 1))
+    [[ "$shown" -gt "$limit" ]] && break
     printf "  %-8s %-12s %-8s %-10s %s\n" \
-      "${pid// /}" "${user// /}" "${db// /}" "${dur// /}s" "${query// /}"
+      "${pid// /}" "${user// /}" "${db// /}" "${dur// /}s" \
+      "$(echo "$query" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
   done <<< "$rows"
+  if [[ "$total" -gt "$limit" ]]; then
+    echo "  ... $((total - limit)) more, use -v to show all"
+  fi
 }
 
 cmd_kill() {
@@ -3552,6 +3570,8 @@ cmd_kill() {
   # ── batch mode: --long ───────────────────────────────────────────────────
   if [[ -n "$long_n" ]]; then
     local rows
+    # No SQL-side LIMIT: the batch execution loop below must act on every
+    # matching session, not just the ones shown in the capped display table.
     rows=$(ksql_q "
       SELECT pid, usename, datname,
              EXTRACT(EPOCH FROM (now()-query_start))::int AS dur,
@@ -3561,37 +3581,42 @@ cmd_kill() {
         AND now() - query_start > interval '${long_n} seconds'
         AND pid <> sys_backend_pid()
         ${extra}
-      ORDER BY dur DESC
-      LIMIT ${TOP_N};" 2>/dev/null || true)
+      ORDER BY dur DESC;" 2>/dev/null || true)
 
-    local cnt; cnt=$(echo "$rows" | grep -c '.' 2>/dev/null || echo 0)
-    [[ -z "$rows" ]] && cnt=0
+    local cnt=0
+    [[ -n "$rows" ]] && cnt=$(echo "$rows" | grep -c . || true)
 
+    [[ "$OUTPUT_FMT" == "json" ]] && json_begin "kill"
     if [[ "$OUTPUT_FMT" != "json" ]]; then
       hdr "Sessions matching --long ${long_n}s"
-      _kill_show_sessions "$rows"
+      local show_limit="$TOP_N"
+      [[ -n "$VERBOSE" ]] && show_limit=999999
+      _kill_show_sessions "$rows" "$show_limit"
       echo ""
-      echo "  ${cnt} session(s) matching."
     fi
+    if [[ "$cnt" -gt 0 ]]; then
+      warn "$cnt session(s) matching --long ${long_n}s"
+    else
+      ok "$cnt session(s) matching --long ${long_n}s"
+    fi
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "long_running" "$([[ "$cnt" -gt 0 ]] && echo warn || echo ok)" "$cnt" "> ${long_n}s"
 
     if [[ $dry_run -eq 1 ]] || [[ $cnt -eq 0 ]]; then
       if [[ "$OUTPUT_FMT" != "json" ]]; then
-        [[ $cnt -eq 0 ]] && echo "  Nothing to cancel." || echo "  Run without --dry-run --force to cancel."
-      else
-        json_begin "kill"; json_end
+        if [[ $cnt -eq 0 ]]; then info "Nothing to cancel."; else info "Run without --dry-run, add --force to cancel."; fi
       fi
+      [[ "$OUTPUT_FMT" == "json" ]] && json_end
       return 0
     fi
 
     if [[ $force -eq 0 ]]; then
-      echo "  Use --force to execute, or --dry-run to preview only." >&2
+      [[ "$OUTPUT_FMT" != "json" ]] && echo "  Use --force to execute, or --dry-run to preview only." >&2
+      [[ "$OUTPUT_FMT" == "json" ]] && json_end
       return 1
     fi
 
-    local _exit=0
-    [[ "$OUTPUT_FMT" == "json" ]] && json_begin "kill"
     while IFS='|' read -r pid user db dur query; do
-      pid=$(echo "$pid" | tr -d '[:space:]')
+      pid="${pid// /}"
       [[ -z "$pid" ]] && continue
       local result
       result=$(ksql_q "SELECT sys_cancel_backend(${pid});" | tr -d '[:space:]')
@@ -3620,37 +3645,42 @@ cmd_kill() {
         AND now() - state_change > interval '${idle_txn_n} seconds'
         AND pid <> sys_backend_pid()
         ${extra}
-      ORDER BY idle_s DESC
-      LIMIT ${TOP_N};" 2>/dev/null || true)
+      ORDER BY idle_s DESC;" 2>/dev/null || true)
 
-    local cnt; cnt=$(echo "$rows" | grep -c '.' 2>/dev/null || echo 0)
-    [[ -z "$rows" ]] && cnt=0
+    local cnt=0
+    [[ -n "$rows" ]] && cnt=$(echo "$rows" | grep -c . || true)
 
+    [[ "$OUTPUT_FMT" == "json" ]] && json_begin "kill"
     if [[ "$OUTPUT_FMT" != "json" ]]; then
       hdr "Sessions matching --idle-txn ${idle_txn_n}s"
-      _kill_show_sessions "$rows"
+      local show_limit="$TOP_N"
+      [[ -n "$VERBOSE" ]] && show_limit=999999
+      _kill_show_sessions "$rows" "$show_limit"
       echo ""
-      echo "  ${cnt} session(s) matching."
     fi
+    if [[ "$cnt" -gt 0 ]]; then
+      warn "$cnt session(s) matching --idle-txn ${idle_txn_n}s"
+    else
+      ok "$cnt session(s) matching --idle-txn ${idle_txn_n}s"
+    fi
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "idle_txn" "$([[ "$cnt" -gt 0 ]] && echo warn || echo ok)" "$cnt" "> ${idle_txn_n}s"
 
     if [[ $dry_run -eq 1 ]] || [[ $cnt -eq 0 ]]; then
       if [[ "$OUTPUT_FMT" != "json" ]]; then
-        [[ $cnt -eq 0 ]] && echo "  Nothing to terminate." || echo "  Run without --dry-run --force to terminate."
-      else
-        json_begin "kill"; json_end
+        if [[ $cnt -eq 0 ]]; then info "Nothing to terminate."; else info "Run without --dry-run, add --force to terminate."; fi
       fi
+      [[ "$OUTPUT_FMT" == "json" ]] && json_end
       return 0
     fi
 
     if [[ $force -eq 0 ]]; then
-      echo "  Use --force to execute, or --dry-run to preview only." >&2
+      [[ "$OUTPUT_FMT" != "json" ]] && echo "  Use --force to execute, or --dry-run to preview only." >&2
+      [[ "$OUTPUT_FMT" == "json" ]] && json_end
       return 1
     fi
 
-    local _exit=0
-    [[ "$OUTPUT_FMT" == "json" ]] && json_begin "kill"
     while IFS='|' read -r pid user db idle_s query; do
-      pid=$(echo "$pid" | tr -d '[:space:]')
+      pid="${pid// /}"
       [[ -z "$pid" ]] && continue
       local result
       result=$(ksql_q "SELECT sys_terminate_backend(${pid});" | tr -d '[:space:]')
