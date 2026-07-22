@@ -524,12 +524,16 @@ _diag_render() {
     esac
   done
 
+  local _exit=0
+  [[ $warn_ct -gt 0 ]] && _exit=1
+  [[ $critical -gt 0 ]] && _exit=2
+
   if [[ "$OUTPUT_FMT" == "json" ]]; then
     for (( i=0; i<${#FINDINGS_LEVEL[@]}; i++ )); do
       json_finding "${FINDINGS_LEVEL[$i]}" "${FINDINGS_CATEGORY[$i]}" "${FINDINGS_BODY[$i]}"
     done
     json_diagnose_end "$( [[ "$full_mode" -eq 1 ]] && echo full || echo fast )"
-    return
+    return "$_exit"
   fi
 
   # shellcheck disable=SC2059
@@ -542,7 +546,7 @@ _diag_render() {
     if [[ "$full_mode" -eq 0 ]]; then
       echo "  加 --full 可运行完整检查（预计约 90s）"
     fi
-    return
+    return "$_exit"
   fi
 
   echo "● 发现 ${critical} 个严重问题，${warn_ct} 个需关注，${info_ct} 条信息"
@@ -562,6 +566,7 @@ _diag_render() {
   if [[ "$full_mode" -eq 0 ]]; then
     echo "  加 --full 可运行完整检查（预计约 90s）"
   fi
+  return "$_exit"
 }
 
 # 每个诊断维度经 _diag_run 执行，记录"查了什么、发现几项"——阴性证据也是
@@ -627,8 +632,10 @@ cmd_diagnose() {
   fi
 
   local t_end; t_end=$(date +%s)
-  _diag_render "$full_mode" $(( t_end - t_start ))
+  local _exit=0
+  _diag_render "$full_mode" $(( t_end - t_start )) || _exit=$?
   if [[ "$OUTPUT_FMT" != "json" ]]; then
     _diag_footer
   fi
+  return "$_exit"
 }
