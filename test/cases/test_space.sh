@@ -72,3 +72,22 @@ test_space_frag_has_header_or_empty_ok() {
   echo "$out" | grep -qE 'schemaname|No heavily fragmented' && _pass \
     || _fail "space frag missing both 'schemaname' header and 'No heavily fragmented' message"
 }
+
+# ── JSON / exit-code ─────────────────────────────────────────────────────────
+
+test_space_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json space")
+  assert_json_valid "$out"
+  assert_contains "$out" '"disk_usage"'
+}
+
+test_space_frag_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json space frag")
+  assert_json_valid "$out"
+  assert_contains "$out" '"fragmentation"'
+}
+
+test_space_exit_code_flag_healthy_is_zero() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code space")
+  assert_exit_code 0 "$code"
+}
