@@ -4,14 +4,51 @@ cmd_cluster() {
     ready|--failover-ready) _cluster_ready; return $? ;;
   esac
 
+  [[ "$OUTPUT_FMT" == "json" ]] && json_begin "cluster"
   hdr "Cluster status (repmgr)"
 
   if ! repmgr_available; then
     warn "repmgr not found — standalone instance"
+    json_item "repmgr" "warn" "absent" "standalone instance"
+    [[ "$OUTPUT_FMT" == "json" ]] && json_end
     return 0
   fi
 
-  "$REPMGR" -f "$KB_REPMGR_CONF" cluster show
+  local raw
+  raw=$("$REPMGR" -f "$KB_REPMGR_CONF" cluster show 2>&1)
+  [[ "$OUTPUT_FMT" != "json" ]] && printf '%s\n' "$raw"
+
+  # data rows only: " ID | Name | Role | Status | ... " — skip header/separator
+  local total=0 down=0 id name role status upstream
+  while IFS='|' read -r id name role status upstream _; do
+    id="$(echo "$id" | tr -d '[:space:]')"
+    [[ "$id" =~ ^[0-9]+$ ]] || continue
+    name="$(echo "$name" | tr -d '[:space:]')"
+    role="$(echo "$role" | tr -d '[:space:]')"
+    status="$(echo "$status" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+    upstream="$(echo "$upstream" | tr -d '[:space:]')"
+    total=$((total + 1))
+    json_row id="$id" name="$name" role="$role" status="$status" upstream="$upstream"
+    [[ "$status" == *running* ]] || down=$((down + 1))
+  done <<< "$raw"
+
+  local _exit=0
+  if [[ "$total" -eq 0 ]]; then
+    fail "Cluster: cannot read node list from repmgr"
+    json_item "cluster" "fail" "0 nodes" "repmgr cluster show returned no rows"
+    _exit=$(_check_level "$_exit" 2)
+  elif [[ "$down" -eq 0 ]]; then
+    ok "Cluster: $total node(s), all running"
+    json_item "cluster" "ok" "$total nodes" ""
+  else
+    warn "Cluster: $down of $total node(s) not running"
+    json_item "cluster" "warn" "$down of $total not running" ""
+    _exit=$(_check_level "$_exit" 1)
+  fi
+
+  [[ "$OUTPUT_FMT" == "json" ]] && json_end
+  [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+  return 0
 }
 
 # ─── failover readiness ──────────────────────────────────────────────────────

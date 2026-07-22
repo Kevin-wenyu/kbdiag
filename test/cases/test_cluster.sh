@@ -14,6 +14,22 @@ test_cluster_show_lists_nodes() {
   fi
 }
 
+test_cluster_show_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json cluster" 2>/dev/null)
+  assert_json_valid "$out"
+}
+
+test_cluster_show_json_has_node_rows() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json cluster" 2>/dev/null)
+  assert_contains "$out" '"name":"node1"'
+  assert_contains "$out" '"name":"node2"'
+}
+
+test_cluster_show_exit_zero_by_default() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE cluster")
+  assert_exit_code 0 "$code"
+}
+
 # ── cluster ready ────────────────────────────────────────────
 
 test_cluster_ready_header() {
