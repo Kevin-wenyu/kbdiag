@@ -65,9 +65,15 @@ kbdiag [global-flags] <command> [subcommand] [command-flags]
   -v, --verbose       Show full underlying data
   -q, --quiet         Only show WARN/FAIL (suppress OK/INFO)
   -n N, --top N       Limit result rows (default: 10)
-  --format text|json  Output format (default: text). JSON is supported by:
-                      check diagnose advisor sessions replication
-                      colstat idx kill license stmt
+  --format text|json  Output format (default: text). JSON is supported
+                      by every command except `watch`.
+  --exit-code         Data-query commands (DBA-tier + most OPS-tier)
+                      default to exit 0 regardless of findings; this
+                      makes them exit with their worst verdict instead
+                      (0=OK / 1=WARN / 2=FAIL) — useful for monitoring
+                      scripts. Judgment commands (check, cluster ready,
+                      diagnose, report) already reflect verdict
+                      unconditionally and ignore this flag.
   --no-color          Disable ANSI colors
   --timeout N         DB query timeout in seconds (default: 10)
 ```
@@ -231,9 +237,12 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
   -v, --verbose       显示底层完整数据
   -q, --quiet         仅显示 WARN/FAIL（屏蔽 OK/INFO）
   -n N, --top N       限制结果行数（默认：10）
-  --format text|json  输出格式（默认：text）。支持 JSON 的命令：
-                      check diagnose advisor sessions replication
-                      colstat idx kill license stmt
+  --format text|json  输出格式（默认：text）。除 watch 外所有命令都支持 JSON
+  --exit-code         查数据类命令（DBA 层 + 多数 OPS 层）默认无论结果如何
+                      都返回 exit 0；加这个 flag 后改成按最差判定返回退出码
+                      （0=OK / 1=WARN / 2=FAIL），适合监控脚本调用。判定型
+                      命令（check、cluster ready、diagnose、report）本来
+                      就无条件反映判定，不受这个 flag 影响
   --no-color          关闭 ANSI 颜色
   --timeout N         数据库查询超时秒数（默认：10）
 ```
@@ -252,7 +261,8 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | `space [frag]` | 磁盘、表大小、WAL、归档；`frag` 增加碎片分析 |
 | `backup` | 备份与归档可用性：归档器状态、积压 WAL、sys_rman、复制槽 |
 | `report [file]` | 一键巡检报告（Markdown 单文件）：结论先行、WARN/FAIL 汇总表 + 全部检查明细，exit 0/1/2 |
-| `diagnose [--full]` | 根因诊断报告（快速 <15s；`--full` 完整约 90s） |
+| `params [pattern]` | 实例参数查询（支持模糊匹配） |
+| `update` | 从 GitHub 更新 kbdiag 到最新版本 |
 
 ### [查] DBA 精准深查命令
 
@@ -268,20 +278,32 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | `progress` | 长时间操作进度（VACUUM、CREATE INDEX 等） |
 | `jobs` | 定时任务健康（kdb_schedule:损坏作业、失败运行） |
 | `partition` | 分区表健康：缺失 DEFAULT 分区、数据倾斜、空分区 |
-| `params [pattern]` | 实例参数查询（支持模糊匹配） |
 | `stat` | 吞吐量指标（TPS、Buffer 命中率，差值采样） |
 | `obj <schema.table>` | 对象深查：大小、索引、约束 |
 | `colstat <schema.table> [--col <col>]` | 列统计深查（n_distinct、MCV、相关性） |
 | `temp` | 临时文件与排序溢出分析 |
-| `watch <N> <cmd>` | 每隔 N 秒重复执行任意 kbdiag 命令 |
 | `conf [diff]` | 配置审计；`diff` 比对节点差异 |
 | `audit` | 安全与合规检查（角色、hba 连接白名单、KingbaseES 安全扩展） |
 | `logs` | 日志文件分析（慢查询、报错） |
 | `snapshot [file]` | 故障现场一键打包（会话/锁/等待/性能/日志尾部）为脱敏 tar.gz，供事后分析或提交原厂——不是备份 |
-| `remote <nodes> <cmd>` | 多节点批量诊断 |
 | `kill [--terminate] [pid\|--long N\|--idle-txn N] [--dry-run] [--force]` | 取消或终止查询 / 会话 |
 | `idx [unused\|dup\|bloat\|missing]` | 索引健康分析 |
+
+### [断] 多维根因关联
+
+完整诊断链：症状 → 证据 → 根因 → 建议。每条结论都能追溯到一条查层命令用于验证。
+
+| 命令 | 说明 |
+|------|------|
+| `diagnose [--full]` | 根因诊断报告（快速 <15s；`--full` 完整约 90s） |
 | `advisor [index\|vacuum\|params\|analyze] [--fix]` | 综合 DBA 建议；`--fix` 输出可执行 SQL |
+
+### [其他]
+
+| 命令 | 说明 |
+|------|------|
+| `watch <N> <cmd>` | 每隔 N 秒重复执行任意 kbdiag 命令 |
+| `remote <nodes> <cmd>` | 多节点批量诊断 |
 | `all` | 运行所有检查 |
 
 ## 配置文件
@@ -307,6 +329,8 @@ KB_SLOW_THRESHOLD=3
 | `KB_WARN_CONN` / `KB_FAIL_CONN` | `70` / `90` | 连接数使用率 % |
 | `KB_WARN_LAG` / `KB_FAIL_LAG` | `30` / `300` | 复制延迟（秒） |
 | `KB_SLOW_THRESHOLD` | `5` | 慢查询阈值（秒） |
+| `KB_WARN_SWAPPINESS` | `10` | vm.swappiness 上限（`check --os`） |
+| `KB_WARN_NOFILE` / `KB_WARN_NPROC` | `65536` / `4096` | ulimit 下限（`check --os`） |
 | `KB_WARN_HIT` / `KB_FAIL_HIT` | `95` / `90` | Buffer 命中率下限 % |
 
 ## 运行要求
