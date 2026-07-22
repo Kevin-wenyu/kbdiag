@@ -41,3 +41,14 @@ test_backup_works_on_standby() {
   local code; code=$(ssh_node2_exit "$KBDIAG_REMOTE backup")
   assert_exit_code 0 "${code:-0}"
 }
+
+test_backup_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json backup")
+  assert_json_valid "$out"
+  assert_contains "$out" '"archive_mode"'
+}
+
+test_backup_exit_code_flag_healthy_is_zero() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code backup")
+  assert_exit_code 0 "$code"
+}
