@@ -116,3 +116,19 @@ test_advisor_fix_index_sql_executable() {
     _fail "malformed index statement: $sql"
   fi
 }
+
+# ── D2: query-layer default exit 0, --exit-code opts into worst verdict ──
+
+test_advisor_default_exit_is_zero() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE advisor")
+  assert_exit_code 0 "$code"
+}
+
+test_advisor_exit_code_flag_reflects_verdict() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code advisor")
+  if [[ "$code" -ge 0 && "$code" -le 2 ]]; then
+    _pass
+  else
+    _fail "unexpected exit code: $code"
+  fi
+}

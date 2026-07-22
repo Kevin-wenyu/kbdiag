@@ -417,5 +417,6 @@ cmd_advisor() {
   esac
 
   [[ "$OUTPUT_FMT" == "json" ]] && json_end
-  return $_exit
+  [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+  return 0
 }
