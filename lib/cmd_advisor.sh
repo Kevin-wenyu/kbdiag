@@ -403,6 +403,12 @@ cmd_advisor() {
 
   local _exit=0
 
+  if ! ksql_q_or_fail "SELECT 1;" "connectivity" >/dev/null; then
+    json_item "connectivity" "fail" "" "cannot query DB on port $KB_PORT"
+    [[ "$OUTPUT_FMT" == "json" ]] && json_end
+    return 2
+  fi
+
   case "$sub" in
     index)   _advisor_index  $fix || _exit=1 ;;
     vacuum)  _advisor_vacuum $fix || _exit=1 ;;

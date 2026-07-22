@@ -612,6 +612,15 @@ cmd_diagnose() {
 
   local t_start; t_start=$(date +%s)
 
+  if ! ksql_q_or_fail "SELECT 1;" "connectivity" >/dev/null; then
+    _finding "CRITICAL" "connectivity" "cannot query DB on port $KB_PORT — aborting diagnose"
+    local t_end; t_end=$(date +%s)
+    local _exit=0
+    _diag_render "$full_mode" $(( t_end - t_start )) || _exit=$?
+    [[ "$OUTPUT_FMT" != "json" ]] && _diag_footer
+    return "$_exit"
+  fi
+
   _diag_run "长事务" _diag_long_txn
   _diag_run "连接数" _diag_connections
   _diag_run "锁等待" _diag_locks

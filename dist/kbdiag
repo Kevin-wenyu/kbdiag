@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-97 (2026-07-22)"
+KBDIAG_VERSION="v1.0.0-99 (2026-07-22)"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -225,6 +225,30 @@ ksql_q() {
 ksql_qh() {
   timeout "$KB_QUERY_TIMEOUT" "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
     -AXc "$1" 2>/dev/null
+}
+
+# Query-failure-aware variant for judgement commands (status/check/cluster/
+# audit/diagnose/advisor): a bare `x=$(ksql_q ...) || x=""` can't tell "query
+# failed" from "query returned nothing", so a real failure (auth, connection
+# drop, view missing) silently reports as a clean/healthy 0-count. This wraps
+# the query, captures stderr, and on failure emits an explicit fail() with
+# the actual DB error instead of letting the caller fall back to a false OK.
+ksql_q_or_fail() {
+  local query="$1" label="$2" out err rc
+  err=$(mktemp)
+  out=$(timeout "$KB_QUERY_TIMEOUT" "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
+    -AXtc "$query" 2>"$err")
+  rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    # Callers always invoke this inside `x=$(ksql_q_or_fail ...)`, so fail()'s
+    # own stdout write (text mode) would otherwise be captured into `x`
+    # instead of shown to the user — force it to stderr regardless of mode.
+    fail "query failed ($label): $(tr -s '[:space:]' ' ' < "$err")" >&2
+    rm -f "$err"
+    return 2
+  fi
+  rm -f "$err"
+  printf '%s' "$out"
 }
 
 # ─── shared data sources ─────────────────────────────────────────────────────
@@ -1023,6 +1047,12 @@ cmd_check() {
   [[ "$OUTPUT_FMT" == "json" ]] && json_begin "check"
   hdr "Health check"
   local _exit=0   # 0=OK, 1=WARN, 2=FAIL
+
+  if ! ksql_q_or_fail "SELECT 1;" "connectivity" >/dev/null; then
+    json_item "connectivity" "fail" "" "cannot query DB on port $KB_PORT"
+    [[ "$OUTPUT_FMT" == "json" ]] && json_end
+    return 2
+  fi
 
   # 1. 连接数占比
   local conn_used max_conn conn_pct
@@ -3035,7 +3065,10 @@ _audit_render_list() {
 
 _audit_superusers() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "SELECT rolname FROM sys_roles WHERE rolsuper=true ORDER BY rolname;" 2>/dev/null) || rows=""
+  if ! rows=$(ksql_q_or_fail "SELECT rolname FROM sys_roles WHERE rolsuper=true ORDER BY rolname;" "superusers"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "superusers" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r rolname; do
     [[ -z "${rolname// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -3057,7 +3090,10 @@ _audit_superusers() {
 
 _audit_no_password() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolpassword IS NULL ORDER BY rolname;" 2>/dev/null) || rows=""
+  if ! rows=$(ksql_q_or_fail "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolpassword IS NULL ORDER BY rolname;" "no_password"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "no_password" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r rolname; do
     [[ -z "${rolname// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -3083,7 +3119,10 @@ _audit_no_password() {
 
 _audit_password_expiry() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolvaliduntil IS NULL ORDER BY rolname;" 2>/dev/null) || rows=""
+  if ! rows=$(ksql_q_or_fail "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolvaliduntil IS NULL ORDER BY rolname;" "password_expiry"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "password_expiry" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r rolname; do
     [[ -z "${rolname// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -3106,12 +3145,15 @@ _audit_password_expiry() {
 
 _audit_public_grants() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "
+  if ! rows=$(ksql_q_or_fail "
     SELECT grantee, table_name, privilege_type
     FROM information_schema.role_table_grants
     WHERE table_schema='public' AND privilege_type IN ('INSERT','UPDATE','DELETE')
       AND grantee='PUBLIC'
-    ORDER BY table_name, privilege_type;" 2>/dev/null) || rows=""
+    ORDER BY table_name, privilege_type;" "public_grants"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "public_grants" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r grantee table_name priv; do
     [[ -z "${table_name// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -3134,11 +3176,14 @@ _audit_public_grants() {
 
 _audit_no_pk() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "
+  if ! rows=$(ksql_q_or_fail "
     SELECT schemaname, relname FROM sys_stat_user_tables
     WHERE relname NOT IN (
       SELECT conrelid::regclass::text FROM sys_constraint WHERE contype='p'
-    ) ORDER BY schemaname, relname;" 2>/dev/null) || rows=""
+    ) ORDER BY schemaname, relname;" "no_pk"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "no_pk" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r schemaname relname; do
     [[ -z "${relname// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -3301,8 +3346,14 @@ _audit_sysmac() {
   fi
 
   local policy_cnt enforce_cnt
-  policy_cnt=$(ksql_q "SELECT count(*) FROM sysmac.sysmac_policys;" 2>/dev/null | tr -d '[:space:]') || policy_cnt=0
-  enforce_cnt=$(ksql_q "SELECT count(*) FROM sysmac.sysmac_policy_enforcements;" 2>/dev/null | tr -d '[:space:]') || enforce_cnt=0
+  if ! policy_cnt=$(ksql_q_or_fail "SELECT count(*) FROM sysmac.sysmac_policys;" "sysmac" | tr -d '[:space:]'); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "sysmac" "fail" "" "query failed"
+    return 2
+  fi
+  if ! enforce_cnt=$(ksql_q_or_fail "SELECT count(*) FROM sysmac.sysmac_policy_enforcements;" "sysmac_enforcements" | tr -d '[:space:]'); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "sysmac" "fail" "" "query failed"
+    return 2
+  fi
   if [[ "${policy_cnt:-0}" -eq 0 ]]; then
     ok "sysmac installed, no MAC policies defined (not in use)"
     [[ "$OUTPUT_FMT" == "json" ]] && json_item "sysmac" "ok" "0" "not in use"
@@ -4661,6 +4712,12 @@ cmd_advisor() {
 
   local _exit=0
 
+  if ! ksql_q_or_fail "SELECT 1;" "connectivity" >/dev/null; then
+    json_item "connectivity" "fail" "" "cannot query DB on port $KB_PORT"
+    [[ "$OUTPUT_FMT" == "json" ]] && json_end
+    return 2
+  fi
+
   case "$sub" in
     index)   _advisor_index  $fix || _exit=1 ;;
     vacuum)  _advisor_vacuum $fix || _exit=1 ;;
@@ -5550,6 +5607,15 @@ cmd_diagnose() {
   _DIAG_CHECKED_COUNTS=()
 
   local t_start; t_start=$(date +%s)
+
+  if ! ksql_q_or_fail "SELECT 1;" "connectivity" >/dev/null; then
+    _finding "CRITICAL" "connectivity" "cannot query DB on port $KB_PORT — aborting diagnose"
+    local t_end; t_end=$(date +%s)
+    local _exit=0
+    _diag_render "$full_mode" $(( t_end - t_start )) || _exit=$?
+    [[ "$OUTPUT_FMT" != "json" ]] && _diag_footer
+    return "$_exit"
+  fi
 
   _diag_run "长事务" _diag_long_txn
   _diag_run "连接数" _diag_connections

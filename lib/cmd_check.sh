@@ -11,6 +11,12 @@ cmd_check() {
   hdr "Health check"
   local _exit=0   # 0=OK, 1=WARN, 2=FAIL
 
+  if ! ksql_q_or_fail "SELECT 1;" "connectivity" >/dev/null; then
+    json_item "connectivity" "fail" "" "cannot query DB on port $KB_PORT"
+    [[ "$OUTPUT_FMT" == "json" ]] && json_end
+    return 2
+  fi
+
   # 1. 连接数占比
   local conn_used max_conn conn_pct
   conn_used=$(ksql_q "SELECT count(*) FROM sys_stat_activity;" | tr -d '[:space:]')

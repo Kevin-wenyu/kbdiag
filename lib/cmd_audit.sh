@@ -21,7 +21,10 @@ _audit_render_list() {
 
 _audit_superusers() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "SELECT rolname FROM sys_roles WHERE rolsuper=true ORDER BY rolname;" 2>/dev/null) || rows=""
+  if ! rows=$(ksql_q_or_fail "SELECT rolname FROM sys_roles WHERE rolsuper=true ORDER BY rolname;" "superusers"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "superusers" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r rolname; do
     [[ -z "${rolname// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -43,7 +46,10 @@ _audit_superusers() {
 
 _audit_no_password() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolpassword IS NULL ORDER BY rolname;" 2>/dev/null) || rows=""
+  if ! rows=$(ksql_q_or_fail "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolpassword IS NULL ORDER BY rolname;" "no_password"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "no_password" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r rolname; do
     [[ -z "${rolname// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -69,7 +75,10 @@ _audit_no_password() {
 
 _audit_password_expiry() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolvaliduntil IS NULL ORDER BY rolname;" 2>/dev/null) || rows=""
+  if ! rows=$(ksql_q_or_fail "SELECT rolname FROM sys_roles WHERE rolcanlogin=true AND rolvaliduntil IS NULL ORDER BY rolname;" "password_expiry"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "password_expiry" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r rolname; do
     [[ -z "${rolname// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -92,12 +101,15 @@ _audit_password_expiry() {
 
 _audit_public_grants() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "
+  if ! rows=$(ksql_q_or_fail "
     SELECT grantee, table_name, privilege_type
     FROM information_schema.role_table_grants
     WHERE table_schema='public' AND privilege_type IN ('INSERT','UPDATE','DELETE')
       AND grantee='PUBLIC'
-    ORDER BY table_name, privilege_type;" 2>/dev/null) || rows=""
+    ORDER BY table_name, privilege_type;" "public_grants"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "public_grants" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r grantee table_name priv; do
     [[ -z "${table_name// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -120,11 +132,14 @@ _audit_public_grants() {
 
 _audit_no_pk() {
   local rows cnt=0 display=""
-  rows=$(ksql_q "
+  if ! rows=$(ksql_q_or_fail "
     SELECT schemaname, relname FROM sys_stat_user_tables
     WHERE relname NOT IN (
       SELECT conrelid::regclass::text FROM sys_constraint WHERE contype='p'
-    ) ORDER BY schemaname, relname;" 2>/dev/null) || rows=""
+    ) ORDER BY schemaname, relname;" "no_pk"); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "no_pk" "fail" "" "query failed"
+    return 2
+  fi
   while IFS='|' read -r schemaname relname; do
     [[ -z "${relname// /}" ]] && continue
     cnt=$((cnt + 1))
@@ -287,8 +302,14 @@ _audit_sysmac() {
   fi
 
   local policy_cnt enforce_cnt
-  policy_cnt=$(ksql_q "SELECT count(*) FROM sysmac.sysmac_policys;" 2>/dev/null | tr -d '[:space:]') || policy_cnt=0
-  enforce_cnt=$(ksql_q "SELECT count(*) FROM sysmac.sysmac_policy_enforcements;" 2>/dev/null | tr -d '[:space:]') || enforce_cnt=0
+  if ! policy_cnt=$(ksql_q_or_fail "SELECT count(*) FROM sysmac.sysmac_policys;" "sysmac" | tr -d '[:space:]'); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "sysmac" "fail" "" "query failed"
+    return 2
+  fi
+  if ! enforce_cnt=$(ksql_q_or_fail "SELECT count(*) FROM sysmac.sysmac_policy_enforcements;" "sysmac_enforcements" | tr -d '[:space:]'); then
+    [[ "$OUTPUT_FMT" == "json" ]] && json_item "sysmac" "fail" "" "query failed"
+    return 2
+  fi
   if [[ "${policy_cnt:-0}" -eq 0 ]]; then
     ok "sysmac installed, no MAC policies defined (not in use)"
     [[ "$OUTPUT_FMT" == "json" ]] && json_item "sysmac" "ok" "0" "not in use"

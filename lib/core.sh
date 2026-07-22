@@ -220,6 +220,30 @@ ksql_qh() {
     -AXc "$1" 2>/dev/null
 }
 
+# Query-failure-aware variant for judgement commands (status/check/cluster/
+# audit/diagnose/advisor): a bare `x=$(ksql_q ...) || x=""` can't tell "query
+# failed" from "query returned nothing", so a real failure (auth, connection
+# drop, view missing) silently reports as a clean/healthy 0-count. This wraps
+# the query, captures stderr, and on failure emits an explicit fail() with
+# the actual DB error instead of letting the caller fall back to a false OK.
+ksql_q_or_fail() {
+  local query="$1" label="$2" out err rc
+  err=$(mktemp)
+  out=$(timeout "$KB_QUERY_TIMEOUT" "$KSQL" -p "$KB_PORT" -U "$KB_SUPERUSER" "$KB_DB" \
+    -AXtc "$query" 2>"$err")
+  rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    # Callers always invoke this inside `x=$(ksql_q_or_fail ...)`, so fail()'s
+    # own stdout write (text mode) would otherwise be captured into `x`
+    # instead of shown to the user — force it to stderr regardless of mode.
+    fail "query failed ($label): $(tr -s '[:space:]' ' ' < "$err")" >&2
+    rm -f "$err"
+    return 2
+  fi
+  rm -f "$err"
+  printf '%s' "$out"
+}
+
 # ─── shared data sources ─────────────────────────────────────────────────────
 # ANALYZE drift: percent deviation of live tuples from the planner's reltuples
 # estimate. advisor (whole-DB sweep) and colstat (single-table deep dive) must
