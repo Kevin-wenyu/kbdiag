@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-88 (2026-07-22)"
+KBDIAG_VERSION="v1.0.0-89 (2026-07-22)"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -5509,16 +5509,23 @@ cmd_license() {
   project=$(echo "$info_text"  | grep '项目名称'       | sed 's/.*--- 启用 --- //' | tr -d ' \t\r\n+')
   issued=$(echo "$info_text"   | grep '生产日期'       | sed 's/.*--- 启用 --- //' | tr -d ' \t\r\n+')
 
+  local _exit=0
+  case "$status_level" in
+    warn) _exit=1 ;;
+    fail) _exit=2 ;;
+  esac
+
   if [[ "$OUTPUT_FMT" == "json" ]]; then
-    json_item "license_status" "$status_level" "$status_label"  "validdays=${validdays}"
-    json_item "serial"         "ok"            "$serial"        ""
-    json_item "product"        "ok"            "$product"       ""
-    json_item "edition"        "ok"            "$edition"       ""
-    json_item "user"           "ok"            "$username"      ""
-    json_item "project"        "ok"            "$project"       ""
-    json_item "issued"         "ok"            "$issued"        ""
+    json_item "license_status" "$status_level" "$validdays"  "$status_label"
+    json_item "serial"         "ok"            "$serial"     ""
+    json_item "product"        "ok"            "$product"    ""
+    json_item "edition"        "ok"            "$edition"    ""
+    json_item "user"           "ok"            "$username"   ""
+    json_item "project"        "ok"            "$project"    ""
+    json_item "issued"         "ok"            "$issued"     ""
     json_end
-    return
+    [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+    return 0
   fi
 
   case "$status_level" in
@@ -5538,6 +5545,9 @@ cmd_license() {
     echo ""
     echo "$info_text"
   fi
+
+  [[ -n "$EXIT_CODE_MODE" ]] && return "$_exit"
+  return 0
 }
 
 # --- lib/cmd_backup.sh ---

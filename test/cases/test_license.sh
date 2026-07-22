@@ -38,3 +38,9 @@ test_license_json_contains_status() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json license")
   assert_contains "$out" "license_status"
 }
+
+test_license_exit_code_flag_ok_is_zero() {
+  # Test env license is permanent (ok) — --exit-code must still be 0.
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code license")
+  assert_exit_code 0 "$code"
+}
