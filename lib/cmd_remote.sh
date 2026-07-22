@@ -36,13 +36,42 @@ cmd_remote() {
     return 0
   fi
 
-  # Run command on each node via SSH
+  [[ "$OUTPUT_FMT" == "json" ]] && json_begin "remote"
+
+  # Run command on each node via SSH, capture once, render both the
+  # per-node text block and the JSON item from the same result (D6).
+  local ok_cnt=0 fail_cnt=0
   for node in "${nodes[@]}"; do
-    echo ""
-    echo "=== [$node] ==="
-    if ! ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$node" \
-        "/tmp/kbdiag $rcmd${rargs[*]:+ ${rargs[*]}}" 2>/dev/null; then
-      warn "[$node] connection failed or kbdiag not deployed"
+    local out rc=0
+    out=$(ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 "$node" \
+        "/tmp/kbdiag $rcmd${rargs[*]:+ ${rargs[*]}}" 2>/dev/null) || rc=$?
+    if [[ "$rc" -eq 0 ]]; then
+      ok_cnt=$((ok_cnt + 1))
+      json_item "$node" "ok" "" ""
+    else
+      fail_cnt=$((fail_cnt + 1))
+      json_item "$node" "fail" "" "connection failed or kbdiag not deployed"
+    fi
+    if [[ "$OUTPUT_FMT" != "json" ]]; then
+      echo ""
+      echo "=== [$node] ==="
+      if [[ "$rc" -ne 0 ]]; then
+        warn "[$node] connection failed or kbdiag not deployed"
+      else
+        printf '%s\n' "$out"
+      fi
     fi
   done
+
+  if [[ "$fail_cnt" -eq 0 ]]; then
+    ok "Remote: $ok_cnt/${#nodes[@]} node(s) reached"
+  else
+    warn "Remote: $ok_cnt/${#nodes[@]} node(s) reached, $fail_cnt failed"
+  fi
+  [[ "$OUTPUT_FMT" == "json" ]] && json_end
+
+  if [[ -n "$EXIT_CODE_MODE" && "$fail_cnt" -gt 0 ]]; then
+    return 1
+  fi
+  return 0
 }

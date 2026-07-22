@@ -39,3 +39,18 @@ test_remote_all_exits_cleanly() {
   local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE remote --all status" || true)
   [[ "${code:-0}" -ne 127 ]] && _pass || _fail "remote --all crashed with exit 127"
 }
+
+test_remote_json_valid() {
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json remote 192.168.105.10 status" 2>/dev/null)
+  assert_json_valid "$out"
+}
+
+test_remote_default_exit_zero_despite_unreachable_node() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE remote 192.168.105.99 status")
+  assert_exit_code 0 "$code"
+}
+
+test_remote_exit_code_flag_reflects_unreachable_node() {
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code remote 192.168.105.99 status")
+  assert_exit_code 1 "$code"
+}
