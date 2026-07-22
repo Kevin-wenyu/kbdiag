@@ -52,6 +52,12 @@ test_replication_json_valid() {
   assert_json_valid "$out"
 }
 
+test_replication_exit_code_flag_healthy_is_zero() {
+  # Test env replication is healthy — --exit-code must still be 0.
+  local code; code=$(ssh_node1_exit "$KBDIAG_REMOTE --exit-code replication")
+  assert_exit_code 0 "$code"
+}
+
 test_replication_verbose_column_header() {
   local out; out=$(ssh_node1 "$KBDIAG_REMOTE -v replication")
   if echo "$out" | grep -qiE 'write_lag|flush_lag|replay_lag|client_addr|sent_lsn|No standbys'; then
