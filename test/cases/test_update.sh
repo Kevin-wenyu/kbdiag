@@ -31,3 +31,11 @@ test_update_version_format() {
     _fail "unexpected version format: $out"
   fi
 }
+
+test_update_json_valid_on_failure() {
+  # Target write is expected to fail (kingbase user has no write perm on
+  # /usr/local/bin) — the point is the JSON stays well-formed either way.
+  local out; out=$(ssh_node1 "$KBDIAG_REMOTE --format json update" 2>&1 || true)
+  assert_json_valid "$out"
+  assert_contains "$out" '"current_version"'
+}
