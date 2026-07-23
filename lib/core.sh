@@ -119,6 +119,17 @@ _JSON_CMD=""
 _JSON_ITEMS=""
 _JSON_ROWS=""
 
+# Shared escaper for every json_* emitter below: backslash, double-quote, tab,
+# and literal newlines (joined back in as \n) — the cases that actually occur
+# in captured ksql output, error messages, and finding/detail text in this
+# codebase. Order matters: backslash must be escaped before the characters
+# that introduce new backslashes (quote, tab).
+_json_escape() {
+  printf '%s' "$1" \
+    | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/\\t/g' \
+    | awk 'NR>1{printf "\\n"} {printf "%s", $0}'
+}
+
 json_begin() {
   _JSON_CMD="${1:-}"
   _JSON_ITEMS=""
@@ -129,8 +140,7 @@ json_item() {
   # json_item <name> <status> <value> [detail]
   local name="$1" status="$2" value="$3" detail="${4:-}"
   local entry
-  # shellcheck disable=SC2001
-  entry="{\"name\":\"$name\",\"status\":\"$status\",\"value\":\"$(echo "$value" | sed 's/"/\\"/g')\",\"detail\":\"$(echo "$detail" | sed 's/"/\\"/g')\"}"
+  entry="{\"name\":\"$name\",\"status\":\"$status\",\"value\":\"$(_json_escape "$value")\",\"detail\":\"$(_json_escape "$detail")\"}"
   _JSON_ITEMS="${_JSON_ITEMS:+${_JSON_ITEMS},}${entry}"
 }
 
@@ -140,8 +150,7 @@ json_row() {
   for pair in "$@"; do
     local k="${pair%%=*}" v="${pair#*=}"
     [[ $first -eq 0 ]] && obj="${obj},"
-    # shellcheck disable=SC2001
-    obj="${obj}\"$k\":\"$(echo "$v" | sed 's/"/\\"/g')\""
+    obj="${obj}\"$k\":\"$(_json_escape "$v")\""
     first=0
   done
   obj="${obj}}"
@@ -169,12 +178,8 @@ _JSON_FINDINGS=""
 
 json_finding() {
   local level="$1" category="$2" body="$3"
-  local escaped
-  # Escape for JSON string: backslash first, then double-quote, then literal \n -> \\n
-  escaped=$(printf '%s' "$body" \
-    | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/\\t/g' \
-    | awk 'NR>1{printf "\\n"} {printf "%s", $0}')
-  local entry="{\"level\":\"$level\",\"category\":\"$category\",\"body\":\"$escaped\"}"
+  local entry
+  entry="{\"level\":\"$level\",\"category\":\"$category\",\"body\":\"$(_json_escape "$body")\"}"
   _JSON_FINDINGS="${_JSON_FINDINGS:+${_JSON_FINDINGS},}${entry}"
 }
 
