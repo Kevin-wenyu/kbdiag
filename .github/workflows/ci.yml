@@ -17,6 +17,14 @@ jobs:
       - name: Run shellcheck
         run: shellcheck lib/*.sh
 
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run test/unit/
+        run: bash test/unit/run.sh
+
   build:
     name: Build
     runs-on: ubuntu-latest
