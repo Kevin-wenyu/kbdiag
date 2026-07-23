@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # kbdiag — KingbaseES CLI diagnostic tool (built by build.sh, do not edit directly)
 set -euo pipefail
-KBDIAG_VERSION="v1.0.0-99 (2026-07-22)"
+KBDIAG_VERSION="v1.0.0-101 (2026-07-23)"
 [[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
 
 # --- lib/core.sh ---
@@ -203,12 +203,14 @@ json_diagnose_end() {
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
 require_kingbase_user() {
-  # Allow --help, --version, help, and bare invocation without the kingbase user check
+  # Allow --help, --version, help, bare invocation, and update (a self-update
+  # download that touches no DB and shouldn't require DB-host OS privileges)
+  # without the kingbase user check.
   [[ $# -eq 0 ]] && return 0
   local arg
   for arg in "$@"; do
     case "$arg" in
-      --help|-h|help|--version|-V|"") return 0 ;;
+      --help|-h|help|--version|-V|update|"") return 0 ;;
     esac
   done
   if [[ "$(whoami)" != "kingbase" ]]; then

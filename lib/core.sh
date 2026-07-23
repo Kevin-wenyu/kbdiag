@@ -196,12 +196,14 @@ json_diagnose_end() {
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
 require_kingbase_user() {
-  # Allow --help, --version, help, and bare invocation without the kingbase user check
+  # Allow --help, --version, help, bare invocation, and update (a self-update
+  # download that touches no DB and shouldn't require DB-host OS privileges)
+  # without the kingbase user check.
   [[ $# -eq 0 ]] && return 0
   local arg
   for arg in "$@"; do
     case "$arg" in
-      --help|-h|help|--version|-V|"") return 0 ;;
+      --help|-h|help|--version|-V|update|"") return 0 ;;
     esac
   done
   if [[ "$(whoami)" != "kingbase" ]]; then
