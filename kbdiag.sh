@@ -4,6 +4,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Mirrors build.sh's KBDIAG_VERSION computation — cmd_update.sh and --version
+# reference it unconditionally, and this entry point runs under `set -u`.
+KBDIAG_VERSION=$(git -C "$SCRIPT_DIR" describe --tags --always 2>/dev/null || echo "dev")
+KBDIAG_VERSION="${KBDIAG_VERSION%%-g*} ($(date +%Y-%m-%d))"
+[[ -f ~/.kbdiagrc ]] && source ~/.kbdiagrc || true
+
 for _f in \
   "$SCRIPT_DIR"/lib/core.sh \
   "$SCRIPT_DIR"/lib/cmd_status.sh \
@@ -31,7 +37,15 @@ for _f in \
   "$SCRIPT_DIR"/lib/cmd_colstat.sh \
   "$SCRIPT_DIR"/lib/cmd_advisor.sh \
   "$SCRIPT_DIR"/lib/cmd_diagnose.sh \
-  "$SCRIPT_DIR"/lib/cmd_license.sh; do
+  "$SCRIPT_DIR"/lib/cmd_license.sh \
+  "$SCRIPT_DIR"/lib/cmd_backup.sh \
+  "$SCRIPT_DIR"/lib/cmd_explain.sh \
+  "$SCRIPT_DIR"/lib/cmd_jobs.sh \
+  "$SCRIPT_DIR"/lib/cmd_partition.sh \
+  "$SCRIPT_DIR"/lib/cmd_report.sh \
+  "$SCRIPT_DIR"/lib/cmd_snapshot.sh \
+  "$SCRIPT_DIR"/lib/cmd_stmt.sh \
+  "$SCRIPT_DIR"/lib/cmd_update.sh; do
   [[ -f "$_f" ]] && source "$_f"
 done
 
@@ -47,18 +61,28 @@ CMD_ARGS=("$@")
 
 case "$CMD" in
   status)      cmd_status ;;
-  cluster)     cmd_cluster ;;
+  cluster)     cmd_cluster "$SUBCMD" || exit $? ;;
+  report)      cmd_report "$SUBCMD" || exit $? ;;
+  snapshot)    cmd_snapshot "$SUBCMD" || exit $? ;;
+  backup)      cmd_backup ;;
+  # shift 2 above is a no-op when only the command name was given, leaving the
+  # command name itself in CMD_ARGS — only forward args when SUBCMD exists.
+  explain)     cmd_explain ${SUBCMD:+"$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}"} ;;
+  jobs)        cmd_jobs ;;
+  partition)   cmd_partition ;;
+  stmt)        cmd_stmt "$SUBCMD" ;;
+  update)      cmd_update ;;
   replication) cmd_replication ;;
   sessions)    cmd_sessions ;;
   locks)       cmd_locks "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
-  check)       cmd_check || exit $? ;;
+  check)       cmd_check "$SUBCMD" || exit $? ;;
   perf)        cmd_perf "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   space)       cmd_space "$SUBCMD" ;;
   sql)         cmd_sql "$SUBCMD" ;;
   wait)        cmd_wait ;;
   progress)    cmd_progress ;;
   params)      cmd_params "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
-  stat)        cmd_stat "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
+  stat)        cmd_stat "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   obj)         cmd_obj "$SUBCMD" ;;
   temp)        cmd_temp ;;
   watch)       cmd_watch "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
@@ -76,6 +100,7 @@ case "$CMD" in
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""
     ;;
+  --version|-V) echo "kbdiag ${KBDIAG_VERSION}" ;;
   -h|--help|help|"") bash "$SCRIPT_DIR/dist/kbdiag" --help ;;
   *) echo "Unknown command: $CMD" >&2; exit 1 ;;
 esac
