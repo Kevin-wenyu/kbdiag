@@ -2,6 +2,27 @@
 # ─── connection config ────────────────────────────────────────────────────────
 KB_BIN_DIR="${KB_BIN_DIR:-/home/kingbase/cluster/install/kingbase/bin}"
 KB_DATA_DIR="${KB_DATA_DIR:-/home/kingbase/cluster/install/kingbase/data}"
+
+# fall back to auto-detecting the real install layout from the running
+# postmaster when the configured/default paths don't exist — lets kbdiag
+# work out of the box on installs that don't match the dev default
+# (/home/kingbase/cluster/install/kingbase/...) without requiring
+# KB_BIN_DIR/KB_DATA_DIR to be set first.
+if [[ ! -x "$KB_BIN_DIR/ksql" || ! -d "$KB_DATA_DIR" ]]; then
+  _kb_pid=$(pgrep -U kingbase -f "/kingbase -D " 2>/dev/null | head -1 || true)
+  if [[ -n "$_kb_pid" ]]; then
+    if [[ ! -x "$KB_BIN_DIR/ksql" ]]; then
+      _kb_exe=$(readlink -f "/proc/$_kb_pid/exe" 2>/dev/null || true)
+      [[ -n "$_kb_exe" ]] && KB_BIN_DIR="$(dirname "$_kb_exe")"
+    fi
+    if [[ ! -d "$KB_DATA_DIR" ]]; then
+      _kb_detected_data_dir=$(ps -o args= -p "$_kb_pid" 2>/dev/null | sed -n 's/.*-D[[:space:]]\+\([^[:space:]]*\).*/\1/p')
+      [[ -n "$_kb_detected_data_dir" ]] && KB_DATA_DIR="$_kb_detected_data_dir"
+    fi
+  fi
+  unset _kb_pid _kb_exe _kb_detected_data_dir
+fi
+
 KB_REPMGR_CONF="${KB_REPMGR_CONF:-/home/kingbase/cluster/install/kingbase/etc/repmgr.conf}"
 # repmgr metadata connection: repmgr.nodes / repmgr.events live in this db,
 # and the esrep user has passwordless access to every node (repmgr prerequisite)

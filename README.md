@@ -57,6 +57,8 @@ echo $?   # 0=all OK  1=WARN  2=FAIL
 ~/kbdiag perf slow -v
 ```
 
+kbdiag auto-detects the install/data dir from the running `kingbase` process, so this usually works with zero config. If your install layout is unusual and `all`/`status` still can't find it, set `KB_BIN_DIR`/`KB_DATA_DIR` explicitly — see [Environment Variables](#environment-variables).
+
 ## Global Flags
 
 ```
@@ -228,6 +230,8 @@ echo $?   # 0=全部正常  1=告警  2=故障
 ~/kbdiag check -v
 ~/kbdiag perf slow -v
 ```
+
+kbdiag 会从当前运行的 `kingbase` 进程自动探测安装/数据目录，多数情况下零配置即可用。如果你的安装路径比较特殊，`all`/`status` 仍然找不到实例，需要手动设置 `KB_BIN_DIR`/`KB_DATA_DIR`，见下方「环境变量」小节。
 
 ## 全局参数
 
