@@ -160,7 +160,8 @@ KB_SLOW_THRESHOLD=3
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `KB_PORT` | `54321` | Database port |
-| `KB_BIN_DIR` | `/home/kingbase/cluster/install/kingbase/bin` | Binary directory |
+| `KB_BIN_DIR` | `/home/kingbase/cluster/install/kingbase/bin` | Binary directory (auto-detected from the running process if this default doesn't exist) |
+| `KB_DATA_DIR` | `/home/kingbase/cluster/install/kingbase/data` | Data directory (auto-detected from the running process if this default doesn't exist) |
 | `KB_SUPERUSER` | `system` | Superuser name |
 | `KB_DB` | `test` | Database name |
 | `KB_WARN_CONN` / `KB_FAIL_CONN` | `70` / `90` | Connection usage % |
@@ -327,7 +328,8 @@ KB_SLOW_THRESHOLD=3
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `KB_PORT` | `54321` | 数据库端口 |
-| `KB_BIN_DIR` | `/home/kingbase/cluster/install/kingbase/bin` | 二进制目录 |
+| `KB_BIN_DIR` | `/home/kingbase/cluster/install/kingbase/bin` | 二进制目录（默认路径不存在时会从运行中的进程自动探测） |
+| `KB_DATA_DIR` | `/home/kingbase/cluster/install/kingbase/data` | 数据目录（默认路径不存在时会从运行中的进程自动探测） |
 | `KB_SUPERUSER` | `system` | 超级用户名 |
 | `KB_DB` | `test` | 数据库名 |
 | `KB_WARN_CONN` / `KB_FAIL_CONN` | `70` / `90` | 连接数使用率 % |
