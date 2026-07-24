@@ -4,10 +4,17 @@ cmd_status() {
   hdr "Instance status"
 
   local pid
-  pid=$(pgrep -U kingbase -f "kingbase.*-D $KB_DATA_DIR" | head -1 || true)
+  pid=$(pgrep -U kingbase -f "/kingbase -D " | head -1 || true)
   if [[ -n "$pid" ]]; then
-    ok "kingbase process running (pid $pid)"
-    json_item "process" "ok" "$pid" ""
+    local actual_data_dir
+    actual_data_dir=$(ps -o args= -p "$pid" 2>/dev/null | sed -n 's/.*-D[[:space:]]\+\([^[:space:]]*\).*/\1/p')
+    if [[ -n "$actual_data_dir" && "$actual_data_dir" != "$KB_DATA_DIR" ]]; then
+      warn "kingbase process running (pid $pid), but actual data dir ($actual_data_dir) differs from configured KB_DATA_DIR ($KB_DATA_DIR) — set KB_DATA_DIR to avoid inaccurate downstream checks"
+      json_item "process" "warn" "$pid" "data_dir mismatch: configured=$KB_DATA_DIR actual=$actual_data_dir"
+    else
+      ok "kingbase process running (pid $pid)"
+      json_item "process" "ok" "$pid" ""
+    fi
   else
     fail "kingbase process not found"
     json_item "process" "fail" "" ""
