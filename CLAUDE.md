@@ -130,9 +130,23 @@ git add lib/cmd_xxx.sh dist/kbdiag && git commit
 | 会话太长要交接 | `/handoff` | 把当前对话压成交接文档，配合本项目已有的 memory 系统跨会话续接 | 用户显式输入 |
 | 不确定该用哪个技能 | `/ask-matt` | 路由到合适的技能/流程 | 用户显式输入 |
 
-**必做的一次性初始化**：首次使用 `to-spec`/`to-tickets`/`wayfinder`/`triage` 前，需要用户自己敲 `/setup-matt-pocock-skills`（该技能标了 `disable-model-invocation`，我不能代为触发）配置本仓库的 issue tracker 落点、triage 标签、领域文档布局。目前 kbdiag 用 `docs/superpowers/specs/` 存 spec，setup 时按此对齐，不要让它改去开 GitHub Issues。
+一次性初始化已于 2026-07-25 用 `/setup-matt-pocock-skills` 完成，配置见下方 "Agent skills" 小节。
 
 **命名冲突提醒**：本环境同时装了另一套 superpowers 技能框架，也有一个叫 `grilling` 的技能。写 `/grill-with-docs`（engineering 分类，带工程语境）而不是裸写 "grilling"，避免歧义。
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `Kevin-wenyu/kbdiag`（`gh` CLI）；PR 不作为 triage 请求面（单人直推 main，无外部贡献者）。已有的 `docs/superpowers/specs/`、`docs/superpowers/plans/` 作为历史归档保留，不迁移。详见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+沿用 mattpocock/skills 默认命名（`needs-triage`/`needs-info`/`ready-for-agent`/`ready-for-human`/`wontfix`），仓库此前无现成标签。详见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+单 context：`CONTEXT.md` + `docs/adr/`（尚未生成，由 `/domain-modeling` 首次沉淀术语/决策时惰性创建）。三层命令哲学等核心领域术语在此之前先以 CLAUDE.md 的"三层命令设计哲学"一节为准。详见 `docs/agents/domain.md`。
 
 ## 测试节点
 
