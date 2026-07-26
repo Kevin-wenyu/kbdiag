@@ -20,16 +20,19 @@ _fail() {
 
 assert_contains() {
   local output="$1" pattern="$2"
-  if echo "$output" | grep -qF "$pattern" 2>/dev/null; then
+  # Here-string, not `echo | grep`: grep -q stops reading at the first match
+  # and closes its end of the pipe, which SIGPIPEs `echo` on large output —
+  # under `set -o pipefail` that flips a genuine match to a false failure.
+  if grep -qF -- "$pattern" <<< "$output" 2>/dev/null; then
     _pass
   else
-    _fail "expected to contain: '$pattern'\n         got: $(echo "$output" | head -5)"
+    _fail "expected to contain: '$pattern'\n         got: $(head -5 <<< "$output")"
   fi
 }
 
 assert_not_contains() {
   local output="$1" pattern="$2"
-  if echo "$output" | grep -qF "$pattern" 2>/dev/null; then
+  if grep -qF -- "$pattern" <<< "$output" 2>/dev/null; then
     _fail "expected NOT to contain: '$pattern'"
   else
     _pass

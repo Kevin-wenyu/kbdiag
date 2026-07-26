@@ -37,6 +37,7 @@ KBDIAG_VERSION="${KBDIAG_VERSION%%-g*} ($(date +%Y-%m-%d))"
             lib/cmd_partition.sh \
             lib/cmd_report.sh \
             lib/cmd_snapshot.sh \
+            lib/cmd_workload.sh \
             lib/cmd_update.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
@@ -84,6 +85,7 @@ case "$CMD" in
   jobs)        cmd_jobs ;;
   partition)   cmd_partition ;;
   logs)        cmd_logs ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
+  workload)    cmd_workload ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
   remote)      cmd_remote "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   kill)        cmd_kill "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   idx)         cmd_idx "$SUBCMD" ;;
@@ -149,6 +151,8 @@ Global flags:
   conf [diff]         Configuration restart-pending status / cross-node comparison
   audit               Security and compliance checks
   logs                Log file analysis (slow queries, errors)
+  workload [--from <dur>] [--to <dur>] [--no-snapshot]  Interval workload-diff
+                      report (sys_kwr / sys_stat_sysmetric_history)
   snapshot [file]     Pack volatile incident state (sessions, locks, waits,
                       perf, log tail) into a literal-masked tar.gz; not a backup
 
