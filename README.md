@@ -107,7 +107,7 @@ Answers one specific question in depth; also used to verify a ROOT-CAUSE finding
 |---------|-------------|
 | `sessions` | Non-idle session list |
 | `locks [hold\|wait\|deadlock]` | Lock analysis |
-| `perf [slow\|bloat\|vacuum\|wait\|io\|wal\|top]` | Performance diagnostics |
+| `perf [slow\|bloat\|vacuum\|index\|wait\|io\|wal\|top]` | Performance diagnostics |
 | `sql [pid\|all]` | SQL text + EXPLAIN for a session |
 | `stmt [queryid]` | SQL history stats — Top N by mean/total/IO/calls (AWR-style) |
 | `workload [--from <dur>] [--to <dur>] [--no-snapshot]` | Interval workload-diff report (sys_kwr AWR-style, falls back to sys_stat_sysmetric_history) |
@@ -276,7 +276,7 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 |------|------|
 | `sessions` | 非空闲会话列表 |
 | `locks [hold\|wait\|deadlock]` | 锁分析：持有者 / 等待者 / 死锁检测 |
-| `perf [slow\|bloat\|vacuum\|wait\|io\|wal\|top]` | 慢查询 / 表膨胀 / 垃圾回收 / 等待事件 / IO / WAL / Top SQL |
+| `perf [slow\|bloat\|vacuum\|index\|wait\|io\|wal\|top]` | 慢查询 / 表膨胀 / 垃圾回收 / 索引 / 等待事件 / IO / WAL / Top SQL |
 | `sql [pid\|all]` | 会话 SQL 全文 + EXPLAIN 计划 |
 | `stmt [queryid]` | SQL 历史统计 AWR 报告（均值/总耗时/IO/调用频率 Top N）；指定 queryid 下钻 |
 | `workload [--from <dur>] [--to <dur>] [--no-snapshot]` | 区间负载对比报告（sys_kwr AWR 风格，未安装时回退 sys_stat_sysmetric_history） |
