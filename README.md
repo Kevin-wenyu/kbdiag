@@ -89,6 +89,7 @@ One command, one deterministic answer — no interpretation required.
 | Command | Description |
 |---------|-------------|
 | `status` | Process, connectivity, role, uptime |
+| `instances` | List all kingbase processes on this host (PID, port, data dir, bin dir, OS user) — disambiguates multi-instance hosts |
 | `license` | License validity, expiry date, type (trial/commercial) |
 | `cluster [ready]` | Repmgr cluster topology; `ready` = failover readiness checklist (topology, repmgrd, arbitration, slots, standby promotability, VIP), exit 0/1/2 |
 | `replication` | Replication lag / standby connections |
@@ -260,6 +261,7 @@ kbdiag [全局参数] <命令> [子命令] [命令参数]
 | 命令 | 说明 |
 |------|------|
 | `status` | 进程状态、连接性、角色、运行时长 |
+| `instances` | 列出本机所有 kingbase 进程（PID、端口、数据目录、bin 目录、OS 用户）——同机多实例时用它定位目标实例 |
 | `license` | 授权有效期、类型（试用/正式）、序列号 |
 | `cluster [ready]` | Repmgr 集群拓扑；`ready` = failover 就绪检查清单（拓扑、repmgrd、仲裁、复制槽、standby 可提升性、VIP），exit 0/1/2 |
 | `replication` | 复制延迟 / 备节点连接数 |

@@ -3,9 +3,16 @@ cmd_status() {
   [[ "$OUTPUT_FMT" == "json" ]] && json_begin "status"
   hdr "Instance status"
 
-  local pid
-  pid=$(pgrep -U kingbase -f "/kingbase -D " | head -1 || true)
+  local pids pid pid_count
+  pids=$(pgrep -U kingbase -f "/kingbase -D " 2>/dev/null || true)
+  pid=$(head -1 <<< "$pids")
+  pid_count=$(grep -c . <<< "$pids" 2>/dev/null || true)
+  pid_count="${pid_count:-0}"
   if [[ -n "$pid" ]]; then
+    if [[ "$pid_count" -gt 1 ]]; then
+      warn "Detected $pid_count kingbase processes for this OS user — reporting on pid $pid; run 'kbdiag instances' and set KB_PORT/KB_DATA_DIR to target a different one"
+      json_item "process_ambiguous" "warn" "$pid_count" "candidate kingbase processes for this OS user"
+    fi
     local actual_data_dir
     actual_data_dir=$(ps -o args= -p "$pid" 2>/dev/null | sed -n 's/.*-D[[:space:]]\+\([^[:space:]]*\).*/\1/p')
     if [[ -n "$actual_data_dir" && "$actual_data_dir" != "$KB_DATA_DIR" ]]; then

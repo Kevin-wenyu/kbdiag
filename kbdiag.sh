@@ -45,6 +45,8 @@ for _f in \
   "$SCRIPT_DIR"/lib/cmd_report.sh \
   "$SCRIPT_DIR"/lib/cmd_snapshot.sh \
   "$SCRIPT_DIR"/lib/cmd_stmt.sh \
+  "$SCRIPT_DIR"/lib/cmd_workload.sh \
+  "$SCRIPT_DIR"/lib/cmd_instances.sh \
   "$SCRIPT_DIR"/lib/cmd_update.sh; do
   [[ -f "$_f" ]] && source "$_f"
 done
@@ -96,6 +98,8 @@ case "$CMD" in
   advisor)     cmd_advisor "$SUBCMD" "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
   diagnose)   cmd_diagnose ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" ;;
   license)     cmd_license ;;
+  workload)    cmd_workload ${SUBCMD:+"$SUBCMD"} "${CMD_ARGS[@]+"${CMD_ARGS[@]}"}" || exit $? ;;
+  instances)   cmd_instances || exit $? ;;
   all)
     cmd_status; cmd_cluster; cmd_replication; cmd_sessions
     cmd_locks ""; cmd_check || true; cmd_perf "" ""; cmd_space ""

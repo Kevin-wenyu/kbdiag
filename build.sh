@@ -38,6 +38,7 @@ KBDIAG_VERSION="${KBDIAG_VERSION%%-g*} ($(date +%Y-%m-%d))"
             lib/cmd_report.sh \
             lib/cmd_snapshot.sh \
             lib/cmd_workload.sh \
+            lib/cmd_instances.sh \
             lib/cmd_update.sh; do
     [[ -f "$f" ]] || continue
     echo "# --- $f ---"
@@ -59,6 +60,7 @@ CMD_ARGS=("$@")
 
 case "$CMD" in
   status)      cmd_status ;;
+  instances)   cmd_instances || exit $? ;;
   cluster)     cmd_cluster "$SUBCMD" || exit $? ;;
   report)      cmd_report "$SUBCMD" || exit $? ;;
   snapshot)    cmd_snapshot "$SUBCMD" || exit $? ;;
@@ -118,6 +120,10 @@ Global flags:
 
 [OPS] Quick fact lookup — one command, one deterministic answer:
   status              Instance process, connectivity, role, uptime
+  instances           List all kingbase processes on this host (PID, port,
+                      data dir, bin dir, OS user) — disambiguates multi-
+                      instance hosts before targeting one with KB_PORT/
+                      KB_DATA_DIR
   license             License validity and expiry
   cluster [ready]     Repmgr cluster topology; 'ready' = failover readiness
                       checklist, exit 0=OK 1=WARN 2=FAIL
