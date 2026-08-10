@@ -34,8 +34,18 @@ cmd_status() {
     ok "DB connectable — $ver"
     json_item "db_connect" "ok" "" "$ver"
   else
-    fail "Cannot connect to DB on port $KB_PORT"
-    json_item "db_connect" "fail" "" "port $KB_PORT"
+    # KB_DATA_DIR may match the running process while KB_PORT still doesn't —
+    # cross-check against the real LISTEN port (same lookup `instances` uses)
+    # so a multi-instance host gets an actionable answer, not just "failed".
+    local detected_port
+    detected_port=$(_instances_port_for "$pid" "${actual_data_dir:-$KB_DATA_DIR}" "$(ss -tlnp 2>/dev/null || true)")
+    if [[ -n "$detected_port" && "$detected_port" != "?" && "$detected_port" != "$KB_PORT" ]]; then
+      fail "Cannot connect to DB on port $KB_PORT — pid $pid is actually listening on port $detected_port; set KB_PORT=$detected_port"
+      json_item "db_connect" "fail" "" "configured KB_PORT=$KB_PORT does not match actual port $detected_port for pid $pid"
+    else
+      fail "Cannot connect to DB on port $KB_PORT"
+      json_item "db_connect" "fail" "" "port $KB_PORT"
+    fi
     [[ "$OUTPUT_FMT" == "json" ]] && json_end
     return 1
   fi
