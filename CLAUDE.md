@@ -109,30 +109,48 @@ bash test/run_tests.sh xxx             # 自动验证
 git add lib/cmd_xxx.sh dist/kbdiag && git commit
 ```
 
-## Agent 技能工作流（mattpocock/skills）
+## Agent 技能工作流
 
-项目已装 [mattpocock/skills](https://github.com/mattpocock/skills) 插件（`claude plugin install mattpocock-skills@mattpocock --scope project`，装在本仓库范围，见 `.claude/settings.json` 的 `enabledPlugins`）。按 kbdiag 的开发阶段对应使用：
+本项目同时用两套技能框架，**按场景分工，不是互相替代**（2026-08-20 确认）：
 
-| 阶段 | 技能 | 用途 | 触发方式 |
+- **[agent-skills](https://github.com/addyosmani/agent-skills)**（全局启用，见 `~/.claude/settings.json` 的 `enabledPlugins`，非本仓库 scope）——日常开发全流程的默认引擎：idea → spec → plan → implement → test → review → commit 这条主线，全部走它。
+- **[mattpocock/skills](https://github.com/mattpocock/skills)**（本仓库 scope，见 `.claude/settings.json`）——只保留 agent-skills **没有等价物**的能力：GitHub Issues 发布/票据落地、领域术语维护、一次性原型、合并冲突、架构体检、会话交接、能力缺口调研。
+
+### 日常开发主线 → agent-skills
+
+| 阶段 | 技能 | 用途 |
+|------|------|------|
+| 想法模糊，要对齐意图 | `interview-me` / `idea-refine` | 逐问澄清用户真实诉求，或对模糊想法做发散→收敛 |
+| 结论定型，写规格 | `spec-driven-development` | 写需求+验收标准（写完仍用 `/to-spec` 发布到 GitHub Issues，衔接不是替代，见下表） |
+| 拆解任务 | `planning-and-task-breakdown` | 会话内快速拆分可验证任务；要落地到 GitHub Issues 的票据仍用 `/to-tickets`（见下表） |
+| 实现阶段 | `incremental-implementation` + `test-driven-development` | 薄切片实现，红绿重构一次一个切片 |
+| 对照官方文档核实 | `source-driven-development` | KingbaseES 特有行为（`sys_kwr`/`track_real_stats` 之类）核实优先用这个，别凭记忆写 |
+| 非平凡决策的对抗复核 | `doubt-driven-development` | 把 [[feedback-adversarial-review]] 里手搓的"设计阶段自动对抗审查"约定正式化 |
+| 难缠 bug / 性能回归 | `debugging-and-error-recovery` | 复现→定位→修复→加护栏；取代 mattpocock 的 `diagnosing-bugs`（同类，二选一，默认这个） |
+| 提交前审查 | `code-review-and-quality` | 五轴：correctness/readability/architecture/security/performance——查"代码质量本身" |
+| 化简 | `code-simplification` | 保持行为不变，减不必要复杂度 |
+| 提交 | `git-workflow-and-versioning` | 规范提交/分支 |
+| 记录决策 | `documentation-and-adrs` | 通用 ADR；仓库术语层面的维护仍用 mattpocock 的 `domain-modeling`（见下表） |
+
+### mattpocock/skills 独有能力（agent-skills 无等价物，继续用）
+
+| 场景 | 技能 | 用途 | 触发方式 |
 |------|------|------|----------|
-| 想法模糊、要对齐需求 | `/grill-with-docs` | 连环追问直到需求树的每个分支都定下来，顺带维护 `CONTEXT.md`/ADR | 用户显式输入 |
 | 调研能力缺口（对标 ora/pg_profile/pgBadger/pgmetrics/pganalyze 之类） | `research` | 后台 agent 查一手资料，产出带引用的 Markdown 落库 | 模型可主动用，也可用户触发 |
-| 结论定型，要写规格 | `/to-spec` | 把对话变成 spec，发布到 issue tracker（本仓库落 `docs/superpowers/specs/`，见下方 setup） | 用户显式输入 |
-| spec 拆成可执行任务 | `/to-tickets` | 拆成 tracer-bullet 票据，标出阻塞关系 | 用户显式输入 |
+| spec 发布到 issue tracker | `/to-spec` | 把 agent-skills 写好的规格发布到 GitHub Issues | 用户显式输入 |
+| spec 拆成可执行任务并落地 GitHub | `/to-tickets` | 拆成 tracer-bullet 票据发 issue，标出阻塞关系 | 用户显式输入 |
 | 单次会话装不下的大工作量 | `/wayfinder` | 把大任务铺成票据地图，一次解一张，直到路线清晰 | 用户显式输入 |
-| 写代码/修 bug 的实现阶段 | `implement`（内部驱动 `tdd`，收尾用 `code-review`） | 按 spec/票据实现，红绿重构一次一个切片 | 模型可主动用 |
-| 难缠的 bug / 性能回归 | `diagnosing-bugs` | 复现→最小化→假设→插桩→修复→回归测试，和本文件"Shell 脚本陷阱"里"每次修复都配回归测试"的约定一致 | 模型可主动用 |
-| 提交前审查 | `code-review` | 双轴审查：Standards（代码规范+坏味道）+ Spec（是否忠实实现原始需求），并行子 agent | 模型可主动用 |
 | 术语/领域模型打磨（比如三层命令哲学的边界） | `domain-modeling` | 挑战术语、用场景压测，同步更新 `CONTEXT.md`/ADR | 模型可主动用 |
 | 架构体检 | `/improve-codebase-architecture` | 扫描代码找深化点，出 HTML 报告，选一个再连环追问 | 用户显式输入 |
 | 新命令/新输出格式不确定怎么设计 | `prototype` | 先搭一次性原型验证设计问题，不进正式代码 | 模型可主动用 |
 | 合并冲突（少见，因为直推 main） | `resolving-merge-conflicts` | 按 hunk 溯源两边意图解决，不用 `--abort` | 模型可主动用 |
 | 会话太长要交接 | `/handoff` | 把当前对话压成交接文档，配合本项目已有的 memory 系统跨会话续接 | 用户显式输入 |
-| 不确定该用哪个技能 | `/ask-matt` | 路由到合适的技能/流程 | 用户显式输入 |
+| 不确定该用哪个 mattpocock 技能 | `/ask-matt` | 路由到合适的技能/流程 | 用户显式输入 |
+| 不确定该用哪个 agent-skills 技能 | `using-agent-skills` | 该框架自带的路由决策树 | 模型可主动用 |
 
 一次性初始化已于 2026-07-25 用 `/setup-matt-pocock-skills` 完成，配置见下方 "Agent skills" 小节。
 
-**命名冲突提醒**：本环境同时装了另一套 superpowers 技能框架，也有一个叫 `grilling` 的技能。写 `/grill-with-docs`（engineering 分类，带工程语境）而不是裸写 "grilling"，避免歧义。
+**命名冲突提醒**：本环境同时装了 superpowers 技能框架和 mattpocock/skills，两者都有 `code-review`/`prototype`/`domain-modeling` 之类的同名技能，也都有一个叫 `grilling`（或类似）的技能。写 `/grill-with-docs`（engineering 分类，带工程语境）而不是裸写 "grilling"；调用 mattpocock 或 agent-skills 的同名技能时用带前缀的全名（如 `agent-skills:code-review-and-quality`）避免歧义。
 
 ## Agent skills
 
