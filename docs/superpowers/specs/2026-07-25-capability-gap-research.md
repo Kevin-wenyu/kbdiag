@@ -3,6 +3,15 @@
 **Status**: research, not a spec. Feeds a follow-up planning conversation.
 **Constraint baked in (Option C, already decided)**: kbdiag stays stateless, single-file (`dist/kbdiag`), pure-Shell, no daemon, no kbdiag-side persistent repository. A pg_profile-style metrics repository or a pgBadger-style rich HTML report generator is explicitly **out of scope this round** — see the one-line mention in the shortlist, not a design here.
 
+**2026-09-20 update**: shortlist items 1 and 2 below (§4) are **done** — shipped as `kbdiag workload` (commit `9975d87`, 2026-07-26, GitHub issue #2 closed): detects `sys_kwr` first, falls back to `sys_stat_sysmetric_history`/`track_real_stats`, degrades on standby nodes. This research thread had been marked "interrupted" in project memory; it wasn't actually — `workload`'s own requirements doc (`2026-07-25-workload-requirements.md`) picked it straight back up.
+
+**2026-09-20 VM verification (kes-node1, data dir `/home/kingbase/cluster/install/kingbase/data`, instance was cold-started for this check)** — resolves §3.1's open items and item 3's prerequisite:
+- `track_real_stats` context is `superuser` (`SELECT context FROM sys_settings WHERE name = 'track_real_stats'` → `superuser`), **not** `postmaster`/`sighup` — it's `SET`-able live by a superuser session, no reload/restart needed at all. Better than the doc's prior best-case assumption.
+- `sys_kwr.enable = off` on this node right now (the 2026-07 fixture note said the extension was `CREATE EXTENSION`'d with two manual snapshots — plausible this reset across a VM rebuild/stop-start cycle; re-verify before depending on live snapshot data for anything beyond `workload`, which already handles the not-enabled case).
+- **New finding for item 3**: KingbaseES ships `sys_hypo` (`sys_available_extensions`: version 1.1.2, comment "Hypothetical advisor"), already `CREATE EXTENSION`'d on node1. Its function set — `sys_hypo_create_index`, `sys_hypo_drop_index`, `sys_hypo_list_indexes`, `sys_hypo_relation_size`, `sys_hypo_get_indexdef`, `sys_hypo_reset` — maps 1:1 to HypoPG's `hypopg_create_index`/`hypopg_drop_index`/`hypopg_list_indexes`/`hypopg_relation_size`/`hypopg_get_indexdef`/`hypopg_reset`. Smoke-tested end to end: `sys_hypo_create_index('create index on public.t1 (id)')` → `EXPLAIN` on that column picks up the hypothetical index (`Bitmap Index Scan on <117135>btree_t1_id`) → `sys_hypo_list_indexes()` shows it → `sys_hypo_reset()` clears it. **Item 3 (HypoPG-style what-if index advisor) is confirmed buildable, not just plausible** — this was the item's stated blocking unknown ("verify `hypopg` (or KingbaseES equivalent) extension availability first — if absent, this drops out entirely"); it does not drop out.
+
+Remaining candidates from §4: items 3 (now de-risked), 4, 5.
+
 ---
 
 ## 1. Per-tool capability inventory
