@@ -1,6 +1,6 @@
 # kbdiag 2.0 需求说明书（PRD）
 
-状态: active | 最后核对: 2026-09-23
+状态: active | 最后核对: 2026-09-24
 
 **职责**：需求、范围、输出契约、版本目标、DS 场景表。查询条目和它们属于哪个版本以 `docs/queries.md` 为准；选型、架构、测试以 `docs/engineering.md` 为准。
 
@@ -50,7 +50,7 @@
 | `locks` | 谁在等锁、直接被谁挡住（一层）、等了多久 | `lock.list` | 正常 |
 | `txn` | 长事务、idle in txn、最老的 backend_xmin、未结束的 2PC | `session.activity`、`txn.prepared` | 2PC 部分 `not_applicable`，提示去主库查 |
 | `waits` | 此刻各会话在等什么（汇总） | `wait.summary` | 正常 |
-| `status` | 版本、role、downstreams、启动时长、连接数/上限、库大小、数据目录 | `inst.info`、`inst.databases`、`inst.downstreams` | 视角切换 |
+| `status` | 版本、role、downstreams、启动时长、连接数/上限、库大小、数据目录；连接快满了没有（`inst.connections`） | `inst.info`、`inst.databases`、`inst.downstreams` | 视角切换 |
 | `slots` | 复制槽是否活跃、保留多少 WAL、xmin 是否压着视界 | `slot.list` | 正常；WAL 保留量改用 `sys_last_wal_replay_lsn()` 计算 |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
@@ -373,7 +373,7 @@ Report
       "symptom": "复制槽 repmgr_slot_2 未激活，保留 48 MB WAL，xmin 5859 压着视界",
       "evidence": [{"probe_id": "slot.list", "fields": {"slot_name": "repmgr_slot_2", "active": false, "xmin": 5859, "retained_wal_bytes": 50331648}}],
       "cause": null,
-      "next": [{"kind": "verify", "command": "kbdiag status", "note": "在备库上运行，确认它是否在线、是否在接收 WAL"}]
+      "next": [{"kind": "verify", "command": "kbdiag sessions", "note": "在备库上运行：连不上说明备库实例挂了；列表里没有 walreceiver 进程说明它没在接收 WAL"}]
     }
   ],
   "redacted": []

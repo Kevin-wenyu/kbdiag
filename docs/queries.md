@@ -27,7 +27,7 @@
 - C1/B2：`sys_locks` 在 V8R6 上没有 `waitstart` 列，`wait_s` 用等锁会话的 `now()-state_change` 近似，是上限：语句开始后先干了别的再等锁，就会算长一点。L3 用 ksql 在调用前后各取一次 `now()-state_change` 夹住它。被两阶段事务挡住时 `sys_blocking_pids()` 返回 `{0}`，而 prepared 事务的锁行 pid 为 NULL（实测）；这种 blocker 在 finding 里写成"未提交的两阶段事务"，下一步指向 `kbdiag txn`，由 `prepared_waiter.sh` 注入验证（仅主库）。备库上建不了表也拿不到 AccessExclusive，`lock.sh` 在备库改用 advisory lock，所以备库行的 relation 是 NULL。阈值 10 秒用 §6.5 的 A 缩放到 1 秒测。非监控账号看不到别人的 `state_change`，`wait_s` 记进 `redacted[]`，verdict UNKNOWN（L5 一格）
 - B4：`txn.long` 的 300/1800 秒和 `txn.prepared` 的 900 秒都用 A（缩放到 1 秒）测；默认阈值下同一注入不出 finding 作为反例。备库上 `txn.prepared` 为 `not_applicable`（主库的 2PC 在备库查不到，实测）
 - E1：锁等待注入后断言 waiter 落在 `Lock/relation`（备库 `Lock/advisory`）组里；`track_off` 下 `skipped`；`kbdiag_ro` 下三列遮蔽，`rows_affected` 等于遮蔽组的会话总数。只按会话做计数，不判断，所以没有 finding
-- A1：连接数用 `sys_stat_database.numbackends` 求和，只数连到库的后端，不含后台进程。L3 逐项和 ksql 比：启动时间、`max_connections`、保留连接、数据目录、库名列表、下游数（主库 1、备库 0）。没有 CONNECT 权限时库大小为 NULL，记进 `redacted[]` 但不影响 verdict；这一点只有 L2 覆盖，VM 上所有库对 `kbdiag_ro` 都可连
+- A1：连接数用 `sys_stat_database.numbackends` 求和，只数连到库的后端，不含后台进程。L3 逐项和 ksql 比：启动时间、`max_connections`、保留连接、数据目录、库名列表、下游数（主库 1、备库 0）。没有 CONNECT 权限时库大小为 NULL，记进 `redacted[]` 但不影响 verdict；这一点只有 L2 覆盖，VM 上所有库对 `kbdiag_ro` 都可连。`inst.connections` 的 80%/100% 用 L4 `conn.sh` 真实填满（默认阈值，FAIL，两节点）加 A 缩放（`--conn-warn 1`，WARN）测；填满时 kbdiag 自己的 system 连接走保留槽仍连得上（DS-03）
 - I2：主库上的槽由 `slot.sh`（暂停备库 walreceiver）造成 inactive；备库上的槽由 `standby_slot.sh` 建，保留的 WAL 必须按 `sys_last_wal_replay_lsn()` 算（备库上 `sys_current_wal_lsn()` 报错），L3 断言它非空且 ≥ 0
 
 填写规则：
@@ -241,7 +241,7 @@ VM 上还装了这些扩展：
 
 | 指标 | 关注 | 警告 | 严重 |
 |---|---|---|---|
-| 连接使用率 | > 65% | > 80% | > 90%，或已逼近 `max_connections - superuser_reserved_connections` |
+| 连接使用率（`inst.connections`，已实现） | — | ≥ 80%（`--conn-warn`） | ≥ 100%（`--conn-fail`）；分母是普通用户可用的 `max_connections - superuser_reserved_connections` |
 | idle in transaction 占连接数比例 | — | > 20% | — |
 | 物理复制回放延迟 | > 1 分钟 / 100MB | > 5 分钟 / 1GB | > 30 分钟 / 10GB |
 | 复制槽未激活（`slot.inactive`，已实现） | — | — | `active=false` |
@@ -251,6 +251,8 @@ VM 上还装了这些扩展：
 | 单个会话 idle in transaction 时长（`session.idle_in_txn`，已实现） | — | ≥ 300 秒（`--idle-in-txn-warn`） | — |
 | 单个事务时长（`txn.long`，已实现） | — | ≥ 300 秒（`--xact-warn`） | ≥ 1800 秒（`--xact-fail`） |
 | 单个会话等锁时长（`lock.waiting`，已实现） | — | ≥ 10 秒（`--lock-wait-warn`） | — |
+
+连接使用率的分母取普通用户可用数而不是 `max_connections`：用满这部分时业务已经连不上，只剩超级用户能进，这才是 FAIL 的含义；digoal 的 90% 严重档不要，用满之前都是 WARN。连接数只数连到库的后端，超级用户占保留槽时可以超过 100%。
 
 最后三行不来自 digoal：idle in transaction 和事务时长的 300 秒沿用 shell 版 `KB_WARN_TXN=300`（`idle in transaction (aborted)` 也算在内）；事务 1800 秒和等锁 10 秒是自定的起点，大规模使用后按实际误报再调。
 

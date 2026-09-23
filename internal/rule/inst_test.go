@@ -1,6 +1,7 @@
 package rule
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
@@ -48,9 +49,65 @@ func TestStatus(t *testing.T) {
 		{"not applicable does not count", okInfo, hidden, facts.InstDownstreams{Status: facts.StatusNotApplicable}, VerdictOK},
 	}
 	for _, c := range cases {
-		if r := Status(c.i, c.d, c.n); r.Verdict != c.want {
+		if r := Status(c.i, c.d, c.n, Defaults); r.Verdict != c.want {
 			t.Errorf("%s: verdict=%s, want %s", c.name, r.Verdict, c.want)
 		}
+	}
+}
+
+func TestStatusConnections(t *testing.T) {
+	info := func(conn, max, reserved int32) facts.InstInfo {
+		return facts.InstInfo{Status: facts.StatusOK, Rows: []facts.Info{{Connections: conn, MaxConnections: max, SuperuserReserved: reserved}}}
+	}
+	d := facts.InstDatabases{Status: facts.StatusOK}
+	n := facts.InstDownstreams{Status: facts.StatusOK}
+	cases := []struct {
+		name    string
+		i       facts.InstInfo
+		d       facts.InstDatabases
+		th      Thresholds
+		want    Verdict
+		symptom string
+	}{
+		{"idle", info(6, 100, 3), d, Defaults, VerdictOK, ""},
+		{"just below warn", info(77, 100, 3), d, Defaults, VerdictOK, ""},
+		{"warn at 80% of usable", info(78, 100, 3), d, Defaults, VerdictWARN, "连接已用 78 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 80%"},
+		{"just below fail", info(96, 100, 3), d, Defaults, VerdictWARN, "连接已用 96 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 99%"},
+		{"fail when usable slots are used up", info(97, 100, 3), d, Defaults, VerdictFAIL, "连接已用 97 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 100%"},
+		{"superusers past the usable limit", info(99, 100, 3), d, Defaults, VerdictFAIL, "连接已用 99 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 102%"},
+		{"custom thresholds", info(50, 100, 0), d, Thresholds{ConnWarnPct: 40, ConnFailPct: 50}, VerdictFAIL, "连接已用 50 个，普通用户可用 100 个（max_connections 100 减去超级用户保留 0），占 50%"},
+		{"no usable slots is not judged", info(3, 3, 3), d, Defaults, VerdictOK, ""},
+		{"finding survives an unknown elsewhere", info(97, 100, 3), facts.InstDatabases{Status: facts.StatusError}, Defaults, VerdictFAIL, "连接已用 97 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 100%"},
+		{"info error", facts.InstInfo{Status: facts.StatusError}, d, Defaults, VerdictUNKNOWN, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := Status(c.i, c.d, n, c.th)
+			if r.Verdict != c.want {
+				t.Errorf("verdict = %s, want %s", r.Verdict, c.want)
+			}
+			if c.symptom == "" {
+				if len(r.Findings) != 0 {
+					t.Errorf("findings = %+v, want none", r.Findings)
+				}
+				return
+			}
+			if len(r.Findings) != 1 {
+				t.Fatalf("findings = %d, want 1", len(r.Findings))
+			}
+			f := r.Findings[0]
+			if f.ID != "inst.connections" || f.Symptom != c.symptom {
+				t.Errorf("finding %s %q", f.ID, f.Symptom)
+			}
+			for _, k := range []string{"connections", "max_connections", "superuser_reserved_connections"} {
+				if _, ok := f.Evidence[0].Fields[k]; !ok || f.Evidence[0].ProbeID != facts.InstInfoID {
+					t.Errorf("evidence missing %s", k)
+				}
+			}
+			if len(f.Next) != 1 || f.Next[0].Command != "kbdiag sessions --limit 0" {
+				t.Errorf("next = %+v", f.Next)
+			}
+		})
 	}
 }
 
@@ -91,6 +148,9 @@ func TestSlots(t *testing.T) {
 					if _, ok := f.Evidence[0].Fields[k]; !ok {
 						t.Errorf("evidence missing %s", k)
 					}
+				}
+				if len(f.Next) != 1 || f.Next[0].Command != "kbdiag sessions" || !strings.Contains(f.Next[0].Note, "walreceiver") {
+					t.Errorf("next = %+v", f.Next)
 				}
 				got = append(got, f.Symptom)
 			}

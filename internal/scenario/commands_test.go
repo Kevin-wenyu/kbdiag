@@ -169,12 +169,12 @@ func TestStatusMatchesPRD(t *testing.T) {
 		{Datname: "kingbase", SizeBytes: i64(13918723)}, {Datname: "security", SizeBytes: i64(12321059)}, {Datname: "test", SizeBytes: i64(14647811)},
 	}}
 	n := facts.InstDownstreams{Status: facts.StatusOK, Rows: []int64{1}}
-	assertPRD(t, "status", Status(prdContext("primary", "system", "local", 21, 50, 0), i, d, n))
+	assertPRD(t, "status", Status(prdContext("primary", "system", "local", 21, 50, 0), i, d, n, rule.Defaults))
 }
 
 func TestStatusHiddenSize(t *testing.T) {
 	d := facts.InstDatabases{Status: facts.StatusOK, Rows: []facts.Database{{Datname: "secret"}}}
-	rep := Status(prdContext("primary", "kbdiag_ro", "remote", 0, 0, 0), facts.InstInfo{Status: facts.StatusOK}, d, facts.InstDownstreams{Status: facts.StatusOK})
+	rep := Status(prdContext("primary", "kbdiag_ro", "remote", 0, 0, 0), facts.InstInfo{Status: facts.StatusOK}, d, facts.InstDownstreams{Status: facts.StatusOK}, rule.Defaults)
 	if rep.Verdict != rule.VerdictOK || len(rep.Redacted) != 1 || rep.Redacted[0].Field != "size_bytes" {
 		t.Errorf("verdict=%s redacted=%+v", rep.Verdict, rep.Redacted)
 	}

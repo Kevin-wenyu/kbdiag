@@ -366,6 +366,32 @@ current_setting('data_directory'), (select count(*) from sys_stat_replication),
 	if (role == "primary") != (want[4] != "0") {
 		t.Errorf("%s with %s downstreams: the lab has one standby", role, want[4])
 	}
+
+	// The idle lab sits far below 80%; scaling the threshold down (§6.5 A) makes
+	// the same connections a WARN.
+	t.Run("connections past a scaled warn threshold", func(t *testing.T) {
+		r, code := kbdiag(t, nil, "status", "--conn-warn", "1")
+		if got := findings(r, "inst.connections", "max_connections", row["max_connections"]); !reflect.DeepEqual(got, []string{"WARN"}) || code != 1 {
+			t.Errorf("findings=%v exit=%d", got, code)
+		}
+	})
+	// DS-03: every connection ordinary users may open is taken; kbdiag still gets
+	// in through the superuser reserve and says FAIL.
+	t.Run("usable connections used up", func(t *testing.T) {
+		inject(t, "conn")
+		if n := ksql(t, "select count(*) from sys_stat_activity where application_name = 'kbdiag_inj_conn'"); n == "0" {
+			t.Fatal("conn.sh opened no connections of its own; the lab was already full")
+		}
+		r, code := kbdiag(t, nil, "status")
+		if got := findings(r, "inst.connections", "max_connections", row["max_connections"]); !reflect.DeepEqual(got, []string{"FAIL"}) || r.Verdict != "FAIL" || code != 2 {
+			t.Fatalf("findings=%v verdict=%s exit=%d", got, r.Verdict, code)
+		}
+		ev := r.Findings[0].Evidence[0].Fields
+		usable := ev["max_connections"].(float64) - ev["superuser_reserved_connections"].(float64)
+		if c, _ := ev["connections"].(float64); c < usable {
+			t.Errorf("connections = %v, usable %v", c, usable)
+		}
+	})
 }
 
 // L3 + L4: slots on the primary (the standby's slot), on the standby (none,

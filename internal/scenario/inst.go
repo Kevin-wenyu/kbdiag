@@ -13,8 +13,8 @@ func Waits(c facts.Context, w facts.WaitSummary) *report.Report {
 	return rep
 }
 
-func Status(c facts.Context, i facts.InstInfo, d facts.InstDatabases, n facts.InstDownstreams) *report.Report {
-	rep := report.New("status", c, rule.Status(i, d, n))
+func Status(c facts.Context, i facts.InstInfo, d facts.InstDatabases, n facts.InstDownstreams, th rule.Thresholds) *report.Report {
+	rep := report.New("status", c, rule.Status(i, d, n, th))
 	rep.AddProbe(facts.InstInfoID, i.Status, i.Reason, facts.InfoColumns, rows(i.Rows), 0)
 	rep.AddProbe(facts.InstDatabasesID, d.Status, d.Reason, facts.DatabaseColumns, rows(d.Rows), 0)
 	down := make([][]any, len(n.Rows))

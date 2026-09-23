@@ -58,9 +58,12 @@ type Thresholds struct {
 	XactWarnS      float64
 	XactFailS      float64
 	PreparedFailS  float64
+	ConnWarnPct    float64 // of the connections ordinary users may open
+	ConnFailPct    float64
 }
 
-var Defaults = Thresholds{IdleInTxnWarnS: 300, LockWaitWarnS: 10, XactWarnS: 300, XactFailS: 1800, PreparedFailS: 900}
+var Defaults = Thresholds{IdleInTxnWarnS: 300, LockWaitWarnS: 10, XactWarnS: 300, XactFailS: 1800, PreparedFailS: 900,
+	ConnWarnPct: 80, ConnFailPct: 100}
 
 // Sessions flags sessions that sat idle in a transaction too long.
 func Sessions(a facts.SessionActivity, th Thresholds) Result {

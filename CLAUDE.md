@@ -62,6 +62,12 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **status 看不到库大小（无 CONNECT 权限）不算 UNKNOWN**：大小不参与判定，只记进 `redacted[]`。
 - **probe 通过 `facts.Context` 自己返回 `not_applicable`**（备库上的 2PC）：这是"能不能采"，不是业务判断，不违反"probe 只采集不判断"。
 
+### 场景验收后的补丁（2026-09-24）
+
+- **status 判连接数，分母是 `max_connections - superuser_reserved_connections`**：用满这部分时业务已经连不上、只剩超级用户能进，这就是 FAIL；80% 给 WARN。按 `max_connections` 算会让"业务已经连不上"只显示 97%。
+- **slots 的下一步指向备库上的 `kbdiag sessions`，不指向 `status`**：status 没有 WAL 接收状态，回答不了"在不在接收 WAL"；sessions 在备库上能看到 walreceiver 进程。只说"没有这个进程说明没在收"，不说"有就在收"（进程被暂停时仍在列表里）。
+- **README 构建用 `git describe --match 'v2*'`**：不加的话会取到 shell 版的 `shell-final` tag，版本号像 `shell-final-5-g…`。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

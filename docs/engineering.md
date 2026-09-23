@@ -139,8 +139,8 @@ Go 表驱动测试，一个 rule 一张表。每张表必须包含以下几类�
 | 类别    | 示例（以连接数规则为例）                                                           |
 | ----- | ---------------------------------------------------------------------- |
 | 正常/阴性 | 50/100 → 无 finding                                                     |
-| 阈值边界  | 69/100、70/100、71/100；89、90、91                                          |
-| 零与空   | `max_connections=0`（除零）、活跃会话列表为空                                       |
+| 阈值边界  | 可用 97（100 − 保留 3）：77、78 跨 80%；96、97 跨 100%；超过可用数的 99  |
+| 零与空   | 可用数 ≤ 0（`max_connections` 不大于保留数，除零）、活跃会话列表为空                                       |
 | 空值    | `application_name` 为 NULL、`query_start` 为 NULL（idle 会话）                |
 | 极值    | 10 万个会话（截断提示是否出现）；xid age 接近 2^31                                      |
 | 非法值   | 负数时长（时钟回拨）、未知的 `state` 字符串                                             |
@@ -224,6 +224,7 @@ KB_TEST_NODE=kes-node1 e2e/inject/<名>.sh up|down     # 参数错误 exit 64
 | `untracked.sh`  | 会话自己 `set track_activities=off` 后开事务，别人看到 state=`disabled`（模拟 ALTER ROLE ... SET） | ~1s |
 | `track_off.sh`  | `track_activities=off`（ALTER SYSTEM + reload）    | ~1s                          |
 | `slot.sh`       | 在备库上 SIGSTOP walreceiver，主库槽变 inactive 且保留 xmin  | ~31s（等 `wal_sender_timeout`） |
+| `conn.sh`       | 用 `kbdiag_ro` 走 TCP 开满普通用户可用的连接（`max_connections - superuser_reserved_connections`），多开的被服务器拒掉 | ~5s |
 | `standby_slot.sh` | 在备库上建一个预留 WAL 的物理槽 `kbdiag_inj_slot`（inactive），仅备库 | ~1s |
 
 **slot 为什么这样造**：wal_level=replica 建不了逻辑槽；node2 上 kbha 守护进程加 cron 每分钟会拉起停掉的实例；断网可能触发 repmgr 故障切换。暂停 walreceiver 不停实例、不断网，形态和"备库挂了"一致。
