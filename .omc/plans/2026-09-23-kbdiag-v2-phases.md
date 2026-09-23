@@ -4,7 +4,7 @@
 **日期**：2026-09-23 | **模式**：ralplan SHORT
 **输入**：`docs/rewrite/00~04`（编号以 04 为准）、用户纠正"简单查询优先"
 **取代**：r4；`docs/rewrite/01-PRD.md` Q1/§10 的 MVP（conn+lock+check+diagnose）由本计划取代，0.5 回写
-**进度**：0.1~0.5、1.1 已完成（证据见 `chronicle/2026-09-23.md`）；1.1 已经 Codex 审查（REQUEST CHANGES，4 项已修）；1.2 的 L3/L4 在 node1、node2 全绿，B1 已验证；code-reviewer 两轮意见已修复，最新 code-reviewer 结果为 APPROVE；Architect lane 改由 Claude Code 侧的 OMC architect 子代理（opus，只读）执行：首轮 REQUEST CHANGES，5 项已修（disabled 行判 UNKNOWN、`--active` 只影响显示、e2e 两处空转断言、连接只读参数加 L1 测试），2 项低优先级挪到阶段 2；architect 复核 APPROVE，1.2 审查门全部通过。1.3 输出形态已于 node1 核对并获用户确认（取舍见 CLAUDE.md）；sessions 的 docs 页要等 1.3 有了 Go commit 再写。1.3 已于 2026-09-24 经用户确认执行：归档提交 6015c47 打了 tag `shell-final`，shell 版和旧文档已从 main 删除，CI 和 pre-commit 已换成 Go 版。GitHub CI 在 84c883e 上已通过；kbdiag-docs `v2` 分支的 sessions 页已提交并推送（8d59224）。阶段 2 已完成（2026-09-24）：6 条命令实现，node1、node2 的 L3/L4/L5 全绿（含 L5 第 5 格 sys_monitor），queries.md 8 项全部已验证，Codex 审查 1 条 P2 已修；证据见 `chronicle/2026-09-24.md`。下一步：阶段 3——kbdiag-docs `v2` 其余 6 页、README 重写、双架构构建，然后出 L6 验收步骤交用户本人执行；tag `v2.0.0-alpha.1` 和 docs 合 main 必须等用户确认。本文件是唯一的计划入口，其他工具目录下的计划不作数
+**进度**：0.1~0.5、1.1 已完成（证据见 `chronicle/2026-09-23.md`）；1.1 已经 Codex 审查（REQUEST CHANGES，4 项已修）；1.2 的 L3/L4 在 node1、node2 全绿，B1 已验证；code-reviewer 两轮意见已修复，最新 code-reviewer 结果为 APPROVE；Architect lane 改由 Claude Code 侧的 OMC architect 子代理（opus，只读）执行：首轮 REQUEST CHANGES，5 项已修（disabled 行判 UNKNOWN、`--active` 只影响显示、e2e 两处空转断言、连接只读参数加 L1 测试），2 项低优先级挪到阶段 2；architect 复核 APPROVE，1.2 审查门全部通过。1.3 输出形态已于 node1 核对并获用户确认（取舍见 CLAUDE.md）；sessions 的 docs 页要等 1.3 有了 Go commit 再写。1.3 已于 2026-09-24 经用户确认执行：归档提交 6015c47 打了 tag `shell-final`，shell 版和旧文档已从 main 删除，CI 和 pre-commit 已换成 Go 版。GitHub CI 在 84c883e 上已通过；kbdiag-docs `v2` 分支的 sessions 页已提交并推送（8d59224）。阶段 2 已完成（2026-09-24）：6 条命令实现，node1、node2 的 L3/L4/L5 全绿（含 L5 第 5 格 sys_monitor），queries.md 8 项全部已验证，Codex 审查 1 条 P2 已修；证据见 `chronicle/2026-09-24.md`。阶段 3 已做到审批门前（2026-09-24）：kbdiag-docs `v2` 其余 6 页已推送（881bde3）；README 已按 Go 版重写；amd64/arm64 静态二进制都已构建（amd64 在 node1 实跑，arm64 只在 linux/arm64 容器里冒烟，没有 arm64 的 KES 可测）；L6 验收步骤写在下方阶段 3 小节。下一步：**用户本人**按 L6 步骤走一遍并签字；之后 tag `v2.0.0-alpha.1`、docs 合 main，这两步都要等用户确认。本文件是唯一的计划入口，其他工具目录下的计划不作数
 
 ---
 
@@ -185,6 +185,35 @@
 - README 重写；用 `GOOS=linux GOARCH=amd64|arm64 CGO_ENABLED=0 go build` 出两个二进制，拷到 node1 上直接跑。
 - 我出验收步骤，用户本人在 Lima 上走一遍（L6），签字记进 chronicle。
 - 发布 `v2.0.0-alpha.1` 时，把 kbdiag-docs 的 `v2` 分支合进它的 main（在这之前线上站点保持 v1 手册）。
+
+#### L6 验收步骤（用户本人执行，AI 不代签）
+
+在 Mac 的仓库根目录执行；整个过程开着 `caffeinate -dimsu`（Mac 休眠会冻住 VM，时间类判定会失真）。每步写下实际退出码，和"预期"对不上就停下记进 chronicle。
+
+0. **准备**：`caffeinate -dimsu &`；然后
+   `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$(git rev-parse --short HEAD)" -o /tmp/kbdiag ./cmd/kbdiag`，
+   两台都部署：`for n in kes-node1 kes-node2; do limactl copy /tmp/kbdiag $n:/tmp/kbdiag && limactl shell $n sudo install -o kingbase -m 755 /tmp/kbdiag /home/kingbase/kbdiag; done`。
+   再定义两个函数（bash/zsh 都能用）：`k1() { limactl shell kes-node1 sudo -iu kingbase "$@"; }; k2() { limactl shell kes-node2 sudo -iu kingbase "$@"; }`。
+   预期：`k1 ./kbdiag --version` 打印当前 commit。
+1. **status**：`k1 ./kbdiag status; echo $?`、`k2 ./kbdiag status; echo $?`。预期：第一行角色分别是 primary / standby；downstreams 分别是 1 / 0；退出码都是 0。和 `repmgr cluster show` 对得上。
+2. **sessions**：`KB_TEST_NODE=kes-node1 e2e/inject/idle_txn.sh up`，等 10 秒，`k1 ./kbdiag sessions --idle-in-txn-warn 5; echo $?`。预期：WARN，`session.idle_in_txn` 点名 application_name 为 `kbdiag_inj_idle_txn` 的那个 PID，退出码 1。不带参数再跑一次：OK，退出码 0（没到 300 秒）。然后 `idle_txn.sh down`。
+3. **locks + session + waits**：`KB_TEST_NODE=kes-node1 e2e/inject/lock.sh up`，等 15 秒。
+   - `k1 ./kbdiag locks; echo $?`：WARN，`lock.waiting` 写"会话 W 等 public.kbdiag_inj_lock … 被 H 挡住"，退出码 1。
+   - `k1 ./kbdiag session H`：lock.list 里有 H 的 AccessExclusiveLock 和 W 那条 `granted=false`；H 的 state 是 idle in transaction。
+   - `k1 ./kbdiag waits`：有一行 `Lock relation active 1 [W]`，退出码 0。
+   - `k1 ./kbdiag locks --json | python3 -m json.tool | grep -A3 blocker_pids`：能看到 `[H]`。
+   - 在备库上重复一次（`KB_TEST_NODE=kes-node2`，用的是 advisory 锁）：`k2 ./kbdiag locks` 报 WARN，locktype 为 advisory。
+   - 两台都 `lock.sh down`，再跑 `locks`：OK，退出码 0。
+4. **txn**：`KB_TEST_NODE=kes-node1 e2e/inject/prepared.sh up`，
+   - `k1 ./kbdiag txn; echo $?`：txn.prepared 里有 `kbdiag_inj_2pc`，OK，退出码 0（没到 900 秒）；
+   - `k1 ./kbdiag txn --prepared-fail 5; echo $?`：FAIL，`fix: ROLLBACK PREPARED 'kbdiag_inj_2pc'`，退出码 2；
+   - `k2 ./kbdiag txn; echo $?`：`txn.prepared: not_applicable`，退出码 0；
+   - `prepared.sh down`。
+5. **slots**：`KB_TEST_NODE=kes-node1 e2e/inject/slot.sh up`（约 30~40 秒），`k1 ./kbdiag slots; echo $?`：FAIL，`slot.inactive` 点名 `repmgr_slot_2` 并带 xmin，退出码 2。`slot.sh down` 后再跑：OK，退出码 0。
+6. **权限**：`k1 bash -c 'PGPASSWORD=kbdiag_ro_T3st ./kbdiag sessions --host 127.0.0.1 -U kbdiag_ro; echo $?'`：第一行是 `kbdiag_ro@remote`，有 `redacted:` 行，UNKNOWN，退出码 3。`waits` 同样是 UNKNOWN/3；`status` 仍是 OK/0。
+7. **错误码**：`k1 ./kbdiag session; echo $?` → 64；`k1 ./kbdiag status --port 1; echo $?` → 69，并打印连接失败原因。
+8. **收尾**：两台都检查 `select count(*) from sys_stat_activity where application_name like 'kbdiag_inj%'` 为 0，`sys_prepared_xacts` 为空，`repmgr_slot_2` 为 active。
+9. **签字**：在 `chronicle/<当天>.md` 写"L6 验收：通过/不通过，执行人，日期，所用 commit"，不通过的步骤写实际输出。之后才进入 tag `v2.0.0-alpha.1` 和 docs 合 main（这两步也要用户点头）。
 
 ## F. 风险
 
