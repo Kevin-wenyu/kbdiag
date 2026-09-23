@@ -1,14 +1,9 @@
-// Package probe collects facts: one probe_id, one SQL. It makes no
-// judgment; its correctness is only provable on a real KES (L3).
 package probe
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
 )
@@ -44,48 +39,15 @@ order by xact_age_s desc nulls last, pid`
 // no longer records state and query, so the probe is skipped instead of
 // returning rows that look idle.
 func SessionActivity(ctx context.Context, x *pgx.Conn) facts.SessionActivity {
-	var track string
-	if err := x.QueryRow(ctx, "select current_setting('track_activities')").Scan(&track); err != nil {
-		return failed(err)
+	if st, reason := trackActivities(ctx, x); st != facts.StatusOK {
+		return facts.SessionActivity{Status: st, Reason: reason}
 	}
-	if track != "on" {
-		return facts.SessionActivity{Status: facts.StatusSkipped, Reason: "track_activities=" + track + "：会话状态和 SQL 未被记录"}
-	}
-	rows, err := x.Query(ctx, sessionActivitySQL)
-	if err != nil {
-		return failed(err)
-	}
-	out, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (facts.Session, error) {
+	st, reason, out := collect(ctx, x, sessionActivitySQL, func(r pgx.CollectableRow) (facts.Session, error) {
 		var s facts.Session
 		err := r.Scan(&s.PID, &s.Usename, &s.Datname, &s.ApplicationName, &s.ClientAddr, &s.BackendType,
 			&s.State, &s.BackendXID, &s.BackendXmin, &s.XactAgeS, &s.QueryAgeS, &s.StateAgeS,
 			&s.WaitEventType, &s.WaitEvent, &s.Query)
 		return s, err
 	})
-	if err != nil {
-		return failed(err)
-	}
-	return facts.SessionActivity{Status: facts.StatusOK, Rows: out}
-}
-
-func failed(err error) facts.SessionActivity {
-	st, reason := classify(err)
-	return facts.SessionActivity{Status: st, Reason: reason}
-}
-
-// classify maps a query error to a probe status (PRD §5): timeouts and
-// missing privileges are skipped, anything else is an error with its code.
-func classify(err error) (facts.Status, string) {
-	var pe *pgconn.PgError
-	if !errors.As(err, &pe) {
-		return facts.StatusError, err.Error()
-	}
-	reason := fmt.Sprintf("%s: %s", pe.Code, pe.Message)
-	switch pe.Code {
-	case "57014", "55P03": // statement_timeout, lock_timeout
-		return facts.StatusSkipped, "timeout " + reason
-	case "42501":
-		return facts.StatusSkipped, "insufficient_privilege " + reason
-	}
-	return facts.StatusError, reason
+	return facts.SessionActivity{Status: st, Reason: reason, Rows: out}
 }

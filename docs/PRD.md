@@ -214,7 +214,7 @@ Report
 
 #### 示例：locks
 
-`lock` 注入：holder 持 AccessExclusiveLock，waiter 在等。只显示一层直接阻塞者，多级链是 v0.2 以后的 `locks --tree`。
+`lock` 注入：holder 持 AccessExclusiveLock，waiter 在等。只显示一层直接阻塞者，多级链是 v0.2 以后的 `locks --tree`。每个等锁超过阈值的会话各出一条 `lock.waiting`；表里只列等锁的行，以及挡路会话在同一对象上持有的锁。
 
 ```json
 {
@@ -237,7 +237,7 @@ Report
     {
       "id": "lock.waiting",
       "level": "WARN",
-      "symptom": "1 个会话在等锁，最长 44 秒",
+      "symptom": "会话 236155 等 public.kbdiag_inj_lock 的 AccessShareLock 已 44 秒，被 236153 挡住",
       "evidence": [{"probe_id": "lock.list", "fields": {"waiter_pid": 236155, "blocker_pids": [236153], "relation": "public.kbdiag_inj_lock", "lock_mode": "AccessShareLock", "wait_s": 44.0}}],
       "cause": null,
       "next": [{"kind": "verify", "command": "kbdiag session 236153", "note": "看挡路的会话在干什么"}]
@@ -292,8 +292,8 @@ Report
       "reason": null,
       "columns": ["wait_event_type", "wait_event", "state", "sessions", "pids"],
       "rows": [
-        [null, null, "active", 1, [237010]],
-        [null, null, null, 7, [236153, 236155, 236188, 236201, 3120, 3121, 3125]]
+        [null, null, null, 7, [3120, 3121, 3125, 236153, 236155, 236188, 236201]],
+        [null, null, "active", 1, [237010]]
       ],
       "truncated": 0
     }

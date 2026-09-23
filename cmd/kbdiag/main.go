@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/spf13/cobra"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/conn"
+	"github.com/Kevin-wenyu/kbdiag/internal/facts"
 	"github.com/Kevin-wenyu/kbdiag/internal/probe"
 	"github.com/Kevin-wenyu/kbdiag/internal/report"
 	"github.com/Kevin-wenyu/kbdiag/internal/rule"
@@ -42,7 +45,7 @@ func (e *exitError) Error() string {
 // (unknown command or flag, bad arguments) is a usage error: 64, not 1,
 // which would read as WARN.
 func run(args []string, stdout, stderr io.Writer) int {
-	root := newRoot(stdout)
+	root := newRoot(stdout, stderr)
 	root.SetArgs(args)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
@@ -67,7 +70,7 @@ type globalFlags struct {
 	json bool
 }
 
-func newRoot(stdout io.Writer) *cobra.Command {
+func newRoot(stdout, stderr io.Writer) *cobra.Command {
 	g := &globalFlags{}
 	root := &cobra.Command{
 		Use:           "kbdiag",
@@ -90,8 +93,25 @@ func newRoot(stdout io.Writer) *cobra.Command {
 	pf.StringVarP(&g.cfg.DBName, "dbname", "d", "test", "database to connect to")
 	pf.DurationVar(&g.cfg.QueryTimeout, "timeout", 10*time.Second, "statement timeout for each query")
 	pf.BoolVar(&g.json, "json", false, "print the report as JSON")
-	root.AddCommand(newSessions(g, stdout))
+	root.AddCommand(newSessions(g, stdout), newSession(g, stdout, stderr), newLocks(g, stdout),
+		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout))
 	return root
+}
+
+// diagnose opens the connection, identifies the instance and hands both to
+// build. A failed identify is exit 3: we reached the server but cannot say
+// what it is, which is not "unavailable".
+func diagnose(ctx context.Context, g *globalFlags, stdout io.Writer, build func(*pgx.Conn, facts.Context) *report.Report) error {
+	x, err := conn.Open(ctx, g.cfg)
+	if err != nil {
+		return &exitError{code: report.ExitUnavailable, err: err}
+	}
+	defer x.Close(context.Background())
+	info, err := conn.Identify(ctx, x, g.cfg)
+	if err != nil {
+		return &exitError{code: report.ExitCode(rule.VerdictUNKNOWN), err: fmt.Errorf("identify instance: %w", err)}
+	}
+	return write(build(x, info), g.json, stdout)
 }
 
 func newSessions(g *globalFlags, stdout io.Writer) *cobra.Command {
@@ -102,24 +122,132 @@ func newSessions(g *globalFlags, stdout io.Writer) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			x, err := conn.Open(ctx, g.cfg)
-			if err != nil {
-				return &exitError{code: report.ExitUnavailable, err: err}
-			}
-			defer x.Close(context.Background())
-			info, err := conn.Identify(ctx, x, g.cfg)
-			if err != nil {
-				return &exitError{code: report.ExitUnavailable, err: fmt.Errorf("identify instance: %w", err)}
-			}
-			rep := scenario.Sessions(info, probe.SessionActivity(ctx, x), o)
-			return write(rep, g.json, stdout)
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Sessions(info, probe.SessionActivity(ctx, x), o)
+			})
 		},
 	}
 	f := c.Flags()
 	f.BoolVar(&o.ActiveOnly, "active", false, "show only sessions running a query")
-	f.IntVar(&o.Limit, "limit", 50, "max rows to show, 0 for all (findings still cover every row)")
+	limitFlag(c, &o.Limit)
 	f.Float64Var(&o.Thresholds.IdleInTxnWarnS, "idle-in-txn-warn", rule.Defaults.IdleInTxnWarnS, "seconds idle in transaction before WARN")
 	return c
+}
+
+func newSession(g *globalFlags, stdout, stderr io.Writer) *cobra.Command {
+	o := scenario.SessionOptions{Thresholds: rule.Defaults}
+	c := &cobra.Command{
+		Use:   "session <pid>",
+		Short: "Show one session: its SQL, waits, locks held and who blocks it",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pid, err := strconv.ParseInt(args[0], 10, 32)
+			if err != nil || pid <= 0 {
+				return fmt.Errorf("pid must be a positive integer, got %q", args[0])
+			}
+			o.PID = int32(pid)
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				rep, found := scenario.Session(info, probe.SessionActivity(ctx, x), probe.LockList(ctx, x), o)
+				if !found {
+					fmt.Fprintf(stderr, "kbdiag: no session with pid %d (it may have ended)\n", o.PID)
+				}
+				return rep
+			})
+		},
+	}
+	f := c.Flags()
+	f.Float64Var(&o.Thresholds.IdleInTxnWarnS, "idle-in-txn-warn", rule.Defaults.IdleInTxnWarnS, "seconds idle in transaction before WARN")
+	f.Float64Var(&o.Thresholds.LockWaitWarnS, "lock-wait-warn", rule.Defaults.LockWaitWarnS, "seconds waiting for a lock before WARN")
+	return c
+}
+
+func newLocks(g *globalFlags, stdout io.Writer) *cobra.Command {
+	o := scenario.LocksOptions{Thresholds: rule.Defaults}
+	c := &cobra.Command{
+		Use:   "locks",
+		Short: "List lock waits and their direct blockers",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Locks(info, probe.LockList(ctx, x), o)
+			})
+		},
+	}
+	limitFlag(c, &o.Limit)
+	c.Flags().Float64Var(&o.Thresholds.LockWaitWarnS, "lock-wait-warn", rule.Defaults.LockWaitWarnS, "seconds waiting for a lock before WARN")
+	return c
+}
+
+func newTxn(g *globalFlags, stdout io.Writer) *cobra.Command {
+	o := scenario.TxnOptions{Thresholds: rule.Defaults}
+	c := &cobra.Command{
+		Use:   "txn",
+		Short: "List open transactions and prepared (2PC) ones; flag long ones",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if o.Thresholds.XactFailS < o.Thresholds.XactWarnS {
+				return fmt.Errorf("--xact-fail (%v) must not be below --xact-warn (%v)", o.Thresholds.XactFailS, o.Thresholds.XactWarnS)
+			}
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Txn(info, probe.SessionActivity(ctx, x), probe.TxnPrepared(ctx, x, info), o)
+			})
+		},
+	}
+	limitFlag(c, &o.Limit)
+	f := c.Flags()
+	f.Float64Var(&o.Thresholds.XactWarnS, "xact-warn", rule.Defaults.XactWarnS, "transaction age in seconds before WARN")
+	f.Float64Var(&o.Thresholds.XactFailS, "xact-fail", rule.Defaults.XactFailS, "transaction age in seconds before FAIL")
+	f.Float64Var(&o.Thresholds.PreparedFailS, "prepared-fail", rule.Defaults.PreparedFailS, "prepared transaction age in seconds before FAIL")
+	return c
+}
+
+func newWaits(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "waits",
+		Short: "Summarize what sessions are waiting on right now",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Waits(info, probe.WaitSummary(ctx, x))
+			})
+		},
+	}
+}
+
+func newStatus(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show version, role, uptime, connections, databases and downstreams",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Status(info, probe.InstInfo(ctx, x), probe.InstDatabases(ctx, x), probe.InstDownstreams(ctx, x))
+			})
+		},
+	}
+}
+
+func newSlots(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "slots",
+		Short: "List replication slots; flag inactive ones",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Slots(info, probe.SlotList(ctx, x))
+			})
+		},
+	}
+}
+
+func limitFlag(c *cobra.Command, limit *int) {
+	c.Flags().IntVar(limit, "limit", 50, "max rows to show, 0 for all (findings still cover every row)")
 }
 
 func write(rep *report.Report, asJSON bool, stdout io.Writer) error {

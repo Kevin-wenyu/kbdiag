@@ -1,6 +1,6 @@
 # kbdiag 2.0 工程方案
 
-状态: active | 最后核对: 2026-09-23
+状态: active | 最后核对: 2026-09-24
 
 **职责**：选型、架构、工程约定、测试分层、故障注入手段、运行命令。需求和契约看 `docs/PRD.md`，查询条目和验证状态看 `docs/queries.md`。
 
@@ -216,13 +216,15 @@ KB_TEST_NODE=kes-node1 e2e/inject/<名>.sh up|down     # 参数错误 exit 64
 
 | 脚本              | 造出的状态                                            | up 耗时                        |
 | --------------- | ------------------------------------------------ | ---------------------------- |
-| `lock.sh`       | holder 持 AccessExclusive，waiter 等 AccessShare 被挡 | ~1s                          |
+| `lock.sh`       | 主库：holder 持 AccessExclusive，waiter 等 AccessShare 被挡；备库：两个会话抢 advisory lock 424242 | ~1s |
 | `idle_txn.sh`   | idle in transaction；主库上带 backend_xid（备库分配不了 xid，只开事务）；四个时间戳各隔约 1 秒 | ~4s |
 | `long_query.sh` | `pg_sleep(3600)` 长查询                             | ~1s                          |
 | `prepared.sh`   | 未结束的 2PC 事务 `kbdiag_inj_2pc`                     | ~1s                          |
+| `prepared_waiter.sh` | 一个会话等 `kbdiag_inj_2pc` 上的锁，挡它的是 prepared 事务（blocker pid 0）；要先起 `prepared.sh`，仅主库 | ~1s |
 | `untracked.sh`  | 会话自己 `set track_activities=off` 后开事务，别人看到 state=`disabled`（模拟 ALTER ROLE ... SET） | ~1s |
 | `track_off.sh`  | `track_activities=off`（ALTER SYSTEM + reload）    | ~1s                          |
 | `slot.sh`       | 在备库上 SIGSTOP walreceiver，主库槽变 inactive 且保留 xmin  | ~31s（等 `wal_sender_timeout`） |
+| `standby_slot.sh` | 在备库上建一个预留 WAL 的物理槽 `kbdiag_inj_slot`（inactive），仅备库 | ~1s |
 
 **slot 为什么这样造**：wal_level=replica 建不了逻辑槽；node2 上 kbha 守护进程加 cron 每分钟会拉起停掉的实例；断网可能触发 repmgr 故障切换。暂停 walreceiver 不停实例、不断网，形态和"备库挂了"一致。
 
@@ -234,6 +236,8 @@ KB_TEST_NODE=kes-node1 e2e/inject/<名>.sh up|down     # 参数错误 exit 64
 | `KB_TEST_NODE=kes-node1 go test -tags vm ./e2e/...` | L3 + L4 + L5（主库视角）                   | 每个功能切片完成时 |
 | `KB_TEST_NODE=kes-node2 go test -tags vm ./e2e/...` | 同上（备库视角）                             | 同上        |
 | GitHub Actions                                      | 只跑 L1 + L2 和文档数检查（CI 里没有 KingbaseES） | push 时    |
+
+**Mac 不能休眠**：Mac 一休眠 VM 就跟着挂起，醒来时 VM 时钟前跳，`wait_for` 提前超时、`now()-state_change` 失真，测试会随机失败（2026-09-24 实测）。无人值守跑时用 `caffeinate -dimsu go test ...` 包起来。
 
 **诚实声明**：L3~L5 依赖本地 Lima VM，不在 CI 里——"CI 绿"不等于"集成测试过"，发版记录必须附 VM 实跑结果。
 

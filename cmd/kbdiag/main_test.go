@@ -23,6 +23,21 @@ func TestExitCodesWithoutDatabase(t *testing.T) {
 		{"negative timeout", []string{"sessions", "--timeout", "-1s"}, 64, false},
 		{"cannot connect", []string{"sessions", "--host", sock}, 69, false},
 		{"cannot connect, json", []string{"sessions", "--json", "--host", sock}, 69, false},
+		{"session without pid", []string{"session"}, 64, false},
+		{"session with two pids", []string{"session", "1", "2"}, 64, false},
+		{"session pid not a number", []string{"session", "abc"}, 64, false},
+		{"session pid zero", []string{"session", "0"}, 64, false},
+		{"session pid negative", []string{"session", "--", "-5"}, 64, false},
+		{"session pid overflows int32", []string{"session", "2147483648"}, 64, false},
+		{"xact-fail below xact-warn", []string{"txn", "--xact-warn", "600", "--xact-fail", "60"}, 64, false},
+		{"locks bad limit", []string{"locks", "--limit", "x"}, 64, false},
+		{"waits takes no argument", []string{"waits", "x"}, 64, false},
+		{"session cannot connect", []string{"session", "1", "--host", sock}, 69, false},
+		{"locks cannot connect", []string{"locks", "--host", sock}, 69, false},
+		{"txn cannot connect", []string{"txn", "--host", sock}, 69, false},
+		{"waits cannot connect", []string{"waits", "--host", sock}, 69, false},
+		{"status cannot connect", []string{"status", "--host", sock}, 69, false},
+		{"slots cannot connect", []string{"slots", "--host", sock}, 69, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

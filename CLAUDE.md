@@ -52,6 +52,16 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **不假装 OK**：没采到（`skipped`/`error`）不能当成空结果判 OK；角色上不适用的用 `not_applicable`，不参与 verdict。
 - **不假设 sudo**：以 `kingbase` 用户运行；每项检查在没有 repmgr 时都要能降级。
 
+### 阶段 2 的取舍（2026-09-24）
+
+- **每个等锁会话各出一条 `lock.waiting`**，不按挡路者合并：v0.1 只做单次查询，合并成阻塞链是 v0.2 以后 `locks --tree` 的事。
+- **`wait_s` 用 `now()-state_change` 近似**：V8R6 的 `sys_locks` 没有 `waitstart`；这是上限，宁可多报几秒也不漏报。
+- **2PC 挡路者 pid 是 0**：`sys_blocking_pids()` 对 prepared 事务返回 0，finding 里写成"未提交的两阶段事务"并指向 `kbdiag txn`，而不是让人去 `session 0`。
+- **连上了但 Identify 失败给 UNKNOWN(3)**，不给 69：69 只表示连不上，否则监控脚本会把"库卡住了"误读成"网络断了"。
+- **status 的连接数 = `sum(sys_stat_database.numbackends)`**：只数连到库的后端，和 `max_connections` 可比；后台进程不占这个额度。
+- **status 看不到库大小（无 CONNECT 权限）不算 UNKNOWN**：大小不参与判定，只记进 `redacted[]`。
+- **probe 通过 `facts.Context` 自己返回 `not_applicable`**（备库上的 2PC）：这是"能不能采"，不是业务判断，不违反"probe 只采集不判断"。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

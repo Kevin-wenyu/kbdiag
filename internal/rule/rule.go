@@ -54,9 +54,13 @@ type Result struct {
 // Thresholds are the defaults from docs/queries.md; flags override them.
 type Thresholds struct {
 	IdleInTxnWarnS float64
+	LockWaitWarnS  float64
+	XactWarnS      float64
+	XactFailS      float64
+	PreparedFailS  float64
 }
 
-var Defaults = Thresholds{IdleInTxnWarnS: 300}
+var Defaults = Thresholds{IdleInTxnWarnS: 300, LockWaitWarnS: 10, XactWarnS: 300, XactFailS: 1800, PreparedFailS: 900}
 
 // Sessions flags sessions that sat idle in a transaction too long.
 func Sessions(a facts.SessionActivity, th Thresholds) Result {
@@ -94,6 +98,30 @@ func Sessions(a facts.SessionActivity, th Thresholds) Result {
 		})
 	}
 	return Result{Verdict: verdictOf(fs, masked), Findings: fs}
+}
+
+// Merge joins the results of one command's rules: an input that could not
+// decide keeps the merged result from reading OK.
+func Merge(rs ...Result) Result {
+	var fs []Finding
+	unknown := false
+	for _, r := range rs {
+		fs = append(fs, r.Findings...)
+		unknown = unknown || r.Verdict == VerdictUNKNOWN
+	}
+	return Result{Verdict: verdictOf(fs, unknown), Findings: fs}
+}
+
+// collected reports whether a probe's rows can be judged. not_applicable
+// has nothing to judge and does not count (PRD §5); skipped and error do.
+func collected(st facts.Status) (judge, unknown bool) {
+	switch st {
+	case facts.StatusOK:
+		return true, false
+	case facts.StatusNotApplicable:
+		return false, false
+	}
+	return false, true
 }
 
 // verdictOf takes the highest finding level; when nothing is WARN or FAIL and

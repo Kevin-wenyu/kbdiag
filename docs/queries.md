@@ -1,6 +1,6 @@
 # kbdiag 2.0 查询清单
 
-状态: active | 最后核对: 2026-09-23
+状态: active | 最后核对: 2026-09-24
 
 **职责**：所有查询条目、所属版本、probe_id、DS、SQL 出处、开关、验证状态。版本条目以本文的"版本"列为唯一来源；PRD 只写版本目标和验收。
 **参考**：`ora`（`~/Documents/oracle/ora:100-320`）、pgmetrics、pgBadger、pg_profile、pganalyze；digoal/skills（https://github.com/digoal/skills/tree/main/postgresql ，下文简称 **digoal**）；KingbaseES V8 官方文档（https://help.kingbase.com.cn/v8/ ，下文简称 **KES 文档**）
@@ -15,15 +15,20 @@
 | # | 命令 | probe_id | DS | SQL 出处 | 开关 | 备库行为 | 验证状态 |
 |---|---|---|---|---|---|---|---|
 | B1+D1 | `sessions`（`--active` 吸收 D1） | `session.activity` | 04, 10, 11 | 自写，列按 KES V8R6 手册"动态性能视图 4.1 sys_stat_activity"核对（2026-09-23）；SQL 在 `internal/probe/session.go` | `track_activities`、`track_activity_query_size` | 正常 | 已验证 2026-09-23（`e2e/sessions_test.go`，node1 主库 + node2 备库） |
-| B2 | `session <pid>` | `session.activity`、`lock.list` | 05, 06 | 待登记 | 同上 | 正常 | 未验证 |
-| C1 | `locks` | `lock.list` | 05, 06, 07, 09 | 待登记 | — | 正常 | 未验证 |
-| B4 | `txn` | `session.activity`、`txn.prepared` | 04, 06, 18 | 待登记 | — | 2PC 部分 `not_applicable` | 未验证 |
-| E1 | `waits` | `wait.summary` | 05, 13 | 待登记 | `track_activities` | 正常 | 未验证 |
-| A1 | `status` | `inst.info`、`inst.databases`、`inst.downstreams` | 01, 02, 03 | 待登记 | — | 视角切换 | 未验证 |
-| I2 | `slots` | `slot.list` | 16, 22 | 待登记 | — | 按角色取 LSN | 未验证 |
+| B2 | `session <pid>` | `session.activity`、`lock.list` | 05, 06 | 复用 B1 和 C1 的 SQL，在 `internal/scenario/lock.go` 里按 pid 过滤 | 同上 | 正常 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
+| C1 | `locks` | `lock.list` | 05, 06, 07, 09 | 自写，`sys_locks` + `sys_blocking_pids()`；SQL 在 `internal/probe/lock.go` | — | 正常 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
+| B4 | `txn` | `session.activity`、`txn.prepared` | 04, 06, 18 | 自写，`sys_prepared_xacts`；SQL 在 `internal/probe/txn.go` | — | 2PC 部分 `not_applicable` | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
+| E1 | `waits` | `wait.summary` | 05, 13 | 自写，`sys_stat_activity` 按等待事件和状态聚合；SQL 在 `internal/probe/wait.go` | `track_activities` | 正常 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
+| A1 | `status` | `inst.info`、`inst.databases`、`inst.downstreams` | 01, 02, 03 | 自写；SQL 在 `internal/probe/inst.go` | — | 视角切换 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
+| I2 | `slots` | `slot.list` | 16, 22 | 自写，`sys_replication_slots`；SQL 在 `internal/probe/slot.go` | — | 按角色取 LSN | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
 
 注记：
 - B1：`track_activities` 按当前连接的 `current_setting` 判断，关着就把 probe 标 `skipped`。实测发现，关掉之后已经 idle 的会话要等处理到 SIGHUP 才显示 `disabled`，所以不能靠逐行的 state 判断。`track_activity_query_size` 只决定 SQL 截断到多长，不是开关，不影响 status。被遮蔽的行统一以 `query='<insufficient privilege>'` 为标记；`backend_xid`/`backend_xmin` 不在遮蔽范围内。验证手段：L3 夹具取值 + L4 注入（诱饵是同时存在的长查询）+ L5 的 `kbdiag_ro` 一格；300 秒阈值用 §6.5 的 A（阈值缩放到 1 秒）测，没有真等 300 秒；`idle in transaction (aborted)` 只有 L1 覆盖，没有注入。L5 逐列断言了遮蔽值，但注入会话走本地 socket，client_addr 本来就是 NULL，所以"client_addr 被遮蔽"这一点没有被真正区分出来。只给某个会话关掉的情况（`ALTER ROLE ... SET` 或会话自己 SET）不走 `skipped`：那一行 state 是 `disabled`，state_age_s、wait_event* 是 NULL，query 是空串，而 xact_age_s、query_age_s 保留旧值（实测）；这类行记进 `redacted[]`（reason `track_activities_off`），verdict 给 UNKNOWN，由 L4 `untracked.sh` 验证；L5 同时断言 15 列齐全、顺序不变，`rows_affected` 等于输出里带标记的行数（`--limit 0` 下全部行都在输出里）
+- C1/B2：`sys_locks` 在 V8R6 上没有 `waitstart` 列，`wait_s` 用等锁会话的 `now()-state_change` 近似，是上限：语句开始后先干了别的再等锁，就会算长一点。L3 用 ksql 在调用前后各取一次 `now()-state_change` 夹住它。被两阶段事务挡住时 `sys_blocking_pids()` 返回 `{0}`，而 prepared 事务的锁行 pid 为 NULL（实测）；这种 blocker 在 finding 里写成"未提交的两阶段事务"，下一步指向 `kbdiag txn`，由 `prepared_waiter.sh` 注入验证（仅主库）。备库上建不了表也拿不到 AccessExclusive，`lock.sh` 在备库改用 advisory lock，所以备库行的 relation 是 NULL。阈值 10 秒用 §6.5 的 A 缩放到 1 秒测。非监控账号看不到别人的 `state_change`，`wait_s` 记进 `redacted[]`，verdict UNKNOWN（L5 一格）
+- B4：`txn.long` 的 300/1800 秒和 `txn.prepared` 的 900 秒都用 A（缩放到 1 秒）测；默认阈值下同一注入不出 finding 作为反例。备库上 `txn.prepared` 为 `not_applicable`（主库的 2PC 在备库查不到，实测）
+- E1：锁等待注入后断言 waiter 落在 `Lock/relation`（备库 `Lock/advisory`）组里；`track_off` 下 `skipped`；`kbdiag_ro` 下三列遮蔽，`rows_affected` 等于遮蔽组的会话总数。只按会话做计数，不判断，所以没有 finding
+- A1：连接数用 `sys_stat_database.numbackends` 求和，只数连到库的后端，不含后台进程。L3 逐项和 ksql 比：启动时间、`max_connections`、保留连接、数据目录、库名列表、下游数（主库 1、备库 0）。没有 CONNECT 权限时库大小为 NULL，记进 `redacted[]` 但不影响 verdict；这一点只有 L2 覆盖，VM 上所有库对 `kbdiag_ro` 都可连
+- I2：主库上的槽由 `slot.sh`（暂停备库 walreceiver）造成 inactive；备库上的槽由 `standby_slot.sh` 建，保留的 WAL 必须按 `sys_last_wal_replay_lsn()` 算（备库上 `sys_current_wal_lsn()` 报错），L3 断言它非空且 ≥ 0
 
 填写规则：
 - probe_id 格式 `<域>.<对象>`，和 finding.id 共用域前缀（PRD §5）；上表的 probe_id 和 PRD §5.1 示例一致；一个 probe 就是一条 SQL，列名属于契约
@@ -239,13 +244,15 @@ VM 上还装了这些扩展：
 | 连接使用率 | > 65% | > 80% | > 90%，或已逼近 `max_connections - superuser_reserved_connections` |
 | idle in transaction 占连接数比例 | — | > 20% | — |
 | 物理复制回放延迟 | > 1 分钟 / 100MB | > 5 分钟 / 1GB | > 30 分钟 / 10GB |
-| 复制槽未激活 | — | — | `active=false` |
+| 复制槽未激活（`slot.inactive`，已实现） | — | — | `active=false` |
 | 库年龄 `age(datfrozenxid)` | > 10 亿 | > 15 亿 | > 20 亿 |
 | 序列剩余可调用次数 | < 10 万 | < 1 万 | < 1000 |
-| 2PC 事务存在时长 | — | — | > 15 分钟 |
+| 2PC 事务存在时长（`txn.prepared`，已实现） | — | — | ≥ 900 秒（`--prepared-fail`） |
 | 单个会话 idle in transaction 时长（`session.idle_in_txn`，已实现） | — | ≥ 300 秒（`--idle-in-txn-warn`） | — |
+| 单个事务时长（`txn.long`，已实现） | — | ≥ 300 秒（`--xact-warn`） | ≥ 1800 秒（`--xact-fail`） |
+| 单个会话等锁时长（`lock.waiting`，已实现） | — | ≥ 10 秒（`--lock-wait-warn`） | — |
 
-最后一行不来自 digoal，沿用 shell 版 `KB_WARN_TXN=300` 的默认值；`idle in transaction (aborted)` 也算在内。
+最后三行不来自 digoal：idle in transaction 和事务时长的 300 秒沿用 shell 版 `KB_WARN_TXN=300`（`idle in transaction (aborted)` 也算在内）；事务 1800 秒和等锁 10 秒是自定的起点，大规模使用后按实际误报再调。
 
 归档检查要先排除主动配置，再判断异常：`archive_mode=off`、`archive_command` 为空或是 `/bin/true`、还在 `archive_timeout` 窗口内。这一条直接吸收进 H2。
 
