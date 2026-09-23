@@ -7,45 +7,20 @@ on:
     branches: [main]
 
 jobs:
-  shellcheck:
-    name: Shellcheck
+  test:
+    name: Vet, test, doc count
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install shellcheck
-        run: sudo apt-get install -y shellcheck
-      - name: Run shellcheck
-        run: shellcheck lib/*.sh
-
-  unit:
-    name: Unit tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run test/unit/
-        run: bash test/unit/run.sh
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build dist/kbdiag
-        run: bash build.sh
-      - name: Verify binary exists and is executable
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...
+      # Anti-zombie rule 6 in CLAUDE.md: 3 live docs under docs/, at most 1 plan.
+      - name: Doc count
         run: |
-          test -f dist/kbdiag || (echo "dist/kbdiag not found" >&2; exit 1)
-          test -x dist/kbdiag || (echo "dist/kbdiag not executable" >&2; exit 1)
-
-  smoke:
-    name: Smoke test
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build
-        run: bash build.sh
-      - name: Version flag
-        run: dist/kbdiag --version
-      - name: Help flag
-        run: dist/kbdiag --help
+          test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3
+          test "$(find .omc/plans -name '*.md' 2>/dev/null | wc -l)" -le 1

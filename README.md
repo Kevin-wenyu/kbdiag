@@ -1,5 +1,9 @@
 # kbdiag
 
+> **Transition notice / 过渡说明**: `main` is being rewritten in Go (kbdiag 2.0). Until `v2.0.0-alpha.1`, only `kbdiag sessions` works on `main`, and the rest of this README describes the shell version. For the full shell toolkit, use release [`v1.0.0`](https://github.com/Kevin-wenyu/kbdiag/releases/tag/v1.0.0).
+>
+> `main` 正在用 Go 重写（kbdiag 2.0）。在 `v2.0.0-alpha.1` 之前，`main` 上只有 `kbdiag sessions` 可用，下文仍是 shell 版的说明。需要完整的 shell 版功能请用 [`v1.0.0`](https://github.com/Kevin-wenyu/kbdiag/releases/tag/v1.0.0)。
+
 [English](#english) | [中文](#中文)
 
 ---

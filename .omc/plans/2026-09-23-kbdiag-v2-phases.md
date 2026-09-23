@@ -4,7 +4,7 @@
 **日期**：2026-09-23 | **模式**：ralplan SHORT
 **输入**：`docs/rewrite/00~04`（编号以 04 为准）、用户纠正"简单查询优先"
 **取代**：r4；`docs/rewrite/01-PRD.md` Q1/§10 的 MVP（conn+lock+check+diagnose）由本计划取代，0.5 回写
-**进度**：0.1~0.5、1.1 已完成（证据见 `chronicle/2026-09-23.md`）；1.1 已经 Codex 审查（REQUEST CHANGES，4 项已修）；1.2 的 L3/L4 在 node1、node2 全绿，B1 已验证；code-reviewer 两轮意见已修复，最新 code-reviewer 结果为 APPROVE；Architect lane 改由 Claude Code 侧的 OMC architect 子代理（opus，只读）执行：首轮 REQUEST CHANGES，5 项已修（disabled 行判 UNKNOWN、`--active` 只影响显示、e2e 两处空转断言、连接只读参数加 L1 测试），2 项低优先级挪到阶段 2；architect 复核 APPROVE，1.2 审查门全部通过。1.3 输出形态已于 node1 核对并获用户确认（取舍见 CLAUDE.md）；sessions 的 docs 页要等 1.3 有了 Go commit 再写。下一步：用户确认后做 1.3 切换。本文件是唯一的计划入口，其他工具目录下的计划不作数
+**进度**：0.1~0.5、1.1 已完成（证据见 `chronicle/2026-09-23.md`）；1.1 已经 Codex 审查（REQUEST CHANGES，4 项已修）；1.2 的 L3/L4 在 node1、node2 全绿，B1 已验证；code-reviewer 两轮意见已修复，最新 code-reviewer 结果为 APPROVE；Architect lane 改由 Claude Code 侧的 OMC architect 子代理（opus，只读）执行：首轮 REQUEST CHANGES，5 项已修（disabled 行判 UNKNOWN、`--active` 只影响显示、e2e 两处空转断言、连接只读参数加 L1 测试），2 项低优先级挪到阶段 2；architect 复核 APPROVE，1.2 审查门全部通过。1.3 输出形态已于 node1 核对并获用户确认（取舍见 CLAUDE.md）；sessions 的 docs 页要等 1.3 有了 Go commit 再写。1.3 已于 2026-09-24 经用户确认执行：归档提交 6015c47 打了 tag `shell-final`，shell 版和旧文档已从 main 删除，CI 和 pre-commit 已换成 Go 版。下一步：确认 GitHub CI 变绿，然后在 kbdiag-docs `v2` 分支写 sessions 页（推送 kbdiag-docs 前先问用户），之后进入阶段 2。本文件是唯一的计划入口，其他工具目录下的计划不作数
 
 ---
 
