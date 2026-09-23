@@ -25,6 +25,6 @@ Create a GitHub issue.
 
 Run `gh issue view <number> --comments`.
 
-## Relationship to existing design docs
+## Relationship to design docs
 
-This repo has 20+ pre-existing design specs and execution plans as local markdown under `docs/superpowers/specs/` and `docs/superpowers/plans/` (from the "superpowers" skill framework already in use here, predating this GitHub-tracker setup). Those stay as a historical archive — going forward, `to-spec`/`to-tickets`/`wayfinder` publish to GitHub issues per the choice above.
+Design specs and plans are not kept as separate files. Requirements live in `docs/PRD.md`, the current plan in `.omc/plans/` (at most one), and anything larger than the plan's scope is published as a GitHub issue. The old shell-era specs are archived in git tag `shell-final`.

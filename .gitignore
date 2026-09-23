@@ -1,2 +1,9 @@
 .serena/
 .superpowers/
+.omc/*
+!.omc/plans/
+/*/**/.omc/
+.tokensave/
+.omx-state-locks*
+.claude/.headroom_*
+.claude/settings.local.json

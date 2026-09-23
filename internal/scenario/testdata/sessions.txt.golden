@@ -1,0 +1,9 @@
+sessions  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-23T21:40:05+08:00)
+
+[WARN] session.idle_in_txn  会话 236201 处于 idle in transaction 已 1830 秒
+  verify: kbdiag session 236201  # 看它持有哪些锁、有没有挡住别人
+
+session.activity: 2 rows
+pid     usename  datname  application_name     client_addr    backend_type    state                backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+236201  system   test     kbdiag_inj_idle_txn  -              client backend  idle in transaction  5855         5855          1830.4      1830.4       1830.4       Client           ClientRead  select txid_current();
+236188  system   test     ksql                 192.168.105.1  client backend  active               -            5855          0.2         0.2          0.2          -                -           select * from orders where id = 42
