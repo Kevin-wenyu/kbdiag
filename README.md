@@ -89,7 +89,7 @@ pid     locktype  relation                mode                 granted  wait_s  
 
 ## Privileges
 
-Run as `system` over the local socket for the full picture. An account without a monitoring role cannot see other sessions' state, timings or SQL; kbdiag lists those fields under `redacted` and answers UNKNOWN instead of OK. Granting `sys_monitor` lifts this. On a standby, prepared transactions are `not_applicable` (run `txn` on the primary); this does not change the verdict.
+Run as `system` over the local socket for the full picture. An account without a monitoring role cannot see other sessions' state, timings or SQL; kbdiag lists those fields under `redacted` and answers UNKNOWN instead of OK, unless what it can see is already WARN or FAIL. Granting `sys_monitor` lifts this. On a standby, prepared transactions are `not_applicable` (run `txn` on the primary); this does not change the verdict.
 
 ## Requirements
 
@@ -184,7 +184,7 @@ pid     locktype  relation                mode                 granted  wait_s  
 
 ## 权限
 
-以 `system` 走本地 socket 能看到全部信息。没有监控角色的账号看不到别人会话的状态、时间和 SQL；kbdiag 把这些字段列进 `redacted`，结论给 UNKNOWN 而不是 OK。授予 `sys_monitor` 后解除。备库上两阶段事务是 `not_applicable`（到主库跑 `txn`），不影响结论。
+以 `system` 走本地 socket 能看到全部信息。没有监控角色的账号看不到别人会话的状态、时间和 SQL；kbdiag 把这些字段列进 `redacted`，结论给 UNKNOWN 而不是 OK；看得到的部分已经是 WARN 或 FAIL 时照报 WARN 或 FAIL。授予 `sys_monitor` 后解除。备库上两阶段事务是 `not_applicable`（到主库跑 `txn`），不影响结论。
 
 ## 运行要求
 
