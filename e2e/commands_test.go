@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -420,6 +421,22 @@ func TestWaits(t *testing.T) {
 	out, _ := kbdiagText(t, nil, "waits")
 	if !textRow(out, "Lock:"+event, "active", fmt.Sprint(l.waiter)) || !strings.Contains(out, "\nnot shown: ") {
 		t.Errorf("waits text:\n%s", out)
+	}
+	// Activity waits (KES's Activity:KshMain included, whatever its state)
+	// are processes idling: no table row names them. A second run may differ
+	// by a group, so only pids seen in the JSON run are checked.
+	for _, row := range p.rowsOf() {
+		if row["wait_event_type"] != "Activity" {
+			continue
+		}
+		pids, _ := row["pids"].([]any)
+		for _, x := range pids {
+			for _, line := range strings.Split(out, "\n") {
+				if slices.Contains(strings.Fields(line), fmt.Sprint(x)) {
+					t.Errorf("Activity:%v pid %v listed in text: %q", row["wait_event"], x, line)
+				}
+			}
+		}
 	}
 }
 
