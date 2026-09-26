@@ -98,11 +98,11 @@ func (r *Report) WriteText(w io.Writer) error {
 
 // writeNotOK prints a probe that was not collected, with its reason.
 func writeNotOK(w io.Writer, id string, p Probe) {
-	fmt.Fprintf(w, "\n%s: %s", id, p.Status)
-	if p.Reason != nil && *p.Reason != "" {
-		fmt.Fprintf(w, "  (%s)", escapeControl(*p.Reason))
+	reason := ""
+	if p.Reason != nil {
+		reason = *p.Reason
 	}
-	fmt.Fprintln(w)
+	writeNotOKAs(w, id, p.Status, reason)
 }
 
 // writeTables prints each probe as a table, in probe_id order.

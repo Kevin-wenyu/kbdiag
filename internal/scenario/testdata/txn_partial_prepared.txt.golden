@@ -7,5 +7,5 @@ open transactions: 2
   3    app   -         -            disabled  ?     99   -     ?
   4    app   -         -            active    1s    -    100   select 1
 
-prepared: skipped  (timeout 57014)
+txn.prepared: skipped  (timeout 57014)
 redacted: 1 row of session.activity hides state, ages, wait, query (track_activities_off)

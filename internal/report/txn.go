@@ -101,7 +101,7 @@ func (v *txnView) writeOldest(w io.Writer) {
 // not mask; one without either is only counted.
 func (v *txnView) writeOpen(w io.Writer) error {
 	if v.activity.Status != facts.StatusOK {
-		writeNotOKAs(w, "open transactions", v.activity.Status, v.activity.Reason)
+		writeNotOKAs(w, facts.SessionActivityID, v.activity.Status, v.activity.Reason)
 		return nil
 	}
 	var shown []facts.Session
@@ -163,7 +163,7 @@ func (v *txnView) writeOpen(w io.Writer) error {
 
 func (v *txnView) writePrepared(w io.Writer) error {
 	if v.prepared.Status != facts.StatusOK {
-		writeNotOKAs(w, "prepared", v.prepared.Status, v.prepared.Reason)
+		writeNotOKAs(w, facts.TxnPreparedID, v.prepared.Status, v.prepared.Reason)
 		return nil
 	}
 	fmt.Fprintf(w, "\nprepared: %d\n", len(v.prepared.Rows))
@@ -177,7 +177,8 @@ func (v *txnView) writePrepared(w io.Writer) error {
 	return writeTable(w, "  ", []string{"gid", "owner", "database", "age", "xid"}, rows)
 }
 
-// writeNotOKAs prints a section that was not collected under its title.
+// writeNotOKAs prints a probe that was not collected, under its probe_id
+// (the JSON key), with its reason: the same line in every command.
 func writeNotOKAs(w io.Writer, title string, st facts.Status, reason string) {
 	fmt.Fprintf(w, "\n%s: %s", title, st)
 	if reason != "" {

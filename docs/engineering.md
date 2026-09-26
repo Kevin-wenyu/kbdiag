@@ -95,6 +95,9 @@ internal/
                       不允许把"没采到"当成"空结果"判 OK（PRD 原则 3）
   scenario/           场景：声明"这个命令需要哪些 probe、跑哪些 rule"
   report/             输出契约（PRD §5）+ text/json 渲染 + 退出码
+                      每条命令一个专用文本排版（status.go、sessions.go ...），
+                      JSON 统一按 probe 输出原始单位
+  units/              人读的大小和时长（pg_size_pretty 口径），report 和 rule 共用
   （config/）         暂不建：阈值默认值在 rule.Defaults，只用 flag 覆盖；
                       等阈值多了、或确实需要环境变量覆盖时再建
 ```
@@ -152,7 +155,8 @@ Go 表驱动测试，一个 rule 一张表。每张表必须包含以下几类�
 
 ### 6.2 L2 渲染与契约
 
-- **Golden file**：每个 scenario 用一份固定 facts 渲染 text 和 json，与 `testdata/*.golden` 比对；改输出必须显式 `go test -update` 并在 diff 里被审。golden 文件名不属于发布契约
+- **Golden file**：每个 scenario 用一份固定 facts 渲染 text 和 json，与 `testdata/*.golden` 比对；改输出必须显式 `go test -update` 并在 diff 里被审。golden 文件名不属于发布契约。2026-09-26 起，text golden 的 facts 尽量从 `e2e/testdata/captures/`（VM 实采的 `--json`）还原，并且先照实采手排草样、再写代码，让 golden 检验的是"想要的输出"而不是"代码碰巧的输出"
+- **文档一致性（L2）**：`cmd/kbdiag/consistency_test.go` 扫描 rule 和 scenario 里所有 `kbdiag ...` 下一步，逐条用 cobra 解析（命令、参数、位置参数都要合法）；README 两张命令表的参数和 PRD §4 的命令清单必须和二进制一致
 - **JSON 契约测试**：所有命令的 JSON 输出通过同一个 schema 校验；`finding.id` 和 probe_id 列表与已发布清单比对，防止悄悄改名
 - **退出码表测试**：verdict → exit code 映射单独一张表测
 - **流分离**：断言结果只在 stdout、日志只在 stderr

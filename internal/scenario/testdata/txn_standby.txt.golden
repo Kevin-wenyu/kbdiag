@@ -7,4 +7,4 @@ open transactions: 2
   420193  system  test      kbdiag_inj_idle_txn    idle in transaction  10s   -    -     select 1 as kbdiag_last, pg_sleep(1);
   420307  system  test      kbdiag_inj_long_query  active               7s    -    6174  select pg_sleep(3600);
 
-prepared: not_applicable  (备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn)
+txn.prepared: not_applicable  (备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn)
