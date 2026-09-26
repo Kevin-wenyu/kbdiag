@@ -342,11 +342,15 @@ func TestTxnPrepared(t *testing.T) {
 	if got := findings(r, "txn.prepared", "gid", "kbdiag_inj_2pc"); !reflect.DeepEqual(got, []string{"WARN"}) || r.Verdict != "WARN" || code != 1 {
 		t.Errorf("findings=%v verdict=%s exit=%d", got, r.Verdict, code)
 	}
-	// The text names the 2PC in the prepared table and as the oldest xid.
+	// The text names the 2PC in the prepared table and as the oldest xid. On
+	// node1 (2026-09-26) nothing older was open: walsenders and the slot do not
+	// show up there, and a repmgr query caught mid-flight has an xmin no older
+	// than the 2PC's xid, so it can only join the holders.
 	out, _ := kbdiagText(t, nil, "txn")
+	oldest := textLine(out, "oldest")
 	if !strings.Contains(out, "\nprepared: 1\n") || textLine(out, "kbdiag_inj_2pc") == "" ||
-		!strings.Contains(out, "oldest xid: ") {
-		t.Errorf("text lacks the prepared transaction:\n%s", out)
+		!strings.HasPrefix(strings.TrimSpace(oldest), "oldest xid: "+want[2]+"  (") || !strings.Contains(oldest, "2PC kbdiag_inj_2pc") {
+		t.Errorf("text lacks the prepared transaction as the oldest xid %s:\n%s", want[2], out)
 	}
 
 	r, _ = kbdiag(t, nil, "txn")
@@ -368,10 +372,15 @@ func TestTxnLong(t *testing.T) {
 	if got := findings(r, "txn.long", "pid", fp.pid); !reflect.DeepEqual(got, []string{"WARN"}) || r.Verdict != "WARN" {
 		t.Errorf("findings %v verdict=%s, want one WARN", got, r.Verdict)
 	}
-	// The text lists it among the open transactions with its xid.
+	// The text lists it among the open transactions with its xid; a standby
+	// cannot assign one, so there the xid column shows "-".
+	xid := "-"
+	if fp.xid != nil {
+		xid = fmt.Sprint(fp.xid)
+	}
 	out, _ := kbdiagText(t, nil, "txn", "--limit", "0")
-	if !textRow(out, fmt.Sprint(fp.pid), "idle in transaction", fmt.Sprint(fp.xid)) {
-		t.Errorf("text does not list %v with xid %v:\n%s", fp.pid, fp.xid, out)
+	if !textRow(out, fmt.Sprint(fp.pid), "idle in transaction", xid) {
+		t.Errorf("text does not list %v with xid %s:\n%s", fp.pid, xid, out)
 	}
 	r, _ = kbdiag(t, nil, "txn")
 	if got := findings(r, "txn.long", "pid", fp.pid); len(got) != 0 {
