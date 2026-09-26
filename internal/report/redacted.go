@@ -24,7 +24,8 @@ var redactedLabels = map[string][]fieldLabel{
 		{"wait", []string{"wait_event_type", "wait_event"}},
 		{"query", []string{"query"}},
 	},
-	facts.LockListID: {{"wait", []string{"wait_s"}}},
+	facts.LockListID:    {{"wait", []string{"wait_s"}}},
+	facts.WaitSummaryID: {{"wait", []string{"wait_event_type", "wait_event"}}, {"state", []string{"state"}}},
 }
 
 // writeRedacted prints one line per probe and reason instead of one per

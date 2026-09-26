@@ -22,6 +22,7 @@ type Report struct {
 	locks    *locksView
 	session  *sessionView
 	txn      *txnView
+	waits    *waitsView
 }
 
 type Context struct {

@@ -189,6 +189,24 @@ func (c capture) txnPrepared(t *testing.T) facts.TxnPrepared {
 	return p
 }
 
+// waitSummary rebuilds wait.summary from a capture. masked is not in the
+// JSON: a group with no wait event and no state is the masked one (only
+// kbdiag_ro captures have it).
+func (c capture) waitSummary(t *testing.T) facts.WaitSummary {
+	t.Helper()
+	st, reason, rows := c.rows(t, facts.WaitSummaryID)
+	w := facts.WaitSummary{Status: st, Reason: reason}
+	for _, m := range rows {
+		g := facts.Wait{WaitEventType: cStr(m["wait_event_type"]), WaitEvent: cStr(m["wait_event"]), State: cStr(m["state"]),
+			Sessions: int(*cI64(m["sessions"])), PIDs: cI32s(m["pids"])}
+		if g.WaitEventType == nil && g.WaitEvent == nil && g.State == nil && c.Context.User != "system" {
+			g.Masked = g.Sessions
+		}
+		w.Rows = append(w.Rows, g)
+	}
+	return w
+}
+
 // Every capture file parses: a broken one would silently drop coverage.
 func TestCapturesParse(t *testing.T) {
 	names, err := filepath.Glob(filepath.Join("..", "..", "e2e", "testdata", "captures", "*.json"))

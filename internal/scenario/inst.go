@@ -10,6 +10,7 @@ func Waits(c facts.Context, w facts.WaitSummary) *report.Report {
 	rep := report.New("waits", c, rule.Waits(w))
 	rep.AddProbe(facts.WaitSummaryID, w.Status, w.Reason, facts.WaitColumns, rows(w.Rows), 0)
 	rep.AddRedacted(w.Redacted())
+	rep.SetWaits(w)
 	return rep
 }
 

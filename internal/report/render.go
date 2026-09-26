@@ -48,6 +48,12 @@ func (r *Report) WriteText(w io.Writer) error {
 		}
 		writeRedacted(w, r.Redacted)
 		return nil
+	case r.waits != nil:
+		if err := r.waits.write(w); err != nil {
+			return err
+		}
+		writeRedacted(w, r.Redacted)
+		return nil
 	case r.txn != nil:
 		if err := r.txn.write(w); err != nil {
 			return err

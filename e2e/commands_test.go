@@ -395,6 +395,13 @@ func TestWaits(t *testing.T) {
 	if r.Verdict != "OK" || code != 0 || len(r.Findings) != 0 || len(r.Redacted) != 0 {
 		t.Errorf("verdict=%s exit=%d findings=%d redacted=%v", r.Verdict, code, len(r.Findings), r.Redacted)
 	}
+	// The text shows the waiter's group; the idle holder and the background
+	// processes are only counted (Activity waits are processes idling).
+	out, _ := kbdiagText(t, nil, "waits")
+	if !textRow(out, "Lock:"+event, "active", fmt.Sprint(l.waiter)) || !strings.Contains(out, "\nnot shown: ") ||
+		strings.Contains(out, "Activity:") {
+		t.Errorf("waits text:\n%s", out)
+	}
 }
 
 // L4: with track_activities off, waits is skipped and UNKNOWN.

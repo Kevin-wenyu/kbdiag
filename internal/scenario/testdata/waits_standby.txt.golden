@@ -1,0 +1,7 @@
+waits  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:42:37+08:00)
+
+not idle: 1
+  wait           state   sessions  pids
+  Lock:advisory  active  1         422855
+
+not shown: 3 idle, 4 background

@@ -119,6 +119,15 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **被遮蔽的会话照样列**：KES 对非监控账号不遮蔽 backend_xid/backend_xmin（阶段 0 实采），所以有 xid/xmin 的遮蔽会话仍然能说"它在事务里、压着多少"，其余列写 `?`；两者都没有的只计数（`N known, M hidden`）。
 - 和 sessions 的 `session.idle_in_txn` 在默认阈值下必然同时报（附录 A.3），两条回答的问题不同，都保留。
 
+### waits 打磨（2026-09-26）
+
+场景表：W1 此刻在干活的会话在等什么；W2 有没有大量会话堆在同一个等待事件上；W3 是哪些会话。不归 waits：谁挡的 → `locks`；单个会话详情 → `session <pid>`；历史等待 → KSH/KWR（v0.1 不做）。
+
+- **只列在干活的组**：idle 会话的 `Client:ClientRead` 和后台进程的 `Activity:*` 占了原来输出的大半，却不回答"卡在哪"。`Activity` 类等待按 PG/KES 的定义是进程在主循环里空闲（walsender、checkpointer 等），归后台；state 为空的也归后台。它们合成一行 `not shown: N idle, M background`。
+- **排序**：会话数多的在前（堆积最显眼），同数时 active 在前；active 却没有等待事件的写 `(running)`（在 CPU 上或这段代码没埋点）。pids 最多列 10 个，其余写 `... (+N)`，JSON 全有。
+- **没有判定，没有参数**：等待事件本身没有客观线（同样 10 个会话等 IO，对一个库是事故，对另一个库是常态）；锁等太久由 locks 报。看不全（遮蔽、untracked）照旧 UNKNOWN。
+- JSON 不变。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

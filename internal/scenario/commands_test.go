@@ -500,3 +500,47 @@ func TestTxnTextEdges(t *testing.T) {
 	assertGolden(t, "txn_edges", Txn(c, a, p, TxnOptions{Limit: 2, Thresholds: rule.Defaults}))
 	assertGolden(t, "txn_edges_all", Txn(c, a, p, TxnOptions{Limit: 0, Thresholds: rule.Defaults}))
 }
+
+// The first five goldens were drawn by hand from the stage-0 captures
+// before the code existed.
+func TestWaitsText(t *testing.T) {
+	for _, x := range []struct{ golden, capture string }{
+		{"waits_primary", "waits_node1_lock"},
+		{"waits_primary_clean", "waits_node1_clean"},
+		{"waits_standby", "waits_node2_lock"},
+		{"waits_ro", "waits_node1_lock_ro"},
+		{"waits_idletxn_longq", "waits_node1_idletxn_longq"},
+		{"waits_untracked", "waits_node1_untracked"},
+		{"waits_trackoff", "waits_node1_trackoff"},
+	} {
+		t.Run(x.golden, func(t *testing.T) {
+			c := loadCapture(t, x.capture)
+			assertGolden(t, x.golden, Waits(c.context(t), c.waitSummary(t)))
+		})
+	}
+}
+
+// A pile-up on one event, sessions running on CPU, many pids, a masked
+// group mixed with visible background rows, and odd states.
+func TestWaitsTextEdges(t *testing.T) {
+	c, _ := locksCapture(t, "locks_node1_clean")
+	pids := make([]int32, 40)
+	for i := range pids {
+		pids[i] = int32(1000 + i)
+	}
+	w := facts.WaitSummary{Status: facts.StatusOK, Rows: []facts.Wait{
+		{WaitEventType: str("Lock"), WaitEvent: str("transactionid"), State: str("active"), Sessions: 40, PIDs: pids},
+		{State: str("active"), Sessions: 3, PIDs: []int32{7, 8, 9}}, // running, no wait event
+		{WaitEventType: str("LWLock"), WaitEvent: str("buffer_content"), State: str("active"), Sessions: 3, PIDs: []int32{4, 5, 6}},
+		{WaitEventType: str("Client"), WaitEvent: str("ClientRead"), State: str("idle in transaction (aborted)"), Sessions: 1, PIDs: []int32{3}},
+		{State: str("fastpath function call"), Sessions: 1, PIDs: []int32{2}},
+		{Sessions: 5, PIDs: []int32{20, 21, 22, 23, 24}, Masked: 3}, // 3 masked, 2 background without an event
+		{WaitEventType: str("Client"), WaitEvent: str("ClientRead"), State: str("idle"), Sessions: 9, PIDs: []int32{30}},
+	}}
+	rep := Waits(c, w)
+	if rep.Verdict != rule.VerdictUNKNOWN {
+		t.Errorf("verdict = %s", rep.Verdict)
+	}
+	assertGolden(t, "waits_edges", rep)
+	assertGolden(t, "waits_empty", Waits(c, facts.WaitSummary{Status: facts.StatusOK}))
+}
