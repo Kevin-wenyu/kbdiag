@@ -158,6 +158,21 @@ func (c capture) sessionActivity(t *testing.T) facts.SessionActivity {
 	return a
 }
 
+// lockList rebuilds lock.list from a capture. masked is not in the JSON: a
+// waiting row without wait_s is masked (only kbdiag_ro captures have them).
+func (c capture) lockList(t *testing.T) facts.LockList {
+	t.Helper()
+	st, reason, rows := c.rows(t, facts.LockListID)
+	l := facts.LockList{Status: st, Reason: reason}
+	for _, m := range rows {
+		x := facts.Lock{PID: cI32(m["pid"]), Locktype: m["locktype"].(string), Relation: cStr(m["relation"]),
+			Mode: m["mode"].(string), Granted: m["granted"].(bool), WaitS: cF64(m["wait_s"]), BlockedBy: cI32s(m["blocked_by"])}
+		x.Masked = !x.Granted && x.WaitS == nil
+		l.Rows = append(l.Rows, x)
+	}
+	return l
+}
+
 // Every capture file parses: a broken one would silently drop coverage.
 func TestCapturesParse(t *testing.T) {
 	names, err := filepath.Glob(filepath.Join("..", "..", "e2e", "testdata", "captures", "*.json"))

@@ -85,6 +85,16 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **downstreams 的 `sync_state` 不翻译**：repmgr 下实测是 `quorum`，不是 `sync`/`async`，翻译会丢信息。
 - **status 有专用的文本排版**（`internal/report/status.go`）：单行数据用键值、大小按 1024 进位（和 `pg_size_pretty` 一致）、时长留两个最大单位、各段按问题的先后排（备库上游在前，主库下游在前）。JSON 不变形，保留字节和秒。后面 6 条命令打磨时照这个模板。
 
+### locks 打磨（2026-09-26）
+
+场景表：L1 有没有人在等锁；L2 谁是罪魁（挡的人最多）、它持有什么；L3 每个等锁的会话等什么、等多久、被谁直接挡住；L4 挡路者在干什么 → `kbdiag session <pid>`（finding 的 next）。不归 locks：多级链 → v0.2 `locks --tree`；长事务 → `txn`；大家在等什么事件 → `waits`。
+
+- **文本先列 blockers，再列 waiting**：出事时第一问是"谁挡的"，而一个挡路者常挡住几十个会话，逐行看 waiting 数不出来。blockers 按挡住的会话数排，列出它在这些会话想要的对象上持有的锁；它自己也在排队时写 `(queued ahead for ...)`：`sys_blocking_pids()` 会把排在前面、锁模式冲突的等待者也算作挡路者。2PC 挡路者（pid 0）写成 `2PC`。
+- **waiting 按等待时长排**，最久的在前；看不到时长（遮蔽、untracked）写 `?`。`--limit` 只裁 waiting 列表。
+- **JSON 不变**：lock.list 仍是等锁的行加挡路者在同一对象上的锁。
+- **`lock.waiting` 保留 WARN、10 秒和 `--lock-wait-warn`**（待用户确认）：没有服务器端的客观线（`lock_timeout` 由各应用自己设，kbdiag 看不到；`deadlock_timeout` 是死锁检测的间隔，不是"等太久"）。等锁 10 秒对 OLTP 来说已经是事故，对批处理可能正常，所以不升 FAIL；10 秒是滤掉行锁瞬时争用的下限，不是容量线，和 idle in transaction 的 300 秒同一个道理。参数保留，因为批处理库会想调高。
+- advisory 等没有 relation 的锁只按锁类型比对象（lock.list 没带 objid），同一挡路者的几个 advisory 锁会一起列在 holds 里。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

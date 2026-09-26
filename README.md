@@ -38,7 +38,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `status` | Version, data directory, port, role; each standby (on a primary) or the WAL upstream (on a standby); uptime, connections used / usable, database sizes, disk of the data directory (local runs only). FAIL when ordinary users can no longer connect; WARN when a standby is not receiving WAL | |
 | `sessions` | Who holds the connections (counted by user, database, application, client), then the client sessions that are not idle, longest transaction first; WARN on long idle in transaction. JSON always carries every session | `--all`, `--limit N`, `--idle-in-txn-warn S` |
 | `session <pid>` | One session: its activity, its locks, whom it blocks or is blocked by | `--lock-wait-warn S`, `--idle-in-txn-warn S` |
-| `locks` | Lock waits and their direct blockers; WARN on long waits | `--limit N`, `--lock-wait-warn S` |
+| `locks` | Who blocks the most (and what it holds), then every lock wait, longest first, with its direct blockers; WARN on long waits | `--limit N`, `--lock-wait-warn S` |
 | `txn` | Open transactions and prepared (2PC) ones; WARN/FAIL on old ones | `--limit N`, `--xact-warn S`, `--xact-fail S`, `--prepared-fail S` |
 | `waits` | Sessions grouped by wait event and state | |
 | `slots` | Replication slots; FAIL on inactive ones | |
@@ -61,20 +61,23 @@ The password comes from `PGPASSWORD` or `~/.pgpass`. Every connection is a read-
 ## Output
 
 ```text
-locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-24T04:38:53+08:00)
+locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:41+08:00)
 
-[WARN] lock.waiting  会话 364818 等 public.kbdiag_inj_lock 的 AccessShareLock 已 14 秒，被 364809 挡住
-  verify: kbdiag session 364809  # 看挡路的会话在干什么
+[WARN] lock.waiting  会话 803890 等 public.kbdiag_inj_lock 的 AccessShareLock 已 14 秒，被 803881 挡住
+  verify: kbdiag session 803881  # 看挡路的会话在干什么
 
-lock.list: 2 rows
-pid     locktype  relation                mode                 granted  wait_s  blocked_by
-364809  relation  public.kbdiag_inj_lock  AccessExclusiveLock  true     -       []
-364818  relation  public.kbdiag_inj_lock  AccessShareLock      false    13.8    [364809]
+blockers: 1
+  pid     blocks  holds
+  803881  1       public.kbdiag_inj_lock AccessExclusiveLock
+
+waiting: 1
+  pid     object                  wants            waited  blocked by
+  803890  public.kbdiag_inj_lock  AccessShareLock  14s     803881
 ```
 
 - First line: command, verdict, and context (version, role, user@location, collection time).
 - Findings: an id, a symptom (in Chinese), and a `verify` or `fix` next step.
-- Data: one table per probe; `-` is null. `--json` gives the same content with stable field names.
+- Data: laid out for reading, sizes and durations in readable units; `-` is null, `?` is hidden from this account. `--json` gives every probe's raw table (bytes, seconds) with stable field names.
 
 ## Exit codes
 
@@ -133,7 +136,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `status` | 版本、数据目录、端口、角色；主库列出每个备库，备库看上游在不在收 WAL；运行时长、连接数已用/可用、各库大小、数据目录所在磁盘（只在本机运行时有）。普通用户已经连不上报 FAIL，备库没在收 WAL 报 WARN | |
 | `sessions` | 连接是谁占的（按用户、库、应用、客户端计数），再列出不是 idle 的客户端会话，事务最长的在前；idle in transaction 过久报 WARN。JSON 总是全部会话 | `--all`、`--limit N`、`--idle-in-txn-warn 秒` |
 | `session <pid>` | 一个会话：活动、持有的锁、挡住谁或被谁挡住 | `--lock-wait-warn 秒`、`--idle-in-txn-warn 秒` |
-| `locks` | 锁等待和直接挡路者；等太久报 WARN | `--limit N`、`--lock-wait-warn 秒` |
+| `locks` | 谁挡的人最多、它持有什么锁，再列出每个等锁的会话（等得最久的在前）和直接挡路者；等太久报 WARN | `--limit N`、`--lock-wait-warn 秒` |
 | `txn` | 开着的事务和两阶段事务；过久报 WARN/FAIL | `--limit N`、`--xact-warn 秒`、`--xact-fail 秒`、`--prepared-fail 秒` |
 | `waits` | 按等待事件和状态汇总会话 | |
 | `slots` | 复制槽；未激活报 FAIL | |
@@ -156,20 +159,23 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 ## 输出
 
 ```text
-locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-24T04:38:53+08:00)
+locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:41+08:00)
 
-[WARN] lock.waiting  会话 364818 等 public.kbdiag_inj_lock 的 AccessShareLock 已 14 秒，被 364809 挡住
-  verify: kbdiag session 364809  # 看挡路的会话在干什么
+[WARN] lock.waiting  会话 803890 等 public.kbdiag_inj_lock 的 AccessShareLock 已 14 秒，被 803881 挡住
+  verify: kbdiag session 803881  # 看挡路的会话在干什么
 
-lock.list: 2 rows
-pid     locktype  relation                mode                 granted  wait_s  blocked_by
-364809  relation  public.kbdiag_inj_lock  AccessExclusiveLock  true     -       []
-364818  relation  public.kbdiag_inj_lock  AccessShareLock      false    13.8    [364809]
+blockers: 1
+  pid     blocks  holds
+  803881  1       public.kbdiag_inj_lock AccessExclusiveLock
+
+waiting: 1
+  pid     object                  wants            waited  blocked by
+  803890  public.kbdiag_inj_lock  AccessShareLock  14s     803881
 ```
 
 - 第一行：命令、结论和上下文（版本、角色、用户@位置、采集时间）。
 - finding：编号、症状、下一步（`verify` 看什么或 `fix` 怎么处理）。
-- 数据：每个探针一张表，`-` 表示空值。`--json` 内容相同，字段名稳定。
+- 数据：按阅读排版，大小和时长换成易读单位；`-` 表示空值，`?` 表示当前账号看不到。`--json` 给每个探针的原始表（字节、秒），字段名稳定。
 
 ## 退出码
 

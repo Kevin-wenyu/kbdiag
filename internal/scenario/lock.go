@@ -77,6 +77,7 @@ func Locks(c facts.Context, l facts.LockList, o LocksOptions) *report.Report {
 	}
 	rep.AddProbe(facts.LockListID, l.Status, l.Reason, facts.LockColumns, rows(shown), o.Limit)
 	rep.AddRedacted(l.Redacted())
+	rep.SetLocks(l.Rows, o.Limit)
 	return rep
 }
 

@@ -1,0 +1,22 @@
+locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:48+08:00)
+
+[WARN] lock.waiting  会话 101 等 public.orders 的 RowExclusiveLock 已 120 秒，被 100 挡住
+  verify: kbdiag session 100  # 看挡路的会话在干什么
+
+[WARN] lock.waiting  会话 102 等 public.orders 的 AccessShareLock 已 30 秒，被 100、101 挡住
+  verify: kbdiag session 100  # 看挡路的会话在干什么
+  verify: kbdiag session 101  # 看挡路的会话在干什么
+
+blockers: 3
+  pid  blocks  holds
+  100  3       public.orders AccessExclusiveLock
+  101  2       (queued ahead for public.orders RowExclusiveLock)
+  2PC  1       public.长表名 ShareLock
+
+waiting: 5
+  pid  object         wants             waited  blocked by
+  101  public.orders  RowExclusiveLock  2m 0s   100
+  102  public.orders  AccessShareLock   30s     100, 101
+  105  transactionid  ShareLock         5s      -
+... 2 more rows not shown (use --limit 0 to show all)
+redacted: 1 row of lock.list hides wait (insufficient_privilege; grant sys_monitor)

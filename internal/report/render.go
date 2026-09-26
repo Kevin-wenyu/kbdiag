@@ -44,7 +44,13 @@ func (r *Report) WriteText(w io.Writer) error {
 		if err := r.sessions.write(w, r.Data[facts.SessionActivityID]); err != nil {
 			return err
 		}
-		writeSessionsRedacted(w, r.Redacted)
+		writeRedacted(w, r.Redacted)
+		return nil
+	case r.locks != nil:
+		if err := r.locks.write(w, r.Data[facts.LockListID]); err != nil {
+			return err
+		}
+		writeRedacted(w, r.Redacted)
 		return nil
 	case r.Command == "status":
 		if err := r.writeStatus(w); err != nil {

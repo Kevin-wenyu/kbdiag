@@ -1,0 +1,12 @@
+locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:41+08:00)
+
+[WARN] lock.waiting  会话 803890 等 public.kbdiag_inj_lock 的 AccessShareLock 已 14 秒，被 803881 挡住
+  verify: kbdiag session 803881  # 看挡路的会话在干什么
+
+blockers: 1
+  pid     blocks  holds
+  803881  1       public.kbdiag_inj_lock AccessExclusiveLock
+
+waiting: 1
+  pid     object                  wants            waited  blocked by
+  803890  public.kbdiag_inj_lock  AccessShareLock  14s     803881

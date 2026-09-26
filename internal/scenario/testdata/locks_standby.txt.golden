@@ -1,0 +1,12 @@
+locks  WARN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:42:43+08:00)
+
+[WARN] lock.waiting  会话 422855 等 advisory 锁 已 13 秒，被 422846 挡住
+  verify: kbdiag session 422846  # 看挡路的会话在干什么
+
+blockers: 1
+  pid     blocks  holds
+  422846  1       advisory ExclusiveLock
+
+waiting: 1
+  pid     object    wants          waited  blocked by
+  422855  advisory  ExclusiveLock  13s     422846

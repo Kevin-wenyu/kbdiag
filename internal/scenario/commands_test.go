@@ -296,3 +296,62 @@ func TestSlotsMatchesPRD(t *testing.T) {
 	}}}
 	assertPRD(t, "slots", Slots(prdContext("primary", "system", "local", 21, 52, 40), l))
 }
+
+func locksCapture(t *testing.T, name string) (facts.Context, facts.LockList) {
+	t.Helper()
+	c := loadCapture(t, name)
+	return c.context(t), c.lockList(t)
+}
+
+// The first five goldens were drawn by hand from the stage-0 captures
+// before the code existed.
+func TestLocksText(t *testing.T) {
+	lowthr := LocksOptions{Limit: 50, Thresholds: rule.Thresholds{LockWaitWarnS: 1}}
+	for _, x := range []struct{ golden, capture string }{
+		{"locks_primary", "locks_node1_lock_lowthr"},
+		{"locks_primary_clean", "locks_node1_clean"},
+		{"locks_standby", "locks_node2_lock_lowthr"},
+		{"locks_ro", "locks_node1_lock_ro"},
+		{"locks_prepared", "locks_node1_prepared_waiter"},
+	} {
+		t.Run(x.golden, func(t *testing.T) {
+			c, l := locksCapture(t, x.capture)
+			assertGolden(t, x.golden, Locks(c, l, lowthr))
+		})
+	}
+	t.Run("default threshold", func(t *testing.T) {
+		c, l := locksCapture(t, "locks_node1_lock")
+		rep := Locks(c, l, LocksOptions{Limit: 50, Thresholds: rule.Defaults})
+		if rep.Verdict != rule.VerdictOK || len(rep.Findings) != 0 {
+			t.Errorf("a 3.5s wait at the 10s default: verdict=%s findings=%d", rep.Verdict, len(rep.Findings))
+		}
+		assertGolden(t, "locks_below_threshold", rep)
+	})
+	t.Run("probe error", func(t *testing.T) {
+		c, _ := locksCapture(t, "locks_node1_clean")
+		assertGolden(t, "locks_skipped", Locks(c, facts.LockList{Status: facts.StatusError, Reason: "57014: canceling statement due to statement timeout"}, lowthr))
+	})
+}
+
+// A pile-up: one blocker, a waiter queued behind it that also blocks, a
+// prepared transaction, a masked waiter, and --limit trimming the list.
+func TestLocksPileUp(t *testing.T) {
+	c, _ := locksCapture(t, "locks_node1_clean")
+	rel, other := str("public.orders"), str("public.长表名")
+	l := facts.LockList{Status: facts.StatusOK, Rows: []facts.Lock{
+		{PID: i32(100), Locktype: "relation", Relation: rel, Mode: "AccessExclusiveLock", Granted: true},
+		{PID: i32(100), Locktype: "virtualxid", Mode: "ExclusiveLock", Granted: true},
+		{PID: i32(101), Locktype: "relation", Relation: rel, Mode: "RowExclusiveLock", WaitS: f64(120.4), BlockedBy: []int32{100}},
+		{PID: i32(102), Locktype: "relation", Relation: rel, Mode: "AccessShareLock", WaitS: f64(30), BlockedBy: []int32{100, 101}},
+		{PID: i32(103), Locktype: "relation", Relation: rel, Mode: "AccessShareLock", Masked: true, BlockedBy: []int32{100, 101}},
+		{Locktype: "relation", Relation: other, Mode: "ShareLock", Granted: true},
+		{PID: i32(104), Locktype: "relation", Relation: other, Mode: "ExclusiveLock", WaitS: f64(-1), BlockedBy: []int32{0}},
+		{PID: i32(105), Locktype: "transactionid", Mode: "ShareLock", WaitS: f64(5), BlockedBy: nil},
+	}}
+	rep := Locks(c, l, LocksOptions{Limit: 3, Thresholds: rule.Defaults})
+	if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 2 {
+		t.Errorf("verdict=%s findings=%d, want WARN with 101 and 102", rep.Verdict, len(rep.Findings))
+	}
+	assertGolden(t, "locks_pileup", rep)
+	assertGolden(t, "locks_pileup_all", Locks(c, l, LocksOptions{Limit: 0, Thresholds: rule.Defaults}))
+}

@@ -17,7 +17,9 @@ type Report struct {
 	Findings []Finding        `json:"findings"`
 	Redacted []Redacted       `json:"redacted"`
 
-	sessions *sessionsView // text layout of sessions; not part of JSON
+	// text layouts that need more than Data; not part of JSON
+	sessions *sessionsView
+	locks    *locksView
 }
 
 type Context struct {

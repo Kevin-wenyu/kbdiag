@@ -55,6 +55,34 @@ func okProbe(t *testing.T, r report, id string, cols []string) probeData {
 	return p
 }
 
+// textLine returns the first line of text output whose first field is key.
+func textLine(out, key string) string {
+	for _, l := range strings.Split(out, "\n") {
+		if f := strings.Fields(l); len(f) > 0 && f[0] == key {
+			return l
+		}
+	}
+	return ""
+}
+
+// textRow reports whether some line starts with key and contains every want.
+func textRow(out, key string, want ...string) bool {
+	for _, l := range strings.Split(out, "\n") {
+		f := strings.Fields(l)
+		if len(f) == 0 || f[0] != key {
+			continue
+		}
+		ok := true
+		for _, w := range want {
+			ok = ok && strings.Contains(l, w)
+		}
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
 // vmOut runs a command on the node as kingbase and returns its stdout.
 func vmOut(t *testing.T, args ...string) string {
 	t.Helper()
@@ -147,6 +175,23 @@ func TestLocks(t *testing.T) {
 		t.Errorf("verdict=%s exit=%d, want WARN/1", r.Verdict, code)
 	}
 
+	// The text leads with the holder as a blocker, then the waiter.
+	t.Run("text", func(t *testing.T) {
+		out, _ := kbdiagText(t, nil, "locks")
+		holder, waiter := fmt.Sprint(l.holder), fmt.Sprint(l.waiter)
+		object := "advisory"
+		if l.relation != nil {
+			object = fmt.Sprint(l.relation)
+		}
+		if !textRow(out, holder, holder, "1", object) || !textRow(out, waiter, waiter, object, l.mode) ||
+			!strings.Contains(out, "\nblockers: ") || !strings.Contains(out, "\nwaiting: ") {
+			t.Errorf("text lacks blocker %s or waiter %s on %s:\n%s", holder, waiter, object, out)
+		}
+		if !strings.HasSuffix(strings.TrimSpace(textLine(out, waiter)), holder) {
+			t.Errorf("waiter line does not end with its blocker %s:\n%s", holder, out)
+		}
+	})
+
 	t.Run("below the threshold", func(t *testing.T) {
 		r, code := kbdiag(t, nil, "locks", "--lock-wait-warn", "3600")
 		if okProbe(t, r, "lock.list", lockColumns).row("pid", l.waiter) == nil {
@@ -174,6 +219,10 @@ func TestLocksBlockedByPrepared(t *testing.T) {
 	}
 	if got := findings(r, "lock.waiting", "blocker_pids", []any{0.0}); len(got) != 1 {
 		t.Errorf("blocker_pids is not [0]: %+v", r.Findings)
+	}
+	out, _ := kbdiagText(t, nil, "locks")
+	if !strings.Contains(out, "\n  2PC ") || !strings.HasSuffix(strings.TrimSpace(textLine(out, fmt.Sprint(waiter))), "2PC") {
+		t.Errorf("text does not name the prepared transaction as 2PC:\n%s", out)
 	}
 }
 
