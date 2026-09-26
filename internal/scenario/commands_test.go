@@ -595,7 +595,11 @@ func TestSlotsTextEdges(t *testing.T) {
 	c, _ := locksCapture(t, "locks_node1_clean")
 	l := facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{
 		{Name: "a_active", Type: "physical", Active: true, ActivePID: i32(10), Xmin: xid(100), XminAge: i32(5), RestartLSN: str("0/10"), RetainedWALBytes: i64(1 << 20)},
-		{Name: "b_logical", Type: "logical", CatalogXmin: xid(90), XminAge: i32(15), RestartLSN: str("0/9"), RetainedWALBytes: i64(3 << 30)},
+		{Name: "b_logical", Type: "logical", CatalogXmin: xid(90), RestartLSN: str("0/9"), RetainedWALBytes: i64(3 << 30)},
+		// a standby's replay can pass a slot's restart_lsn for a moment
+		{Name: "d_ahead", Type: "physical", RestartLSN: str("0/7"), RetainedWALBytes: i64(-5)},
+		// active without a pid, and a tie on retained WAL broken by name
+		{Name: "f_tie", Type: "physical", Active: true, RetainedWALBytes: i64(1 << 20)},
 		{Name: "c_never_used", Type: "physical"},
 		{Name: strings.Repeat("备库槽", 15), Type: "physical", RestartLSN: str("0/8"), RetainedWALBytes: i64(20 << 20)},
 	}}

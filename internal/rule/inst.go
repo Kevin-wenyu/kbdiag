@@ -118,7 +118,8 @@ func Slots(l facts.SlotList) Result {
 		if s.RetainedWALBytes == nil {
 			symptom += "未保留 WAL"
 		} else {
-			symptom += "保留 " + units.Bytes(float64(*s.RetainedWALBytes)) + " WAL"
+			// a standby's replay can pass restart_lsn for a moment
+			symptom += "保留 " + units.Bytes(max(0, float64(*s.RetainedWALBytes))) + " WAL"
 		}
 		if s.Xmin != nil {
 			symptom += fmt.Sprintf("，xmin %d 压着视界", *s.Xmin)

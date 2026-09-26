@@ -196,6 +196,8 @@ func TestSlots(t *testing.T) {
 			[]string{"复制槽 d 未激活，保留 45 kB WAL"}},
 		{"inactive logical slot", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "l", Type: "logical", CatalogXmin: xid(90), RetainedWALBytes: i64(0)}}}, VerdictWARN,
 			[]string{"复制槽 l 未激活，保留 0 bytes WAL，catalog_xmin 90 压着系统表的视界"}},
+		{"inactive, replay ahead of restart_lsn", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "n", RetainedWALBytes: i64(-5)}}}, VerdictWARN,
+			[]string{"复制槽 n 未激活，保留 0 bytes WAL"}},
 		{"inactive, gigabytes", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "e", RetainedWALBytes: i64(12 << 30)}}}, VerdictWARN,
 			[]string{"复制槽 e 未激活，保留 12 GB WAL"}},
 		{"error", facts.SlotList{Status: facts.StatusError}, VerdictUNKNOWN, nil},

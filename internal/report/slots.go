@@ -33,7 +33,7 @@ func (v *slotsView) write(w io.Writer) error {
 		if (a.RetainedWALBytes == nil) != (b.RetainedWALBytes == nil) {
 			return a.RetainedWALBytes != nil
 		}
-		if a.RetainedWALBytes != nil && *a.RetainedWALBytes != *b.RetainedWALBytes {
+		if a.RetainedWALBytes != nil && max(0, *a.RetainedWALBytes) != max(0, *b.RetainedWALBytes) {
 			return *a.RetainedWALBytes > *b.RetainedWALBytes
 		}
 		return a.Name < b.Name
@@ -60,7 +60,7 @@ func (v *slotsView) write(w io.Writer) error {
 		}
 		retained := "-"
 		if s.RetainedWALBytes != nil {
-			retained = size(float64(*s.RetainedWALBytes))
+			retained = size(max(0, float64(*s.RetainedWALBytes))) // see rule.Slots
 		}
 		row := []string{fitWidth(escapeControl(s.Name), maxName), cell(s.Type), active, retained, cell(s.Xmin)}
 		if catalog {
