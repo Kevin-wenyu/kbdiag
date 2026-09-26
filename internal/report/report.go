@@ -21,6 +21,7 @@ type Report struct {
 	sessions *sessionsView
 	locks    *locksView
 	session  *sessionView
+	txn      *txnView
 }
 
 type Context struct {

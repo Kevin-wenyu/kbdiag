@@ -18,7 +18,7 @@ func preps(rows ...facts.Prepared) facts.TxnPrepared {
 	return facts.TxnPrepared{Status: facts.StatusOK, Rows: rows}
 }
 
-var tth = Thresholds{XactWarnS: 300, XactFailS: 1800, PreparedFailS: 900}
+var tth = Thresholds{XactWarnS: 300, PreparedWarnS: 900}
 
 func TestTxn(t *testing.T) {
 	none := preps()
@@ -37,19 +37,19 @@ func TestTxn(t *testing.T) {
 		// boundaries
 		{"just below warn", ok(inTxn(1, 299.9)), none, VerdictOK, nil},
 		{"at warn", ok(inTxn(1, 300)), none, VerdictWARN, []string{"txn.long:WARN:1"}},
-		{"just below fail", ok(inTxn(1, 1799.9)), none, VerdictWARN, []string{"txn.long:WARN:1"}},
-		{"at fail", ok(inTxn(1, 1800)), none, VerdictFAIL, []string{"txn.long:FAIL:1"}},
+		{"30 minutes is still WARN", ok(inTxn(1, 1800)), none, VerdictWARN, []string{"txn.long:WARN:1"}},
+		{"a day is still WARN", ok(inTxn(1, 86400)), none, VerdictWARN, []string{"txn.long:WARN:1"}},
 		{"idle in txn is a long txn too", ok(facts.Session{PID: 2, State: str("idle in transaction"), XactAgeS: f64(400)}), none, VerdictWARN, []string{"txn.long:WARN:2"}},
 		{"prepared just below", ok(), preps(prep("g", 899.9)), VerdictOK, nil},
-		{"prepared at fail", ok(), preps(prep("g", 900)), VerdictFAIL, []string{"txn.prepared:FAIL:g"}},
-		{"both kinds", ok(inTxn(1, 301)), preps(prep("g", 1e7)), VerdictFAIL, []string{"txn.long:WARN:1", "txn.prepared:FAIL:g"}},
+		{"prepared at warn", ok(), preps(prep("g", 900)), VerdictWARN, []string{"txn.prepared:WARN:g"}},
+		{"both kinds", ok(inTxn(1, 301)), preps(prep("g", 1e7)), VerdictWARN, []string{"txn.long:WARN:1", "txn.prepared:WARN:g"}},
 		// null / illegal values
 		{"null xact age", ok(facts.Session{PID: 1, State: str("active"), BackendXmin: xid(1)}), none, VerdictOK, nil},
 		{"negative age", ok(inTxn(1, -3)), preps(prep("g", -3)), VerdictOK, nil},
 		// hidden rows: masked, and untracked whose xact age is stale
 		{"masked row", ok(masked(1)), none, VerdictUNKNOWN, nil},
 		{"untracked row with stale age", ok(facts.Session{PID: 1, State: str("disabled"), XactAgeS: f64(99999)}), none, VerdictUNKNOWN, nil},
-		{"masked row but a visible FAIL", ok(masked(1), inTxn(2, 2000)), none, VerdictFAIL, []string{"txn.long:FAIL:2"}},
+		{"masked row but a visible WARN", ok(masked(1), inTxn(2, 2000)), none, VerdictWARN, []string{"txn.long:WARN:2"}},
 		// collection status
 		{"standby: prepared not applicable", ok(), na, VerdictOK, nil},
 		{"standby: long txn still judged", ok(inTxn(1, 301)), na, VerdictWARN, []string{"txn.long:WARN:1"}},

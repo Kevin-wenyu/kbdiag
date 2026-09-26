@@ -48,7 +48,7 @@
 | `sessions`（`--all` 列出全部会话，含 idle 和后台进程；只影响文本，JSON 总是全部会话） | 连接是谁占的（按用户/库/应用/客户端汇总），谁在干活、干了多久，谁 idle in txn | `session.activity` | 正常 |
 | `session <pid>` | 这个会话是谁、在干什么、干了多久、完整 SQL；在等什么锁、被谁挡住；挡住了谁；持有哪些锁。文本按这个顺序排；指向它自己的 next 去掉（JSON 的 `findings[].next` 也少了这一条，其余 JSON 不变） | `session.activity`、`lock.list` | 正常 |
 | `locks` | 谁挡的人最多、它持有什么锁；谁在等锁、直接被谁挡住（一层）、等了多久。文本先列挡路者（按挡住的会话数排），再列等锁的会话（等得最久的在前）；JSON 不变 | `lock.list` | 正常 |
-| `txn` | 长事务、idle in txn、最老的 backend_xmin、未结束的 2PC | `session.activity`、`txn.prepared` | 2PC 部分 `not_applicable`，提示去主库查 |
+| `txn` | 谁压着 vacuum 视界（最老的 xid/xmin 和持有者）、开着的事务、未结束的 2PC；长事务和 2PC 都只报 WARN（2026-09-26 起不再 FAIL） | `session.activity`、`txn.prepared` | 2PC 部分 `not_applicable`，提示去主库查 |
 | `waits` | 此刻各会话在等什么（汇总） | `wait.summary` | 正常 |
 | `status` | 刚登上实例时的基本盘：身份（短版本号、数据目录、端口）、角色和复制（主库列出每个备库，备库看上游在不在收 WAL）、启动时间、连接数/可用数、各库大小、数据目录所在磁盘。只判两条：普通用户已经连不上（`inst.connections` FAIL），备库没在收 WAL（`inst.upstream` WARN）；没有参数 | `inst.info`、`inst.downstreams`、`inst.upstream`、`inst.databases`、`inst.disk` | 主库上 `inst.upstream` 为 `not_applicable`；远程运行时 `inst.disk` 为 `not_applicable` |
 | `slots` | 复制槽是否活跃、保留多少 WAL、xmin 是否压着视界 | `slot.list` | 正常；WAL 保留量改用 `sys_last_wal_replay_lsn()` 计算 |

@@ -1,0 +1,24 @@
+txn  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:48+08:00)
+
+[WARN] txn.long  会话 1 的事务已开了 7200 秒，当前 active
+  verify: kbdiag session 1  # 看它在跑什么、持有哪些锁、有没有挡住别人
+
+[WARN] txn.long  会话 2 的事务已开了 3600 秒，当前 active
+  verify: kbdiag session 2  # 看它在跑什么、持有哪些锁、有没有挡住别人
+
+[WARN] txn.prepared  两阶段事务 g'\x1b1 已 prepare 3600 秒未结束，压着视界
+  fix: ROLLBACK PREPARED 'g''\x1b1'  # 先和应用确认它该提交还是回滚（提交用 COMMIT PREPARED）；要连到库 test 执行，且不能放在事务块里
+
+oldest xid: 4294967290  (1 xid, 2 xmin)
+
+open transactions: 4 known, 1 hidden
+  pid  user  database  application                    state   xact   xid         xmin        sql
+  1    app   库        报表报表报表报表报表报表报...  active  2h 0m  4294967290  -           update t set x = x + 1
+  2    app   库        报表报表报表报表报表报表报...  active  1h 0m  5           4294967290  update t set x = x + 1
+  3    app   库        报表报表报表报表报表报表报...  active  1m 0s  -           10          update t set x = x + 1
+  4    -     -         -                              -       -      -           4294967295  -
+
+prepared: 1
+  gid      owner  database  age    xid
+  g'\x1b1  app    test      1h 0m  4294967291
+redacted: 1 row of session.activity hides state, backend_type, client_addr, ages, wait, query (insufficient_privilege; grant sys_monitor)

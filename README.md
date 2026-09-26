@@ -39,11 +39,11 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `sessions` | Who holds the connections (counted by user, database, application, client), then the client sessions that are not idle, longest transaction first; WARN on long idle in transaction. JSON always carries every session | `--all`, `--limit N`, `--idle-in-txn-warn S` |
 | `session <pid>` | One session: who and what it is, its full SQL, the lock it waits for and who blocks it, whom it blocks, what it holds | `--lock-wait-warn S`, `--idle-in-txn-warn S` |
 | `locks` | Who blocks the most (and what it holds), then every lock wait, longest first, with its direct blockers; WARN on long waits | `--limit N`, `--lock-wait-warn S` |
-| `txn` | Open transactions and prepared (2PC) ones; WARN/FAIL on old ones | `--limit N`, `--xact-warn S`, `--xact-fail S`, `--prepared-fail S` |
+| `txn` | The oldest xid holding back vacuum and who holds it, open transactions, prepared (2PC) ones; WARN on old ones | `--limit N`, `--xact-warn S`, `--prepared-warn S` |
 | `waits` | Sessions grouped by wait event and state | |
 | `slots` | Replication slots; FAIL on inactive ones | |
 
-Defaults: idle in transaction 300 s, lock wait 10 s, transaction 300 s (WARN) / 1800 s (FAIL), prepared transaction 900 s (FAIL). `--limit` only trims what is shown; findings always cover every row.
+Defaults: idle in transaction 300 s, lock wait 10 s, transaction 300 s, prepared transaction 900 s, all WARN. `--limit` only trims what is shown; findings always cover every row.
 
 ## Connection
 
@@ -137,11 +137,11 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `sessions` | 连接是谁占的（按用户、库、应用、客户端计数），再列出不是 idle 的客户端会话，事务最长的在前；idle in transaction 过久报 WARN。JSON 总是全部会话 | `--all`、`--limit N`、`--idle-in-txn-warn 秒` |
 | `session <pid>` | 一个会话：是谁、在干什么、完整 SQL，在等什么锁、被谁挡住，挡住了谁，持有哪些锁 | `--lock-wait-warn 秒`、`--idle-in-txn-warn 秒` |
 | `locks` | 谁挡的人最多、它持有什么锁，再列出每个等锁的会话（等得最久的在前）和直接挡路者；等太久报 WARN | `--limit N`、`--lock-wait-warn 秒` |
-| `txn` | 开着的事务和两阶段事务；过久报 WARN/FAIL | `--limit N`、`--xact-warn 秒`、`--xact-fail 秒`、`--prepared-fail 秒` |
+| `txn` | 最老的 xid 压着 vacuum、是谁压的，开着的事务，两阶段事务；过久报 WARN | `--limit N`、`--xact-warn 秒`、`--prepared-warn 秒` |
 | `waits` | 按等待事件和状态汇总会话 | |
 | `slots` | 复制槽；未激活报 FAIL | |
 
-默认阈值：idle in transaction 300 秒，等锁 10 秒，事务 300 秒 WARN、1800 秒 FAIL，两阶段事务 900 秒 FAIL。`--limit` 只影响显示，判定始终覆盖全部行。
+默认阈值：idle in transaction 300 秒，等锁 10 秒，事务 300 秒，两阶段事务 900 秒，都报 WARN。`--limit` 只影响显示，判定始终覆盖全部行。
 
 ## 连接
 

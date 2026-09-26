@@ -451,3 +451,52 @@ func TestSessionTextEdges(t *testing.T) {
 	rep, _ = Session(c, bare, facts.LockList{Status: facts.StatusOK}, SessionOptions{PID: 7, Thresholds: rule.Defaults})
 	assertGolden(t, "session_bare", rep)
 }
+
+// The first six goldens were drawn by hand from the stage-0 captures before
+// the code existed.
+func TestTxnText(t *testing.T) {
+	low := TxnOptions{Limit: 50, Thresholds: rule.Thresholds{XactWarnS: 1, PreparedWarnS: 1}}
+	def := TxnOptions{Limit: 50, Thresholds: rule.Defaults}
+	for _, x := range []struct {
+		golden, capture string
+		o               TxnOptions
+	}{
+		{"txn_primary", "txn_node1_idletxn_longq_lowthr", low},
+		{"txn_primary_clean", "txn_node1_clean", def},
+		{"txn_prepared", "txn_node1_prepared_lowthr", low},
+		{"txn_standby", "txn_node2_idletxn_longq", def},
+		{"txn_ro", "txn_node1_idletxn_longq_ro", def},
+		{"txn_prepared_waiter", "txn_node1_prepared_waiter", def},
+		{"txn_untracked", "txn_node1_untracked", def},
+		{"txn_trackoff", "txn_node1_trackoff", def},
+	} {
+		t.Run(x.golden, func(t *testing.T) {
+			c := loadCapture(t, x.capture)
+			assertGolden(t, x.golden, Txn(c.context(t), c.sessionActivity(t), c.txnPrepared(t), x.o))
+		})
+	}
+}
+
+// Edge cases: xid wraparound in "oldest xid", background processes holding
+// an xmin, masked rows without xid/xmin, --limit, long values.
+func TestTxnTextEdges(t *testing.T) {
+	c, _ := locksCapture(t, "locks_node1_clean")
+	busy := func(pid int32, xact float64, x, xmin *uint32) facts.Session {
+		return facts.Session{PID: pid, Usename: str("app"), Datname: str("库"), ApplicationName: str(strings.Repeat("报表", 20)),
+			BackendType: str("client backend"), State: str("active"), BackendXID: x, BackendXmin: xmin,
+			XactAgeS: f64(xact), QueryAgeS: f64(xact), StateAgeS: f64(xact), Query: str("update t set x = x + 1")}
+	}
+	a := facts.SessionActivity{Status: facts.StatusOK, Rows: []facts.Session{
+		busy(1, 7200, xid(4294967290), nil), // before the wraparound: the oldest
+		busy(2, 3600, xid(5), xid(4294967290)),
+		busy(3, 60, nil, xid(10)),
+		{PID: 4, BackendType: str("autovacuum worker"), BackendXmin: xid(4294967295)},
+		{PID: 5, Usename: str("other"), Query: str("<insufficient privilege>")},
+		{PID: 6, Usename: str("app"), BackendType: str("client backend"), State: str("idle")},
+	}}
+	p := facts.TxnPrepared{Status: facts.StatusOK, Rows: []facts.Prepared{
+		{GID: "g'\x1b1", Owner: "app", Database: "test", PreparedAt: c.CollectedAt.Add(-time.Hour), AgeS: 3600, Transaction: 4294967291},
+	}}
+	assertGolden(t, "txn_edges", Txn(c, a, p, TxnOptions{Limit: 2, Thresholds: rule.Defaults}))
+	assertGolden(t, "txn_edges_all", Txn(c, a, p, TxnOptions{Limit: 0, Thresholds: rule.Defaults}))
+}

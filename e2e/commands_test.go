@@ -314,7 +314,7 @@ func TestTxnPrepared(t *testing.T) {
 	inject(t, "prepared")
 	want := strings.Split(ksql(t, "select owner, database, transaction from sys_prepared_xacts where gid='kbdiag_inj_2pc'"), "|")
 	time.Sleep(1500 * time.Millisecond)
-	r, code := kbdiag(t, nil, "txn", "--prepared-fail", "1")
+	r, code := kbdiag(t, nil, "txn", "--prepared-warn", "1")
 	row := okProbe(t, r, "txn.prepared", preparedColumns).row("gid", "kbdiag_inj_2pc")
 	if row == nil {
 		t.Fatal("injected gid not in txn.prepared")
@@ -328,8 +328,14 @@ func TestTxnPrepared(t *testing.T) {
 	if _, err := time.Parse(time.RFC3339, fmt.Sprint(row["prepared_at"])); err != nil {
 		t.Errorf("prepared_at: %v", err)
 	}
-	if got := findings(r, "txn.prepared", "gid", "kbdiag_inj_2pc"); !reflect.DeepEqual(got, []string{"FAIL"}) || r.Verdict != "FAIL" || code != 2 {
+	if got := findings(r, "txn.prepared", "gid", "kbdiag_inj_2pc"); !reflect.DeepEqual(got, []string{"WARN"}) || r.Verdict != "WARN" || code != 1 {
 		t.Errorf("findings=%v verdict=%s exit=%d", got, r.Verdict, code)
+	}
+	// The text names the 2PC in the prepared table and as the oldest xid.
+	out, _ := kbdiagText(t, nil, "txn")
+	if !strings.Contains(out, "\nprepared: 1\n") || textLine(out, "kbdiag_inj_2pc") == "" ||
+		!strings.Contains(out, "oldest xid: ") {
+		t.Errorf("text lacks the prepared transaction:\n%s", out)
 	}
 
 	r, _ = kbdiag(t, nil, "txn")
@@ -338,22 +344,23 @@ func TestTxnPrepared(t *testing.T) {
 	}
 }
 
-// L4 for txn.long: WARN and FAIL by the transaction's age.
+// L4 for txn.long: WARN by the transaction's age, never FAIL.
 func TestTxnLong(t *testing.T) {
 	inject(t, "idle_txn")
 	fp := idleTxn(t)
 	time.Sleep(1500 * time.Millisecond)
-	r, _ := kbdiag(t, nil, "txn", "--limit", "0", "--xact-warn", "1", "--xact-fail", "3600")
+	r, _ := kbdiag(t, nil, "txn", "--limit", "0", "--xact-warn", "1")
 	row := okProbe(t, r, sessionProbe, sessionColumns).row("pid", fp.pid)
 	if row == nil || row["backend_xid"] != fp.xid {
 		t.Fatalf("injected row = %v", row)
 	}
-	if got := findings(r, "txn.long", "pid", fp.pid); !reflect.DeepEqual(got, []string{"WARN"}) {
-		t.Errorf("WARN band: %v", got)
+	if got := findings(r, "txn.long", "pid", fp.pid); !reflect.DeepEqual(got, []string{"WARN"}) || r.Verdict != "WARN" {
+		t.Errorf("findings %v verdict=%s, want one WARN", got, r.Verdict)
 	}
-	r, _ = kbdiag(t, nil, "txn", "--xact-warn", "1", "--xact-fail", "1")
-	if got := findings(r, "txn.long", "pid", fp.pid); !reflect.DeepEqual(got, []string{"FAIL"}) || r.Verdict != "FAIL" {
-		t.Errorf("FAIL band: %v verdict=%s", got, r.Verdict)
+	// The text lists it among the open transactions with its xid.
+	out, _ := kbdiagText(t, nil, "txn", "--limit", "0")
+	if !textRow(out, fmt.Sprint(fp.pid), "idle in transaction", fmt.Sprint(fp.xid)) {
+		t.Errorf("text does not list %v with xid %v:\n%s", fp.pid, fp.xid, out)
 	}
 	r, _ = kbdiag(t, nil, "txn")
 	if got := findings(r, "txn.long", "pid", fp.pid); len(got) != 0 {

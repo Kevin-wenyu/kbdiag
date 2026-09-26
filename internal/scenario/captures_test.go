@@ -173,6 +173,22 @@ func (c capture) lockList(t *testing.T) facts.LockList {
 	return l
 }
 
+// txnPrepared rebuilds txn.prepared from a capture.
+func (c capture) txnPrepared(t *testing.T) facts.TxnPrepared {
+	t.Helper()
+	st, reason, rows := c.rows(t, facts.TxnPreparedID)
+	p := facts.TxnPrepared{Status: st, Reason: reason}
+	for _, m := range rows {
+		at, err := time.Parse(time.RFC3339, m["prepared_at"].(string))
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.Rows = append(p.Rows, facts.Prepared{GID: m["gid"].(string), Owner: m["owner"].(string), Database: m["database"].(string),
+			PreparedAt: at, AgeS: *cF64(m["age_s"]), Transaction: *cU32(m["transaction"])})
+	}
+	return p
+}
+
 // Every capture file parses: a broken one would silently drop coverage.
 func TestCapturesParse(t *testing.T) {
 	names, err := filepath.Glob(filepath.Join("..", "..", "e2e", "testdata", "captures", "*.json"))

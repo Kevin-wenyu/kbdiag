@@ -8,6 +8,9 @@ import (
 )
 
 // Txn flags long transactions and prepared (2PC) transactions left open.
+// Both are WARN: they hold back the vacuum horizon (and a 2PC its locks),
+// which hurts later, not the business right now; a lock they cause is
+// reported by locks.
 func Txn(a facts.SessionActivity, p facts.TxnPrepared, th Thresholds) Result {
 	return Merge(longTxn(a, th), prepared(p, th))
 }
@@ -27,17 +30,13 @@ func longTxn(a facts.SessionActivity, th Thresholds) Result {
 		if s.XactAgeS == nil || *s.XactAgeS < th.XactWarnS {
 			continue
 		}
-		level := LevelWARN
-		if *s.XactAgeS >= th.XactFailS {
-			level = LevelFAIL
-		}
 		state := "-"
 		if s.State != nil {
 			state = *s.State
 		}
 		fs = append(fs, Finding{
 			ID:      "txn.long",
-			Level:   level,
+			Level:   LevelWARN,
 			Symptom: fmt.Sprintf("会话 %d 的事务已开了 %.0f 秒，当前 %s", s.PID, *s.XactAgeS, state),
 			Evidence: []Evidence{{ProbeID: facts.SessionActivityID, Fields: map[string]any{
 				"pid": s.PID, "state": s.State, "xact_age_s": *s.XactAgeS, "backend_xid": s.BackendXID, "backend_xmin": s.BackendXmin,
@@ -55,13 +54,13 @@ func prepared(p facts.TxnPrepared, th Thresholds) Result {
 	}
 	var fs []Finding
 	for _, x := range p.Rows {
-		if x.AgeS < th.PreparedFailS {
+		if x.AgeS < th.PreparedWarnS {
 			continue
 		}
 		gid := strings.ReplaceAll(x.GID, "'", "''")
 		fs = append(fs, Finding{
 			ID:      "txn.prepared",
-			Level:   LevelFAIL,
+			Level:   LevelWARN,
 			Symptom: fmt.Sprintf("两阶段事务 %s 已 prepare %.0f 秒未结束，压着视界", x.GID, x.AgeS),
 			Evidence: []Evidence{{ProbeID: facts.TxnPreparedID, Fields: map[string]any{
 				"gid": x.GID, "owner": x.Owner, "database": x.Database, "age_s": x.AgeS, "transaction": x.Transaction,

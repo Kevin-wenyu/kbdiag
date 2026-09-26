@@ -1,0 +1,11 @@
+txn  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-26T19:41:13+08:00)
+
+oldest xid: 6170  (801150 xid, 801314 xmin)
+
+open transactions: 2 known, 10 hidden
+  pid     user    database  application            state  xact  xid   xmin  sql
+  801150  system  test      kbdiag_inj_idle_txn    ?      ?     6170  -     ?
+  801314  system  test      kbdiag_inj_long_query  ?      ?     -     6170  ?
+
+prepared: 0
+redacted: 12 rows of session.activity hide state, backend_type, client_addr, ages, wait, query (insufficient_privilege; grant sys_monitor)

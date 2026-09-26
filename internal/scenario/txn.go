@@ -26,5 +26,6 @@ func Txn(c facts.Context, a facts.SessionActivity, p facts.TxnPrepared, o TxnOpt
 	rep.AddProbe(facts.SessionActivityID, a.Status, a.Reason, facts.SessionColumns, rows(shown), o.Limit)
 	rep.AddProbe(facts.TxnPreparedID, p.Status, p.Reason, facts.PreparedColumns, rows(p.Rows), 0)
 	rep.AddRedacted(a.Redacted())
+	rep.SetTxn(a, p, o.Limit)
 	return rep
 }

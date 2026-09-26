@@ -1,0 +1,11 @@
+txn  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:43:05+08:00)
+
+oldest xid: 6175  (2PC kbdiag_inj_2pc, 807225 xmin)
+
+open transactions: 1
+  pid     user    database  application                 state   xact  xid   xmin  sql
+  807225  system  test      kbdiag_inj_prepared_waiter  active  6s    6176  6175  lock table kbdiag_inj_2pc in access exclusive mode;
+
+prepared: 1
+  gid             owner   database  age  xid
+  kbdiag_inj_2pc  system  test      14s  6175

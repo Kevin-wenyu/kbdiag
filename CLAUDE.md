@@ -109,6 +109,16 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **转义也覆盖 finding 行和格式字符**：finding 的症状、next、原因里引用的表名和 gid 同样转义；除 C0/C1 控制字符外，bidi 覆盖字符（U+202E、U+2066–2069）和 U+2028/2029 也显示成转义，防止完整 SQL 块被重新排序。
 - 参数不变（`--lock-wait-warn`、`--idle-in-txn-warn`），判定复用 sessions 和 locks 的规则。
 
+### txn 打磨（2026-09-26）
+
+场景表：T1 谁压着 vacuum 视界（最老的 xid/xmin，谁持有）；T2 哪些事务开着、开了多久、在干什么；T3 有没有遗留的 2PC；T4 备库上 2PC 看不到 → `not_applicable`，去主库。不归 txn：idle in transaction 闲多久 → `sessions`；锁 → `locks`；复制槽的 xmin → `slots`。
+
+- **长事务和 2PC 都只报 WARN**（待用户确认）：按"FAIL = 业务已经受影响"，它们的危害是压住视界（表膨胀、2PC 还占着锁），是以后的事；它们挡住的会话由 locks 的 `lock.waiting` 报。删 `txn.long` 的 1800 秒 FAIL 和 `--xact-fail`；`txn.prepared` 从 FAIL 改 WARN，`--prepared-fail` 改名 `--prepared-warn`（alpha 阶段直接改，不留兼容）。
+- **300 秒和 900 秒保留，参数保留**：没有服务器端的客观线；300 秒会碰上正常的批处理，所以参数留给批处理库调高。保留参数还有一个原因：e2e 要靠把阈值缩到 1 秒来造出 finding（engineering.md §6.5 A）。
+- **文本先给 oldest xid**：`oldest xid: 6170  (801150 xid, 801314 xmin)`，按 2^32 取模比较（和服务器一样），列出持有这个值的所有会话和 2PC。再列开着的事务（有 xact_start、xid 或 xmin 的），最后是 2PC。
+- **被遮蔽的会话照样列**：KES 对非监控账号不遮蔽 backend_xid/backend_xmin（阶段 0 实采），所以有 xid/xmin 的遮蔽会话仍然能说"它在事务里、压着多少"，其余列写 `?`；两者都没有的只计数（`N known, M hidden`）。
+- 和 sessions 的 `session.idle_in_txn` 在默认阈值下必然同时报（附录 A.3），两条回答的问题不同，都保留。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

@@ -187,9 +187,6 @@ func newTxn(g *globalFlags, stdout io.Writer) *cobra.Command {
 		Short: "List open transactions and prepared (2PC) ones; flag long ones",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if o.Thresholds.XactFailS < o.Thresholds.XactWarnS {
-				return fmt.Errorf("--xact-fail (%v) must not be below --xact-warn (%v)", o.Thresholds.XactFailS, o.Thresholds.XactWarnS)
-			}
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
 				return scenario.Txn(info, probe.SessionActivity(ctx, x), probe.TxnPrepared(ctx, x, info), o)
@@ -199,8 +196,7 @@ func newTxn(g *globalFlags, stdout io.Writer) *cobra.Command {
 	limitFlag(c, &o.Limit)
 	f := c.Flags()
 	f.Float64Var(&o.Thresholds.XactWarnS, "xact-warn", rule.Defaults.XactWarnS, "transaction age in seconds before WARN")
-	f.Float64Var(&o.Thresholds.XactFailS, "xact-fail", rule.Defaults.XactFailS, "transaction age in seconds before FAIL")
-	f.Float64Var(&o.Thresholds.PreparedFailS, "prepared-fail", rule.Defaults.PreparedFailS, "prepared transaction age in seconds before FAIL")
+	f.Float64Var(&o.Thresholds.PreparedWarnS, "prepared-warn", rule.Defaults.PreparedWarnS, "prepared transaction age in seconds before WARN")
 	return c
 }
 
