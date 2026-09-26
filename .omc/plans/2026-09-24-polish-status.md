@@ -66,5 +66,6 @@ alpha.1 刚发布，还没有外部使用者，所以一次性改完：
 - 2026-09-26（云会话）：实现和 L1/L2 完成，`go vet ./... && go test ./...` 全绿；PRD §4/§5.1、queries.md、engineering.md、README、CLAUDE.md 已同步；e2e 按新契约改写，只编译过（`go vet -tags vm ./e2e/`），没在 VM 上跑。详情见 `chronicle/2026-09-26.md`"status 打磨：实现"一节。
 - 2026-09-26（本地）：node1/node2 的 e2e 全绿（`-count=1`）。第一轮 `kbdiag_ro` 的 status 子测试失败，原因是预期照 PG 写的，而 KES 对无监控角色也露出复制视图，已改成按 VM 实测断言，产品代码没动。两节点 status 实跑输出和草样一致。详情见 `chronicle/2026-09-26.md`"本地 VM e2e 和实跑输出"一节。
 - 2026-09-26：Codex 审查完成，四条意见都成立：计划过期和 JSON 证据两条已处理；遮蔽分支维持代码级覆盖；`inst.upstream` WARN 没有 KES 验证，是合并门槛（见 chronicle「Codex 审查意见处理」）。
-- 下一步：用户看 VM 输出，并定 WARN 的验收边界 → 写 kbdiag-docs 的 status 页 → 合进 main（等用户确认）→ 删除本计划。
+- 2026-09-26：用户选 A，`inst.upstream` WARN 作为已知限制（理由见 CLAUDE.md）。kbdiag-docs 的 status 页已写好，用 `571d8b2` 在两节点重新实采，推到 kbdiag-docs 的 `status-polish` 分支（`4a54c20`）；没推 `v2`，因为代码还没进 main。
+- 下一步：用户确认 → kbdiag 合进 main → kbdiag-docs 把 `status-polish` 合进 `v2` → 删除本计划。
 - 待用户决定：暂停的 walreceiver 要不要拿 `wal_receiver_timeout` 当客观线；`inst.upstream` 的 WARN 暂时没有注入方法（只记录）。
