@@ -214,7 +214,7 @@ func TestSlots(t *testing.T) {
 				if f.ID != "slot.inactive" || f.Level != LevelWARN {
 					t.Errorf("finding %s/%s", f.ID, f.Level)
 				}
-				for _, k := range []string{"slot_name", "active", "xmin", "retained_wal_bytes"} {
+				for _, k := range []string{"slot_name", "active", "xmin", "catalog_xmin", "retained_wal_bytes"} {
 					if _, ok := f.Evidence[0].Fields[k]; !ok {
 						t.Errorf("evidence missing %s", k)
 					}

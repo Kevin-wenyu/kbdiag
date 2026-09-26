@@ -45,7 +45,7 @@
 
 | 命令 | 回答的问题 | probe_id | 备库上的行为 |
 |---|---|---|---|
-| `sessions`（`--all` 列出全部会话，含 idle 和后台进程；只影响文本，JSON 总是全部会话） | 连接是谁占的（按用户/库/应用/客户端汇总），谁在干活、干了多久，谁 idle in txn | `session.activity` | 正常 |
+| `sessions`（`--all` 列出全部会话，含 idle 和后台进程；只影响文本，JSON 总是全部会话，只受 `--limit` 截断） | 连接是谁占的（按用户/库/应用/客户端汇总），谁在干活、干了多久，谁 idle in txn | `session.activity` | 正常 |
 | `session <pid>` | 这个会话是谁、在干什么、干了多久、完整 SQL；在等什么锁、被谁挡住；挡住了谁；持有哪些锁。文本按这个顺序排；指向它自己的 next 去掉（JSON 的 `findings[].next` 也少了这一条，其余 JSON 不变） | `session.activity`、`lock.list` | 正常 |
 | `locks` | 谁挡的人最多、它持有什么锁；谁在等锁、直接被谁挡住（一层）、等了多久。文本先列挡路者（按挡住的会话数排），再列等锁的会话（等得最久的在前）；JSON 不变 | `lock.list` | 正常 |
 | `txn` | 谁压着 vacuum 视界（最老的 xid/xmin 和持有者）、开着的事务、未结束的 2PC；长事务和 2PC 都只报 WARN（2026-09-26 起不再 FAIL） | `session.activity`、`txn.prepared` | 2PC 部分 `not_applicable`，提示去主库查 |
