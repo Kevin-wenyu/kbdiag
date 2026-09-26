@@ -92,7 +92,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **文本先列 blockers，再列 waiting**：出事时第一问是"谁挡的"，而一个挡路者常挡住几十个会话，逐行看 waiting 数不出来。blockers 按挡住的会话数排，列出它在这些会话想要的对象上持有的锁；它自己也在排队时写 `(queued ahead for ...)`：`sys_blocking_pids()` 会把排在前面、锁模式冲突的等待者也算作挡路者。2PC 挡路者（pid 0）写成 `2PC`。
 - **waiting 按等待时长排**，最久的在前；看不到时长（遮蔽、untracked）写 `?`。`--limit` 只裁 waiting 列表。
 - **JSON 不变**：lock.list 仍是等锁的行加挡路者在同一对象上的锁。
-- **`lock.waiting` 保留 WARN、10 秒和 `--lock-wait-warn`**（待用户确认）：没有服务器端的客观线（`lock_timeout` 由各应用自己设，kbdiag 看不到；`deadlock_timeout` 是死锁检测的间隔，不是"等太久"）。等锁 10 秒对 OLTP 来说已经是事故，对批处理可能正常，所以不升 FAIL；10 秒是滤掉行锁瞬时争用的下限，不是容量线，和 idle in transaction 的 300 秒同一个道理。参数保留，因为批处理库会想调高。
+- **`lock.waiting` 保留 WARN、10 秒和 `--lock-wait-warn`**（用户 2026-09-26 确认）：没有服务器端的客观线（`lock_timeout` 由各应用自己设，kbdiag 看不到；`deadlock_timeout` 是死锁检测的间隔，不是"等太久"）。等锁 10 秒对 OLTP 来说已经是事故，对批处理可能正常，所以不升 FAIL；10 秒是滤掉行锁瞬时争用的下限，不是容量线，和 idle in transaction 的 300 秒同一个道理。参数保留，因为批处理库会想调高。
 - advisory 等没有 relation 的锁只按锁类型比对象（lock.list 没带 objid），同一挡路者的几个 advisory 锁会一起列在 holds 里。几个 2PC 同时挡路时合成一个 `2PC` 挡路者，holds 列出所有 pid 为 NULL 的持锁行。
 - **挡路者去重**：`sys_blocking_pids()` 对每个挡路的 2PC 都报一个 0，并行查询时同一个 pid 也会出现多次；文本、finding 和 evidence 的 `blocker_pids` 都按 `Lock.Blockers()` 去重，JSON 的 `blocked_by` 保留原值。
 - **blocks 数的是进程**：并行查询的 worker 有自己的 pid 和锁行，一条等锁的并行查询会被算成几个；lock.list 没有 leader pid 可以归并，已知限制。
@@ -102,7 +102,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 场景表：P1 这个会话是谁（用户、库、应用、客户端、类型）；P2 在干什么、干了多久、完整 SQL；P3 在等什么锁、被谁挡住；P4 挡住了谁；P5 持有哪些锁。不归它：压着视界多严重 → `txn`；全局谁挡得最多 → `locks`；终止会话 → 不做（只读）。
 
 - **文本是键值块加 sql 块加三段**（waiting for / blocking / holds），段标题带数量；JSON 除了下面去掉的 next 以外不变。sql 不截断、保留原来的换行：这是唯一能看到完整 SQL 的命令。idle 的会话标题写 `last sql`（那条语句已经结束），state 看不到或 untracked 时仍写 `sql`。
-- **看挡路者时 WARN 保留**（阶段 0 的发现）：`session <挡路者>` 带出等待者的 `lock.waiting`，它说的正是"这个会话挡住了别人 N 秒"，是挡路者自己的问题，所以保留 WARN（待用户确认）。
+- **看挡路者时 WARN 保留**（阶段 0 的发现）：`session <挡路者>` 带出等待者的 `lock.waiting`，它说的正是"这个会话挡住了别人 N 秒"，是挡路者自己的问题，所以保留 WARN（用户 2026-09-26 确认）。
 - **指向自己的 next 去掉**：finding 的 next 如果是 `kbdiag session <当前 pid>`（挡路者看到的 lock.waiting、idle in transaction），读者已经在看它了；去掉后可以没有 next。
 - **holds 不列自己的 virtualxid 和 transactionid**，除非有人在等同类型的锁：每个事务都持有这两把，列出来只是噪声；xid 在上面的键值块里。重复的行（子事务的多个 transactionid、同一张表的多个 tuple 锁）只列一次。
 - **行锁写明类型**：有 relation 但不是表锁的（tuple、page）写成 `public.t (tuple)`，否则 `public.t ExclusiveLock` 会被读成表锁；locks 同样。
@@ -113,7 +113,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 场景表：T1 谁压着 vacuum 视界（最老的 xid/xmin，谁持有）；T2 哪些事务开着、开了多久、在干什么；T3 有没有遗留的 2PC；T4 备库上 2PC 看不到 → `not_applicable`，去主库。不归 txn：idle in transaction 闲多久 → `sessions`；锁 → `locks`；复制槽的 xmin → `slots`。
 
-- **长事务和 2PC 都只报 WARN**（待用户确认）：按"FAIL = 业务已经受影响"，它们的危害是压住视界（表膨胀、2PC 还占着锁），是以后的事；它们挡住的会话由 locks 的 `lock.waiting` 报。删 `txn.long` 的 1800 秒 FAIL 和 `--xact-fail`；`txn.prepared` 从 FAIL 改 WARN，`--prepared-fail` 改名 `--prepared-warn`（alpha 阶段直接改，不留兼容）。
+- **长事务和 2PC 都只报 WARN**（用户 2026-09-26 确认）：按"FAIL = 业务已经受影响"，它们的危害是压住视界（表膨胀、2PC 还占着锁），是以后的事；它们挡住的会话由 locks 的 `lock.waiting` 报。删 `txn.long` 的 1800 秒 FAIL 和 `--xact-fail`；`txn.prepared` 从 FAIL 改 WARN，`--prepared-fail` 改名 `--prepared-warn`（alpha 阶段直接改，不留兼容）。
 - **300 秒和 900 秒保留，参数保留**：没有服务器端的客观线；300 秒会碰上正常的批处理，所以参数留给批处理库调高。保留参数还有一个原因：e2e 要靠把阈值缩到 1 秒来造出 finding（engineering.md §6.5 A）。
 - **文本先给 oldest xid**：`oldest xid: 6170  (801150 xid, 801314 xmin)`，按 2^32 取模比较（和服务器一样），列出持有这个值的所有会话和 2PC。再列开着的事务（有 xact_start、xid 或 xmin 的），最后是 2PC。
 - **被遮蔽的会话照样列**：KES 对非监控账号不遮蔽 backend_xid/backend_xmin（阶段 0 实采），所以有 xid/xmin 的遮蔽会话仍然能说"它在事务里、压着多少"，其余列写 `?`；两者都没有的只计数（`N, M sessions hidden`：多半是 idle 会话，不能说成 M 个事务）。
@@ -128,13 +128,14 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **只列在干活的组**：idle 会话的 `Client:ClientRead` 和后台进程的 `Activity:*` 占了原来输出的大半，却不回答"卡在哪"。`Activity` 类等待按 PG/KES 的定义是进程在主循环里空闲（没东西可发的 walsender、两次 checkpoint 之间的 checkpointer、KES 的 KSH 进程），不管 state 写什么都归后台；state 为空且没有等待事件的也归后台。**后台进程卡在真正的等待上（checkpointer 等 `IO:DataFileSync`、备库 startup 等 `BufferPin`）照样列出**，state 写 `(background)`：这正是 waits 要回答的"卡在哪"。它们之外合成一行 `not shown: N idle, M background, K hidden (state unknown), J untracked (state unknown)`：遮蔽和 untracked 的会话不知道是不是 idle，所以不算进 not idle。walsender 追赶时等的是 `IO:WALRead` 之类，会出现在列表里，空闲的主库上时有时无，属正常。
 - **排序**：会话数多的在前（堆积最显眼），同数时 active 在前；active 却没有等待事件的写 `(running)`（在 CPU 上或这段代码没埋点）。pids 最多列 10 个，其余写 `... (+N)`，JSON 全有。
 - **没有判定，没有参数**：等待事件本身没有客观线（同样 10 个会话等 IO，对一个库是事故，对另一个库是常态）；锁等太久由 locks 报。看不全（遮蔽、untracked）照旧 UNKNOWN。
+- **后台进程在跑、没有等待事件时也归后台**（阶段 9 发现，用户 2026-09-26 选 A）：KES 的 `ksh writer` 定期跑 `metric_update_timer()`，被赶上时 state 是 active、没有等待事件，原来被当成客户端会话列成 `(running)`。`wait.summary` 加一个不进 JSON 的内部字段，列出每组里后台进程（不是 client backend 或 parallel worker，且没被遮蔽）的 pid，文本据此把它们移进 background。选内部字段而不是按后台/客户端拆组：拆组会改 JSON 的行。parallel worker 替客户端干活，不算后台。后台进程卡在真正的等待上仍照样列出。
 - JSON 不变。
 
 ### slots 打磨（2026-09-26）
 
 场景表：R1 有哪些槽、有没有人在消费；R2 每个槽保留了多少 WAL（磁盘）；R3 槽的 xmin / catalog_xmin 是否压着视界；R4 不活跃时下游还在不在 → `kbdiag status`（到下游上跑）。不归 slots：复制延迟数值 → v0.2；备库在不在收 WAL → `status`；会话压着的视界 → `txn`。
 
-- **`slot.inactive` 从 FAIL 改 WARN**（待用户确认）：槽不活跃时业务照常，危害（WAL 撑满磁盘、表膨胀、没有跟得上的备库）是以后的事，按"FAIL = 业务已经受影响"是 WARN。没有阈值、没有参数：不活跃本身就是客观线。repmgr 重启备库的那几秒也会报，属实。
+- **`slot.inactive` 从 FAIL 改 WARN**（用户 2026-09-26 确认）：槽不活跃时业务照常，危害（WAL 撑满磁盘、表膨胀、没有跟得上的备库）是以后的事，按"FAIL = 业务已经受影响"是 WARN。没有阈值、没有参数：不活跃本身就是客观线。repmgr 重启备库的那几秒也会报，属实。
 - **WAL 量用人读的单位**：symptom 原来一律按 MB 取整，备库上 45 kB 写成"保留 0 MB WAL"；改用 `internal/units`（和 pg_size_pretty 一致），文本和 finding 共用。`internal/units` 是新包：rule 要用，又不能 import report。
 - **逻辑槽的 catalog_xmin 写进 symptom 和 evidence**：它压着系统表的 vacuum。实验环境 wal_level=replica，建不了逻辑槽，只有 L1/L2。catalog xmin 列只在有槽带它时出现。
 - **next 说"到这个槽的下游节点上运行"**：备库上也可以有槽（级联），原来的"在备库上运行"对它不对。
@@ -152,14 +153,14 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### sessions 打磨（2026-09-26）
 
-- **文本默认不列后台进程，只在汇总里计数**（推翻 2026-09-23 的"默认包含后台进程"，待用户在检查点确认）：node1 上它们占 11 行里的 7 行，却不回答"连接是谁占的""谁在干活"任何一个问题。`--all` 才列全部；JSON 不变，总是全部会话。
+- **文本默认不列后台进程，只在汇总里计数**（推翻 2026-09-23 的"默认包含后台进程"，用户 2026-09-26 确认）：node1 上它们占 11 行里的 7 行，却不回答"连接是谁占的""谁在干活"任何一个问题。`--all` 才列全部；JSON 不变，总是全部会话。
 - **删 `--active`**：默认列表已经只看不是 idle 的客户端会话；`--active` 只会再筛掉 idle in transaction，而那正是要看的。alpha 阶段直接删，不留兼容。不加 `--user`/`--app` 之类的过滤：汇总已经按它们分组，再细的筛选用 `--json` 配 jq。
 - **汇总按 用户/库/应用/客户端 分组计数**：回答 status 连接 FAIL 指过来的"连接是谁占的"，所以 status 的下一步从 `kbdiag sessions --limit 0` 改成 `kbdiag sessions`。
 - **untracked 会话照样列出，但时长显示 `?`**：state 是 `disabled`，读者一眼能看出状态不明；xact/query 时长是旧值（实测），不能当成当前值显示。
 - **被遮蔽的会话单独算 hidden，照样进汇总**：非监控账号看不到别人会话的类型和状态，分不出在干活、idle 还是后台进程，不能假装它们是 idle；客户端显示 `?`，和 NULL 的 `-` 区分开。
 - **`session.idle_in_txn` 保留 300 秒和参数**：idle in transaction 放 5 分钟无论应用怎么设计都是毛病（连接池泄漏、漏了 commit），和"连接数 80%"这种因应用而异的比例不同；300 秒是滤噪声的下限，不是容量线。DBA 手工开事务改数据是合理例外，所以参数留着。和 txn 的 `txn.long` 在默认阈值下必然同时报，但问题不同（"它闲着" vs "事务太长"），各自保留。
 - **文本合成一行 `redacted`**：原来每个被遮蔽的列一行（9 行），现在按原因一行，列名折成 state、backend_type、client_addr、ages、wait、query；JSON 的 `redacted[]` 不变。
-- **表格按终端列宽对齐**（`internal/report/table.go`）：`text/tabwriter` 按 rune 计宽，中文用户名、应用名会错位；改用 `golang.org/x/text/width`，东亚宽字符算 2 列。sql 仍截到 60 个字符，没按终端宽度截：输出常被管道和重定向，终端宽度拿不准（和附录 A 写的"截到终端宽度"不同，待用户确认）。
+- **表格按终端列宽对齐**（`internal/report/table.go`）：`text/tabwriter` 按 rune 计宽，中文用户名、应用名会错位；改用 `golang.org/x/text/width`，东亚宽字符算 2 列。sql 仍截到 60 个字符，没按终端宽度截：输出常被管道和重定向，终端宽度拿不准（和附录 A 写的"截到终端宽度"不同，用户 2026-09-26 确认）。
 - **slots 的下一步改指 `kbdiag status`**：walreceiver 是后台进程，sessions 默认不再列出；status 的 `inst.upstream` 本来就回答"在不在收 WAL"。它仍然看不出被暂停的 walreceiver（状态停在 streaming），所以 note 里提示隔十几秒再跑一次，看 last_msg 是否还在涨。
 
 ## KingbaseES 特有行为

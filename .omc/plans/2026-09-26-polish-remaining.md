@@ -77,6 +77,7 @@
 - 2026-09-26：**阶段 0 完成**。19:40–19:45 用 `v2.0.0-alpha.1-9-gdf9425f` 在两节点实采，109 组 text/JSON 加 ksql 原始行，共 219 个文件，在 `e2e/testdata/captures/`。清单和实采中的发现见 chronicle 同日"阶段 0：实采"一节，云会话从阶段 1 开始
 - 2026-09-26：阶段 1–8 云会话完成，推到 `main-drp6oc`
 - 2026-09-26：**阶段 9 完成（本地）**。两节点 e2e 全过（node1 31 PASS，node2 29 PASS + 2 个预期 SKIP）；修了 locks JSON 丢 2PC 锁行、txn e2e 两处、slots 单测、waits e2e 断言；实采在 `e2e/testdata/captures/stage9/`；Codex 2 条意见都处理了，Jev 分诊记在 chronicle。**卡在审批门槛**：用户逐条回复需要拍板的 1–10，确认输出后才写 kbdiag-docs、合 main
+- 2026-09-26：用户拍板：1–9 按建议（已实现的保持），第 10 条选 A，已实现（`9a05ffb`）。剩下的门槛：用户确认各命令输出后才写 kbdiag-docs；合 main、打 tag 等用户明说
 
 ## 附录 A：sessions 的场景表和草样（阶段 1 的输入）
 
