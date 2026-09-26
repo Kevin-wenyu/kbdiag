@@ -101,10 +101,12 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 场景表：P1 这个会话是谁（用户、库、应用、客户端、类型）；P2 在干什么、干了多久、完整 SQL；P3 在等什么锁、被谁挡住；P4 挡住了谁；P5 持有哪些锁。不归它：压着视界多严重 → `txn`；全局谁挡得最多 → `locks`；终止会话 → 不做（只读）。
 
-- **文本是键值块加 sql 块加三段**（waiting for / blocking / holds），段标题带数量；JSON 不变。sql 不截断、保留原来的换行：这是唯一能看到完整 SQL 的命令。idle 的会话标题写 `last sql`（那条语句已经结束），state 看不到或 untracked 时仍写 `sql`。
+- **文本是键值块加 sql 块加三段**（waiting for / blocking / holds），段标题带数量；JSON 除了下面去掉的 next 以外不变。sql 不截断、保留原来的换行：这是唯一能看到完整 SQL 的命令。idle 的会话标题写 `last sql`（那条语句已经结束），state 看不到或 untracked 时仍写 `sql`。
 - **看挡路者时 WARN 保留**（阶段 0 的发现）：`session <挡路者>` 带出等待者的 `lock.waiting`，它说的正是"这个会话挡住了别人 N 秒"，是挡路者自己的问题，所以保留 WARN（待用户确认）。
 - **指向自己的 next 去掉**：finding 的 next 如果是 `kbdiag session <当前 pid>`（挡路者看到的 lock.waiting、idle in transaction），读者已经在看它了；去掉后可以没有 next。
-- **holds 不列自己的 virtualxid 和 transactionid**，除非有人在等同类型的锁：每个事务都持有这两把，列出来只是噪声；xid 在上面的键值块里。
+- **holds 不列自己的 virtualxid 和 transactionid**，除非有人在等同类型的锁：每个事务都持有这两把，列出来只是噪声；xid 在上面的键值块里。重复的行（子事务的多个 transactionid、同一张表的多个 tuple 锁）只列一次。
+- **行锁写明类型**：有 relation 但不是表锁的（tuple、page）写成 `public.t (tuple)`，否则 `public.t ExclusiveLock` 会被读成表锁；locks 同样。
+- **转义也覆盖 finding 行和格式字符**：finding 的症状、next、原因里引用的表名和 gid 同样转义；除 C0/C1 控制字符外，bidi 覆盖字符（U+202E、U+2066–2069）和 U+2028/2029 也显示成转义，防止完整 SQL 块被重新排序。
 - 参数不变（`--lock-wait-warn`、`--idle-in-txn-warn`），判定复用 sessions 和 locks 的规则。
 
 ### 三层深度（看 / 查 / 断）

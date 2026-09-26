@@ -215,3 +215,34 @@ func TestFitWidth(t *testing.T) {
 		}
 	}
 }
+
+// Bidi overrides and Unicode line separators could reorder or split what a
+// reader sees; they are shown as escapes, in cells and in findings alike.
+func TestEscapeFormatCharacters(t *testing.T) {
+	const rlo, lri, pdi, ls, ps = rune(0x202e), rune(0x2066), rune(0x2069), rune(0x2028), rune(0x2029)
+	bs := string(rune(0x5c)) // a backslash, kept out of the literals
+	for in, want := range map[string]string{
+		"a" + string(rlo) + "b":               "a" + bs + "u202eb",
+		"a" + string(lri) + "b" + string(pdi): "a" + bs + "u2066b" + bs + "u2069",
+		"a" + string(ls) + "b":                "a" + bs + "u2028b",
+		"a" + string(ps) + "b":                "a" + bs + "u2029b",
+		"a" + string(rune(0x1b)) + "b":        "a" + bs + "x1bb",
+		"表名":                                  "表名",
+		"plain":                               "plain",
+	} {
+		if got := escapeControl(in); got != want {
+			t.Errorf("escapeControl(%q) = %q, want %q", in, got, want)
+		}
+	}
+	r := New("locks", facts.Context{}, rule.Result{Verdict: rule.VerdictWARN, Findings: []rule.Finding{{
+		ID: "lock.waiting", Level: rule.LevelWARN, Symptom: "会话 1 等 public." + string(rune(0x1b)) + "[2Jx" + string(rlo) + " 的锁",
+		Next: []rule.Next{{Kind: "fix", SQL: "ROLLBACK PREPARED 'g" + string(rune(0x1b)) + "'", Note: "n" + string(ls)}},
+	}}})
+	var buf bytes.Buffer
+	if err := r.WriteText(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if out := buf.String(); strings.ContainsAny(out, string([]rune{0x1b, rlo, ls})) {
+		t.Errorf("finding text reaches the terminal raw: %q", out)
+	}
+}

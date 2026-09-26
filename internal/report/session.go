@@ -30,6 +30,7 @@ func (v *sessionView) write(w io.Writer) error {
 		return nil
 	}
 	if v.activity.Status != facts.StatusOK {
+		fmt.Fprintf(w, "\nsession %d\n", v.pid)
 		p := Probe{Status: v.activity.Status}
 		if v.activity.Reason != "" {
 			p.Reason = &v.activity.Reason
@@ -184,6 +185,7 @@ func (v *sessionView) writeHolds(w io.Writer) error {
 		}
 	}
 	var rows [][]string
+	seen := map[[2]string]bool{} // subtransactions, several tuples: same line
 	for _, l := range v.locks.Rows {
 		if !v.mine(l) || !l.Granted {
 			continue
@@ -191,7 +193,12 @@ func (v *sessionView) writeHolds(w io.Writer) error {
 		if (l.Locktype == "virtualxid" || l.Locktype == "transactionid") && !contested[objectOf(l)] {
 			continue
 		}
-		rows = append(rows, []string{objectName(l), l.Mode})
+		row := [2]string{objectName(l), l.Mode}
+		if seen[row] {
+			continue
+		}
+		seen[row] = true
+		rows = append(rows, row[:])
 	}
 	fmt.Fprintf(w, "\nholds: %d\n", len(rows))
 	if len(rows) == 0 {

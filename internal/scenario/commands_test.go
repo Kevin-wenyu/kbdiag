@@ -432,6 +432,21 @@ func TestSessionTextEdges(t *testing.T) {
 	}
 	assertGolden(t, "session_skipped", rep)
 
+	// Row locks, subtransactions, a waiter repeated by parallel workers, and a
+	// contested virtualxid (CREATE INDEX CONCURRENTLY waits on those).
+	rows := facts.LockList{Status: facts.StatusOK, Rows: []facts.Lock{
+		{PID: i32(7), Locktype: "tuple", Relation: str("public.t"), Mode: "ExclusiveLock", Granted: true},
+		{PID: i32(7), Locktype: "tuple", Relation: str("public.t"), Mode: "ExclusiveLock", Granted: true},
+		{PID: i32(7), Locktype: "transactionid", Mode: "ExclusiveLock", Granted: true},
+		{PID: i32(7), Locktype: "transactionid", Mode: "ExclusiveLock", Granted: true},
+		{PID: i32(7), Locktype: "virtualxid", Mode: "ExclusiveLock", Granted: true},
+		{PID: i32(8), Locktype: "tuple", Relation: str("public.t"), Mode: "ExclusiveLock", WaitS: f64(4), BlockedBy: []int32{7, 7}},
+		{PID: i32(10), Locktype: "transactionid", Mode: "ShareLock", WaitS: f64(2), BlockedBy: []int32{7}},
+		{PID: i32(11), Locktype: "virtualxid", Mode: "ShareLock", WaitS: f64(1), BlockedBy: []int32{7}},
+	}}
+	rep, _ = Session(c, a, rows, SessionOptions{PID: 7, Thresholds: rule.Defaults})
+	assertGolden(t, "session_rowlocks", rep)
+
 	bare := facts.SessionActivity{Status: facts.StatusOK, Rows: []facts.Session{{PID: 7}}}
 	rep, _ = Session(c, bare, facts.LockList{Status: facts.StatusOK}, SessionOptions{PID: 7, Thresholds: rule.Defaults})
 	assertGolden(t, "session_bare", rep)

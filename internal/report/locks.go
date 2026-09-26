@@ -30,12 +30,17 @@ func objectOf(l facts.Lock) lockObject {
 }
 
 // label names the object: the relation, or the lock type for the others
-// (advisory, transactionid, ...), which carry no relation.
+// (advisory, transactionid, ...), which carry no relation. A row lock on a
+// table (tuple, page) says so, or "public.t ExclusiveLock" reads as a table
+// lock.
 func (o lockObject) label() string {
-	if o.relation != "" {
-		return o.relation
+	switch {
+	case o.relation == "":
+		return o.locktype
+	case o.locktype != "relation":
+		return o.relation + " (" + o.locktype + ")"
 	}
-	return o.locktype
+	return o.relation
 }
 
 func deref(s *string) string {

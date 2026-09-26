@@ -284,7 +284,8 @@ func TestSession(t *testing.T) {
 			}
 		}
 		out, _ := kbdiagText(t, nil, "session", strconv.Itoa(int(l.holder)), "--lock-wait-warn", "1")
-		if !strings.Contains(out, "\nblocking: 1\n") || textLine(out, fmt.Sprint(l.waiter)) == "" {
+		// "  <waiter>  " starts a table row; the finding line mentions the pid too
+		if !strings.Contains(out, "\nblocking: 1\n") || !strings.Contains(out, "\n  "+fmt.Sprint(l.waiter)+"  ") {
 			t.Errorf("holder text does not list waiter %v under blocking:\n%s", l.waiter, out)
 		}
 	})

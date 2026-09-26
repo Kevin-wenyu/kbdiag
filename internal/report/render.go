@@ -26,17 +26,19 @@ const maxCell = 60
 func (r *Report) WriteText(w io.Writer) error {
 	c := r.Context
 	fmt.Fprintf(w, "%s  %s  (%s, %s, %s@%s, %s)\n", r.Command, r.Verdict, c.Version, c.Role, c.User, c.Location, c.CollectedAt)
+	// Symptoms and next steps quote server strings (relation names, gids):
+	// they are escaped like every table cell.
 	for _, f := range r.Findings {
-		fmt.Fprintf(w, "\n[%s] %s  %s\n", f.Level, f.ID, f.Symptom)
+		fmt.Fprintf(w, "\n[%s] %s  %s\n", f.Level, f.ID, escapeControl(f.Symptom))
 		if f.Cause != nil {
-			fmt.Fprintf(w, "  cause: %s\n", *f.Cause)
+			fmt.Fprintf(w, "  cause: %s\n", escapeControl(*f.Cause))
 		}
 		for _, n := range f.Next {
 			action := n.Command
 			if action == "" {
 				action = n.SQL
 			}
-			fmt.Fprintf(w, "  %s: %s  # %s\n", n.Kind, action, n.Note)
+			fmt.Fprintf(w, "  %s: %s  # %s\n", n.Kind, escapeControl(action), escapeControl(n.Note))
 		}
 	}
 	switch {
@@ -143,15 +145,17 @@ func cell(v any) string {
 }
 
 // escapeControl makes control characters visible, so a query text cannot
-// drive the terminal (ESC sequences clearing the screen, recoloring, ...).
+// drive the terminal (ESC sequences clearing the screen, recoloring, ...),
+// and so do format characters (bidi overrides that reorder what is shown)
+// and the Unicode line and paragraph separators.
 func escapeControl(s string) string {
-	if strings.IndexFunc(s, unicode.IsControl) < 0 {
+	if strings.IndexFunc(s, hostile) < 0 {
 		return s
 	}
 	var b strings.Builder
 	for _, r := range s {
 		switch {
-		case !unicode.IsControl(r):
+		case !hostile(r):
 			b.WriteRune(r)
 		case r < 0x80:
 			fmt.Fprintf(&b, `\x%02x`, r)
@@ -160,4 +164,8 @@ func escapeControl(s string) string {
 		}
 	}
 	return b.String()
+}
+
+func hostile(r rune) bool {
+	return unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp)
 }
