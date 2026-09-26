@@ -66,7 +66,7 @@ func (v *sessionsView) writeSummary(w io.Writer) error {
 		k := kindOf(s)
 		n[k]++
 		if k == kindClient || k == kindHidden {
-			groups[[4]string{cell(s.Usename), cell(s.Datname), cell(s.ApplicationName), client(s)}]++
+			groups[[4]string{name(s.Usename), name(s.Datname), name(s.ApplicationName), client(s)}]++
 		}
 	}
 	var parts []string
@@ -152,9 +152,10 @@ func (v *sessionsView) writeList(w io.Writer) error {
 			}
 			return cell(v)
 		}
+		// an untracked row keeps stale ages: they are not current
 		age := func(v *float64) string {
 			switch {
-			case s.Masked():
+			case s.Masked() || s.Untracked():
 				return "?"
 			case v == nil:
 				return "-"
@@ -165,13 +166,13 @@ func (v *sessionsView) writeList(w io.Writer) error {
 		if s.Masked() {
 			wait = "?"
 		} else if s.State != nil && *s.State == "active" && s.WaitEventType != nil {
-			wait = *s.WaitEventType + ":" + cell(s.WaitEvent)
+			wait = cell(s.WaitEventType) + ":" + cell(s.WaitEvent)
 		}
 		sql := masked(s.Query)
 		if sql == "" {
 			sql = "-"
 		}
-		row := []string{fmt.Sprint(s.PID), cell(s.Usename), cell(s.Datname), cell(s.ApplicationName), client(s)}
+		row := []string{fmt.Sprint(s.PID), name(s.Usename), name(s.Datname), name(s.ApplicationName), client(s)}
 		if v.all {
 			row = append(row, masked(s.BackendType))
 		}
@@ -187,13 +188,13 @@ func (v *sessionsView) writeList(w io.Writer) error {
 }
 
 // client is where the session comes from: "local" for a Unix socket, "?"
-// when KES hides it.
+// when KES hides it, "-" for background processes, which have none.
 func client(s facts.Session) string {
 	switch {
 	case s.Masked():
 		return "?"
 	case s.ClientAddr == nil:
-		if kindOf(s) == kindClient {
+		if k := kindOf(s); k == kindClient || k == kindWalsender {
 			return "local"
 		}
 		return "-"
@@ -255,7 +256,11 @@ func writeSessionsRedacted(w io.Writer, rs []Redacted) {
 		if reason == facts.ReasonInsufficientPrivilege {
 			hint = "; grant sys_monitor"
 		}
-		fmt.Fprintf(w, "redacted: %s of %s hide %s (%s%s)\n", plural(g.rows, "row", "rows"), facts.SessionActivityID,
-			strings.Join(labels, ", "), reason, hint)
+		verb := "hide"
+		if g.rows == 1 {
+			verb = "hides"
+		}
+		fmt.Fprintf(w, "redacted: %s of %s %s %s (%s%s)\n", plural(g.rows, "row", "rows"), facts.SessionActivityID,
+			verb, strings.Join(labels, ", "), reason, hint)
 	}
 }

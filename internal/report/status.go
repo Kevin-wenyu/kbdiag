@@ -242,9 +242,10 @@ func size(b float64) string {
 	return fmt.Sprintf("%.0f %s", math.Round(b), units[i])
 }
 
-// duration keeps the two largest units: 5d 20h, 3m 7s, 8s.
+// duration keeps the two largest units: 5d 20h, 3m 7s, 8s. Seconds are
+// rounded, as the findings' "%.0f 秒" are, so text and finding agree.
 func duration(s float64) string {
-	n := int64(s)
+	n := int64(math.Round(s))
 	if n < 0 {
 		n = 0
 	}

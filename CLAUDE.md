@@ -100,11 +100,12 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **文本默认不列后台进程，只在汇总里计数**（推翻 2026-09-23 的"默认包含后台进程"，待用户在检查点确认）：node1 上它们占 11 行里的 7 行，却不回答"连接是谁占的""谁在干活"任何一个问题。`--all` 才列全部；JSON 不变，总是全部会话。
 - **删 `--active`**：默认列表已经只看不是 idle 的客户端会话；`--active` 只会再筛掉 idle in transaction，而那正是要看的。alpha 阶段直接删，不留兼容。不加 `--user`/`--app` 之类的过滤：汇总已经按它们分组，再细的筛选用 `--json` 配 jq。
 - **汇总按 用户/库/应用/客户端 分组计数**：回答 status 连接 FAIL 指过来的"连接是谁占的"，所以 status 的下一步从 `kbdiag sessions --limit 0` 改成 `kbdiag sessions`。
+- **untracked 会话照样列出，但时长显示 `?`**：state 是 `disabled`，读者一眼能看出状态不明；xact/query 时长是旧值（实测），不能当成当前值显示。
 - **被遮蔽的会话单独算 hidden，照样进汇总**：非监控账号看不到别人会话的类型和状态，分不出在干活、idle 还是后台进程，不能假装它们是 idle；客户端显示 `?`，和 NULL 的 `-` 区分开。
 - **`session.idle_in_txn` 保留 300 秒和参数**：idle in transaction 放 5 分钟无论应用怎么设计都是毛病（连接池泄漏、漏了 commit），和"连接数 80%"这种因应用而异的比例不同；300 秒是滤噪声的下限，不是容量线。DBA 手工开事务改数据是合理例外，所以参数留着。和 txn 的 `txn.long` 在默认阈值下必然同时报，但问题不同（"它闲着" vs "事务太长"），各自保留。
 - **文本合成一行 `redacted`**：原来每个被遮蔽的列一行（9 行），现在按原因一行，列名折成 state、backend_type、client_addr、ages、wait、query；JSON 的 `redacted[]` 不变。
-- **表格按终端列宽对齐**（`internal/report/table.go`）：`text/tabwriter` 按 rune 计宽，中文用户名、应用名会错位；改用 `golang.org/x/text/width`，东亚宽字符算 2 列。sql 仍截到 60 个字符，没按终端宽度截：输出常被管道和重定向，终端宽度拿不准。
-- **slots 的下一步改指 `kbdiag status`**：walreceiver 是后台进程，sessions 默认不再列出；status 的 `inst.upstream` 本来就回答"在不在收 WAL"。它仍然看不出被暂停的 walreceiver（状态停在 streaming），所以 note 里提示看 last_msg 是否一直在涨。
+- **表格按终端列宽对齐**（`internal/report/table.go`）：`text/tabwriter` 按 rune 计宽，中文用户名、应用名会错位；改用 `golang.org/x/text/width`，东亚宽字符算 2 列。sql 仍截到 60 个字符，没按终端宽度截：输出常被管道和重定向，终端宽度拿不准（和附录 A 写的"截到终端宽度"不同，待用户确认）。
+- **slots 的下一步改指 `kbdiag status`**：walreceiver 是后台进程，sessions 默认不再列出；status 的 `inst.upstream` 本来就回答"在不在收 WAL"。它仍然看不出被暂停的 walreceiver（状态停在 streaming），所以 note 里提示隔十几秒再跑一次，看 last_msg 是否还在涨。
 
 ## KingbaseES 特有行为
 

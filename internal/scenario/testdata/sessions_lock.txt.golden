@@ -9,5 +9,5 @@ connected: 5 client sessions (not counting kbdiag), 1 walsender, 7 background
 
 not idle: 2
   pid     user    database  application             client  state                xact  query  wait           sql
-  803881  system  test      kbdiag_inj_lock_holder  local   idle in transaction  9s    9s     -              lock table kbdiag_inj_lock in access exclusive mode;
-  803890  system  test      kbdiag_inj_lock_waiter  local   active               9s    9s     Lock:relation  select count(*) from kbdiag_inj_lock;
+  803881  system  test      kbdiag_inj_lock_holder  local   idle in transaction  10s   10s    -              lock table kbdiag_inj_lock in access exclusive mode;
+  803890  system  test      kbdiag_inj_lock_waiter  local   active               10s   10s    Lock:relation  select count(*) from kbdiag_inj_lock;

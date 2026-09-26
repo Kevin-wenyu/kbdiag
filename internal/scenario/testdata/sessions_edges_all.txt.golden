@@ -1,0 +1,23 @@
+sessions  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-23T21:40:05+08:00)
+
+connected: 6 client sessions (not counting kbdiag), 1 walsender, 1 hidden
+  count  user   database  application                    client
+  2      app    -         -                              local
+  1      -      -         -                              local
+  1      app    -         a\x1b[2Jb                      local
+  1      app    -         长应用名长应用名长应用名长...  local
+  1      other  -         -                              ?
+  1      用户   库        报表服务                       10.0.0.1
+
+all: 8
+  pid  user   database  application                    client    type            state                          xact   query  wait             sql
+  10   用户   库        报表服务                       10.0.0.1  client backend  active                         2h 3m  1m 5s  IO:DataFileRead  select * from orders where customer_id in (select id from...
+  11   -      -         -                              local     client backend  idle in transaction (aborted)  0s     -      -                -
+  12   app    -         a\x1b[2Jb                      local     client backend  active                         0s     0s     -                select 1;\x1b[31m
+  13   app    -         -                              local     client backend  idle                           -      -      -                -
+  14   app    -         长应用名长应用名长应用名长...  local     client backend  active                         1m 0s  1s     -                select 2
+  15   other  -         -                              ?         ?               ?                              ?      ?      ?                ?
+  16   app    -         -                              local     client backend  disabled                       ?      ?      -                -
+  17   rep    -         pg_basebackup                  local     walsender       active                         -      -      -                -
+redacted: 1 row of session.activity hides state, backend_type, client_addr, ages, wait, query (insufficient_privilege; grant sys_monitor)
+redacted: 1 row of session.activity hides state, ages, wait, query (track_activities_off)

@@ -8,5 +8,5 @@ connected: 4 client sessions (not counting kbdiag), 1 walsender, 7 background
 
 not idle: 1
   pid     user    database  application           client  state     xact  query  wait  sql
-  809073  system  test      kbdiag_inj_untracked  local   disabled  1s    1s     -     -
-redacted: 1 row of session.activity hide state, ages, wait, query (track_activities_off)
+  809073  system  test      kbdiag_inj_untracked  local   disabled  ?     ?      -     -
+redacted: 1 row of session.activity hides state, ages, wait, query (track_activities_off)

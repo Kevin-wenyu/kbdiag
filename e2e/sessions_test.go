@@ -212,16 +212,18 @@ func TestSessionsIdleInTxn(t *testing.T) {
 	// The text lists client sessions that are not idle; background processes
 	// are only counted. --all lists them; JSON carries every session either way.
 	t.Run("default text lists busy client sessions, --all lists everything", func(t *testing.T) {
+		// The checkpointer lives as long as the instance, unlike autovacuum
+		// workers or repmgr's short connections, so it is there in every run.
 		r, _ := kbdiag(t, nil, "sessions", "--limit", "0")
 		var background string
 		for _, x := range r.Data[sessionProbe].rowsOf() {
-			if bt, _ := x["backend_type"].(string); bt != "" && bt != "client backend" && bt != "walsender" {
+			if x["backend_type"] == "checkpointer" {
 				background = fmt.Sprint(x["pid"])
 				break
 			}
 		}
 		if background == "" {
-			t.Fatal("no background process in session.activity; the JSON must carry every session")
+			t.Fatal("no checkpointer in session.activity; the JSON must carry every session")
 		}
 		line := func(out, pid string) bool {
 			for _, l := range strings.Split(out, "\n") {
@@ -244,8 +246,13 @@ func TestSessionsIdleInTxn(t *testing.T) {
 			t.Errorf("--all text must list background %s and %s:\n%s", background, idle, out)
 		}
 		rAll, _ := kbdiag(t, nil, "sessions", "--all", "--limit", "0")
-		if len(rAll.Data[sessionProbe].Rows) != len(r.Data[sessionProbe].Rows) {
-			t.Errorf("--all changed the JSON rows: %d vs %d", len(rAll.Data[sessionProbe].Rows), len(r.Data[sessionProbe].Rows))
+		for _, pid := range []float64{fp.pid, decoy.pid} {
+			if rAll.Data[sessionProbe].row("pid", pid) == nil || r.Data[sessionProbe].row("pid", pid) == nil {
+				t.Errorf("pid %v missing from the JSON of sessions or sessions --all", pid)
+			}
+		}
+		if rAll.Data[sessionProbe].row("backend_type", "checkpointer") == nil {
+			t.Error("--all JSON lost the checkpointer")
 		}
 	})
 }

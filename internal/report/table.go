@@ -34,6 +34,32 @@ func writeTable(w io.Writer, indent string, header []string, rows [][]string) er
 	return nil
 }
 
+// maxName caps names (user, database, application) in tables, in terminal
+// columns: one long application name must not push every other column off
+// the screen. --json has the full value.
+const maxName = 30
+
+// name is cell cut to maxName terminal columns.
+func name(v any) string { return fitWidth(cell(v), maxName) }
+
+// fitWidth cuts s to at most w terminal columns, marking the cut with "...".
+func fitWidth(s string, w int) string {
+	if displayWidth(s) <= w {
+		return s
+	}
+	var b strings.Builder
+	n := 0
+	for _, r := range s {
+		rw := displayWidth(string(r))
+		if n+rw > w-3 {
+			break
+		}
+		b.WriteRune(r)
+		n += rw
+	}
+	return b.String() + "..."
+}
+
 // displayWidth counts terminal columns: East Asian wide and fullwidth
 // characters take two.
 func displayWidth(s string) int {

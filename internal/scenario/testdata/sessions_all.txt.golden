@@ -13,7 +13,7 @@ connected: 5 client sessions (not counting kbdiag), 1 walsender, 7 background
 all: 13
   pid     user    database  application            client          type                          state                xact  query  wait                    sql
   801150  system  test      kbdiag_inj_idle_txn    local           client backend                idle in transaction  15s   14s    -                       select txid_current() as kbdiag_last, pg_sleep(1);
-  801314  system  test      kbdiag_inj_long_query  local           client backend                active               12s   12s    Timeout:PgSleep         select pg_sleep(3600);
+  801314  system  test      kbdiag_inj_long_query  local           client backend                active               13s   13s    Timeout:PgSleep         select pg_sleep(3600);
   3271    -       -         check pointer          -               checkpointer                  -                    -     -      -                       -
   3272    -       -         background flush       -               background writer             -                    -     -      -                       -
   3273    -       -         wal flush              -               walwriter                     -                    -     -      -                       -
@@ -22,6 +22,6 @@ all: 13
   3280    system  -         sys_ksh collector      -               ksh collector                 idle                 -     -      -                       -
   3281    system  -         logical replication    -               logical replication launcher  -                    -     -      -                       -
   3294    esrep   esrep     internal_rwcmgr        192.168.105.10  client backend                idle                 -     0s     -                       SELECT n.node_id as nodeId, n.type as nodeType, n.upstrea...
-  179417  esrep   esrep     internal_rwcmgr        192.168.105.10  client backend                idle                 -     1s     -                       SELECT pg_catalog.pg_is_in_recovery()
+  179417  esrep   esrep     internal_rwcmgr        192.168.105.10  client backend                idle                 -     2s     -                       SELECT pg_catalog.pg_is_in_recovery()
   759699  esrep   esrep     internal_rwcmgr        192.168.105.11  client backend                idle                 -     0s     -                       SELECT state,sync_state FROM pg_stat_replication where ap...
   784848  esrep   -         node2                  192.168.105.11  walsender                     active               -     -      Activity:WalSenderMain  -

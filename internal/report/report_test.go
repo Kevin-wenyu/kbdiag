@@ -137,9 +137,9 @@ func TestDuration(t *testing.T) {
 		in   float64
 		want string
 	}{
-		{0, "0s"}, {0.9, "0s"}, {8.0, "8s"}, {59.9, "59s"}, {60, "1m 0s"}, {187, "3m 7s"}, {3600, "1h 0m"},
+		{0, "0s"}, {0.4, "0s"}, {0.5, "1s"}, {0.9, "1s"}, {8.0, "8s"}, {59.4, "59s"}, {59.9, "1m 0s"}, {60, "1m 0s"}, {187, "3m 7s"}, {3600, "1h 0m"},
 		{3661, "1h 1m"}, {86399, "23h 59m"}, {86400, "1d 0h"}, {268991, "3d 2h"}, {504535, "5d 20h"},
-		{400 * 86400, "400d 0h"}, {-5, "0s"},
+		{400 * 86400, "400d 0h"}, {-5, "0s"}, {-0.4, "0s"},
 	}
 	for _, c := range cases {
 		if got := duration(c.in); got != c.want {
@@ -196,5 +196,22 @@ func TestWriteTable(t *testing.T) {
 	want := "  a    名字  c\n  xyz  库    last\n       b\n"
 	if buf.String() != want {
 		t.Errorf("table =\n%q\nwant\n%q", buf.String(), want)
+	}
+}
+
+func TestFitWidth(t *testing.T) {
+	cases := []struct {
+		in   string
+		w    int
+		want string
+	}{
+		{"short", 10, "short"}, {"exactly10!", 10, "exactly10!"}, {"eleven chars", 10, "eleven ..."},
+		{"长应用名长应用名", 16, "长应用名长应用名"}, {"长应用名长应用名", 10, "长应用..."}, {"a长b", 4, "a长b"}, {"ab长cd", 5, "ab..."},
+	}
+	for _, c := range cases {
+		got := fitWidth(c.in, c.w)
+		if got != c.want || displayWidth(got) > c.w {
+			t.Errorf("fitWidth(%q, %d) = %q, want %q", c.in, c.w, got, c.want)
+		}
 	}
 }

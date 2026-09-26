@@ -452,7 +452,7 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
       "symptom": "复制槽 repmgr_slot_2 未激活，保留 48 MB WAL，xmin 5859 压着视界",
       "evidence": [{"probe_id": "slot.list", "fields": {"slot_name": "repmgr_slot_2", "active": false, "xmin": 5859, "retained_wal_bytes": 50331648}}],
       "cause": null,
-      "next": [{"kind": "verify", "command": "kbdiag status", "note": "在备库上运行：连不上说明备库实例挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 但 last_msg 一直在涨，说明接收进程卡住了"}]
+      "next": [{"kind": "verify", "command": "kbdiag status", "note": "在备库上运行：连不上说明备库实例挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 时隔十几秒再跑一次，last_msg 还在涨说明接收进程卡住了"}]
     }
   ],
   "redacted": []

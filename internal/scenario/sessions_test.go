@@ -210,7 +210,17 @@ func TestSessionsTextEdges(t *testing.T) {
 		{PID: 12, Usename: str("app"), ApplicationName: str("a\x1b[2Jb"), BackendType: str("client backend"), State: str("active"),
 			XactAgeS: f64(0), QueryAgeS: f64(0), StateAgeS: f64(0), Query: str("select\n\t1;\x1b[31m")},
 		{PID: 13, Usename: str("app"), BackendType: str("client backend"), State: str("idle")},
+		// a long, wide application name in both tables
+		{PID: 14, Usename: str("app"), ApplicationName: str(strings.Repeat("长应用名", 20)), BackendType: str("client backend"),
+			State: str("active"), XactAgeS: f64(59.6), QueryAgeS: f64(0.5), StateAgeS: f64(0.5), Query: str("select 2")},
+		// both redaction reasons in one report: two redacted lines
+		{PID: 15, Usename: str("other"), Query: str("<insufficient privilege>")},
+		{PID: 16, Usename: str("app"), BackendType: str("client backend"), State: str("disabled"), XactAgeS: f64(9), QueryAgeS: f64(9), Query: str("")},
+		// a walsender over the socket comes from "local", as a client does
+		{PID: 17, Usename: str("rep"), ApplicationName: str("pg_basebackup"), BackendType: str("walsender"), State: str("active")},
 	}}
+	rep := Sessions(c, a, SessionsOptions{All: true, Limit: 50, Thresholds: rule.Defaults})
+	assertGolden(t, "sessions_edges_all", rep)
 	assertGolden(t, "sessions_edges", Sessions(c, a, defaults))
 
 	t.Run("no sessions at all", func(t *testing.T) {
