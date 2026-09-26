@@ -438,6 +438,18 @@ func TestWaits(t *testing.T) {
 			}
 		}
 	}
+	// A background process running with no wait event (the ksh writer on
+	// its metric query) is not a busy session: no "(running)" row names one.
+	bg := strings.Fields(ksql(t, "select string_agg(pid::text, ' ') from sys_stat_activity where backend_type not in ('client backend', 'parallel worker')"))
+	for _, line := range strings.Split(out, "\n") {
+		if f := strings.Fields(line); len(f) > 0 && f[0] == "(running)" {
+			for _, x := range bg {
+				if slices.Contains(f[3:], x) {
+					t.Errorf("background pid %s listed as running: %q", x, line)
+				}
+			}
+		}
+	}
 }
 
 // L4: with track_activities off, waits is skipped and UNKNOWN.

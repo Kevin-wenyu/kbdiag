@@ -3,6 +3,7 @@ package report
 import (
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 
@@ -44,6 +45,17 @@ func (v *waitsView) write(w io.Writer) error {
 		case g.State != nil && *g.State == "disabled":
 			untracked += rest // what it does is not reported
 		default:
+			// a background process with no wait event is working, not
+			// stuck: the KES ksh writer running its metric query
+			if g.WaitEventType == nil && len(g.Background) > 0 {
+				background += len(g.Background)
+				rest -= len(g.Background)
+				g.Sessions -= len(g.Background)
+				g.PIDs = slices.DeleteFunc(slices.Clone(g.PIDs), func(p int32) bool { return slices.Contains(g.Background, p) })
+				if rest == 0 {
+					continue
+				}
+			}
 			// includes background processes stuck on a real wait (a
 			// checkpointer on IO, the startup process on a buffer pin)
 			busy += rest

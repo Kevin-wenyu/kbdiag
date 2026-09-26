@@ -1,0 +1,8 @@
+waits  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:19:31+08:00)
+
+not idle: 2
+  wait               state                sessions  pids
+  Lock:relation      active               1         843597
+  Client:ClientRead  idle in transaction  1         843588
+
+not shown: 3 idle, 8 background

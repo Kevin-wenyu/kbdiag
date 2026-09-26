@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -535,6 +536,29 @@ func TestWaitsText(t *testing.T) {
 	}
 }
 
+// Stage 9 (node1): the ksh writer (3279, a background process) was caught
+// running its metric query with no wait event and was listed as a busy
+// client. The JSON of that run was taken a second later, when 3279 was back
+// in Activity:KshMain, so the text run's state is rebuilt here. The probe
+// now names background pids; the golden is drawn by hand.
+func TestWaitsKshRunning(t *testing.T) {
+	c := loadCapture(t, "stage9/waits_node1_lock")
+	w := c.waitSummary(t)
+	moved := false
+	for i, g := range w.Rows {
+		if g.WaitEvent != nil && *g.WaitEvent == "KshMain" && slices.Contains(g.PIDs, 3279) {
+			w.Rows[i].PIDs = slices.DeleteFunc(slices.Clone(g.PIDs), func(p int32) bool { return p == 3279 })
+			w.Rows[i].Sessions--
+			moved = true
+		}
+	}
+	if !moved {
+		t.Fatal("capture has no ksh writer 3279 under Activity:KshMain")
+	}
+	w.Rows = append(w.Rows, facts.Wait{State: str("active"), Sessions: 1, PIDs: []int32{3279}, Background: []int32{3279}})
+	assertGolden(t, "waits_ksh_running", Waits(c.context(t), w))
+}
+
 // A pile-up on one event, sessions running on CPU, many pids, a masked
 // group mixed with visible background rows, and odd states.
 func TestWaitsTextEdges(t *testing.T) {
@@ -546,6 +570,10 @@ func TestWaitsTextEdges(t *testing.T) {
 	w := facts.WaitSummary{Status: facts.StatusOK, Rows: []facts.Wait{
 		{WaitEventType: str("Lock"), WaitEvent: str("transactionid"), State: str("active"), Sessions: 40, PIDs: pids},
 		{State: str("active"), Sessions: 3, PIDs: []int32{7, 8, 9}}, // running, no wait event
+		// a background process running with no wait event is not busy; one
+		// on a real wait still is
+		{State: str("active"), Sessions: 2, PIDs: []int32{10, 11}, Background: []int32{11}},
+		{WaitEventType: str("IO"), WaitEvent: str("DataFileRead"), State: str("active"), Sessions: 1, PIDs: []int32{12}, Background: []int32{12}},
 		{WaitEventType: str("LWLock"), WaitEvent: str("buffer_content"), State: str("active"), Sessions: 3, PIDs: []int32{4, 5, 6}},
 		{WaitEventType: str("Client"), WaitEvent: str("ClientRead"), State: str("idle in transaction (aborted)"), Sessions: 1, PIDs: []int32{3}},
 		{State: str("fastpath function call"), Sessions: 1, PIDs: []int32{2}},

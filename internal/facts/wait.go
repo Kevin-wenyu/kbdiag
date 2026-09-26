@@ -14,6 +14,11 @@ type Wait struct {
 	Sessions      int
 	PIDs          []int32
 	Masked        int // sessions in this group KES hid from us
+	// Background lists the group's background processes (not client
+	// backends or parallel workers). Not in the JSON: it only tells the
+	// text a background process running with no wait event from a busy
+	// client (stage 9, the KES ksh writer).
+	Background []int32
 }
 
 func (w Wait) Row() []any {
