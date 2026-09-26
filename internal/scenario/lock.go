@@ -85,7 +85,11 @@ func Locks(c facts.Context, l facts.LockList, o LocksOptions) *report.Report {
 	}
 	var shown []facts.Lock
 	for _, x := range l.Rows {
-		if !x.Granted || (x.PID != nil && contested[object{*x.PID, x.Locktype, deref(x.Relation)}]) {
+		pid := int32(facts.PreparedBlocker) // a prepared transaction's lock has no pid
+		if x.PID != nil {
+			pid = *x.PID
+		}
+		if !x.Granted || contested[object{pid, x.Locktype, deref(x.Relation)}] {
 			shown = append(shown, x)
 		}
 	}

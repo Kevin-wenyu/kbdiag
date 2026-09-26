@@ -221,9 +221,20 @@ func TestLocksBlockedByPrepared(t *testing.T) {
 	if got := findings(r, "lock.waiting", "blocker_pids", []any{0.0}); len(got) != 1 {
 		t.Errorf("blocker_pids is not [0]: %+v", r.Findings)
 	}
+	// The 2PC's own lock has no pid in sys_locks (seen on node1, 2026-09-26);
+	// lock.list keeps it because it is what the waiter wants.
+	held := false
+	for _, row := range okProbe(t, r, "lock.list", lockColumns).rowsOf() {
+		if row["pid"] == nil && row["granted"] == true && row["relation"] == "public.kbdiag_inj_2pc" {
+			held = true
+		}
+	}
+	if !held {
+		t.Errorf("lock.list lacks the prepared transaction's lock on kbdiag_inj_2pc")
+	}
 	out, _ := kbdiagText(t, nil, "locks")
-	if !strings.Contains(out, "\n  2PC ") || !strings.HasSuffix(strings.TrimSpace(textLine(out, fmt.Sprint(waiter))), "2PC") {
-		t.Errorf("text does not name the prepared transaction as 2PC:\n%s", out)
+	if !textRow(out, "2PC", "1", "public.kbdiag_inj_2pc") || !strings.HasSuffix(strings.TrimSpace(textLine(out, fmt.Sprint(waiter))), "2PC") {
+		t.Errorf("text does not name the prepared transaction as 2PC with the lock it holds:\n%s", out)
 	}
 }
 

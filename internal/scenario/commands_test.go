@@ -307,8 +307,8 @@ func locksCapture(t *testing.T, name string) (facts.Context, facts.LockList) {
 
 // The first five goldens were drawn by hand from the stage-0 captures
 // before the code existed. The captures hold lock.list as shown, not every
-// sys_locks row: the 2PC's own lock rows (pid NULL) are missing, so
-// locks_prepared's "holds -" is provisional until the VM run.
+// sys_locks row, so they lack the 2PC's own lock (pid NULL); the VM run of
+// 2026-09-26 showed it holds RowExclusiveLock on the table, added back here.
 func TestLocksText(t *testing.T) {
 	lowthr := LocksOptions{Limit: 50, Thresholds: rule.Thresholds{LockWaitWarnS: 1}}
 	for _, x := range []struct{ golden, capture string }{
@@ -320,9 +320,24 @@ func TestLocksText(t *testing.T) {
 	} {
 		t.Run(x.golden, func(t *testing.T) {
 			c, l := locksCapture(t, x.capture)
+			if x.golden == "locks_prepared" {
+				l.Rows = append(l.Rows, facts.Lock{Locktype: "relation", Relation: str("public.kbdiag_inj_2pc"), Mode: "RowExclusiveLock", Granted: true})
+			}
 			assertGolden(t, x.golden, Locks(c, l, lowthr))
 		})
 	}
+	// JSON keeps the blocker's contested lock for a 2PC too, not only for a session.
+	t.Run("prepared blocker's lock in JSON", func(t *testing.T) {
+		c, l := locksCapture(t, "locks_node1_prepared_waiter")
+		l.Rows = append(l.Rows,
+			facts.Lock{Locktype: "relation", Relation: str("public.kbdiag_inj_2pc"), Mode: "RowExclusiveLock", Granted: true},
+			facts.Lock{Locktype: "relation", Relation: str("public.uncontested"), Mode: "RowExclusiveLock", Granted: true})
+		got, _ := json.Marshal(Locks(c, l, lowthr).Data[facts.LockListID].Rows)
+		want := `[[807225,"relation","public.kbdiag_inj_2pc","AccessExclusiveLock",false,4,[0]],[null,"relation","public.kbdiag_inj_2pc","RowExclusiveLock",true,null,[]]]`
+		if string(got) != want {
+			t.Errorf("lock.list rows = %s\nwant the waiter and the 2PC's lock on its table: %s", got, want)
+		}
+	})
 	t.Run("default threshold", func(t *testing.T) {
 		c, l := locksCapture(t, "locks_node1_lock")
 		rep := Locks(c, l, LocksOptions{Limit: 50, Thresholds: rule.Defaults})
