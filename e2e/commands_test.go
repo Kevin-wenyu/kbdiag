@@ -573,8 +573,12 @@ func TestSlots(t *testing.T) {
 			if b, ok := row["retained_wal_bytes"].(float64); !ok || b < 0 {
 				t.Errorf("retained_wal_bytes = %v: must come from the replay LSN", row["retained_wal_bytes"])
 			}
-			if got := findings(r, "slot.inactive", "slot_name", "kbdiag_inj_slot"); !reflect.DeepEqual(got, []string{"FAIL"}) || code != 2 {
+			if got := findings(r, "slot.inactive", "slot_name", "kbdiag_inj_slot"); !reflect.DeepEqual(got, []string{"WARN"}) || code != 1 {
 				t.Errorf("findings=%v exit=%d", got, code)
+			}
+			out, _ := kbdiagText(t, nil, "slots")
+			if !textRow(out, "kbdiag_inj_slot", "physical", "  no  ") {
+				t.Errorf("text does not list the inactive slot:\n%s", out)
 			}
 		})
 		return
@@ -591,8 +595,13 @@ func TestSlots(t *testing.T) {
 		if name == nil {
 			t.Fatalf("no inactive physical slot with xmin: %+v", r.Data["slot.list"])
 		}
-		if got := findings(r, "slot.inactive", "slot_name", name); !reflect.DeepEqual(got, []string{"FAIL"}) || r.Verdict != "FAIL" || code != 2 {
+		if got := findings(r, "slot.inactive", "slot_name", name); !reflect.DeepEqual(got, []string{"WARN"}) || r.Verdict != "WARN" || code != 1 {
 			t.Errorf("findings=%v verdict=%s exit=%d", got, r.Verdict, code)
+		}
+		// inactive slots come first; this one also shows its xmin
+		out, _ := kbdiagText(t, nil, "slots")
+		if !textRow(out, fmt.Sprint(name), "  no  ") || !strings.Contains(out, "\nslots: ") {
+			t.Errorf("text does not list %v as inactive:\n%s", name, out)
 		}
 	})
 }

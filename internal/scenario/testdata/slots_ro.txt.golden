@@ -1,0 +1,8 @@
+slots  WARN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-26T19:44:00+08:00)
+
+[WARN] slot.inactive  复制槽 repmgr_slot_2 未激活，保留 0 bytes WAL，xmin 6178 压着视界
+  verify: kbdiag status  # 到这个槽的下游节点（通常是备库）上运行：连不上说明它挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 时隔十几秒再跑一次，last_msg 还在涨说明接收进程卡住了
+
+slots: 1
+  name           type      active  retained  xmin  xmin age  restart_lsn
+  repmgr_slot_2  physical  no      0 bytes   6178  0         0/A41C55C8

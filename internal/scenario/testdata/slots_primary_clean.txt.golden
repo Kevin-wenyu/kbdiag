@@ -1,0 +1,5 @@
+slots  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:55+08:00)
+
+slots: 1
+  name           type      active            retained  xmin  xmin age  restart_lsn
+  repmgr_slot_2  physical  yes (pid 784848)  0 bytes   6170  0         0/A41AF7B8

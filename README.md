@@ -41,7 +41,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `locks` | Who blocks the most (and what it holds), then every lock wait, longest first, with its direct blockers; WARN on long waits | `--limit N`, `--lock-wait-warn S` |
 | `txn` | The oldest xid holding back vacuum and who holds it, open transactions, prepared (2PC) ones; WARN on old ones | `--limit N`, `--xact-warn S`, `--prepared-warn S` |
 | `waits` | What the sessions doing something wait on, grouped by wait event and state, biggest pile first; idle sessions and background processes only counted | |
-| `slots` | Replication slots; FAIL on inactive ones | |
+| `slots` | Replication slots, inactive ones and the ones keeping the most WAL first; WARN on inactive ones | |
 
 Defaults: idle in transaction 300 s, lock wait 10 s, transaction 300 s, prepared transaction 900 s, all WARN. `--limit` only trims what is shown; findings always cover every row.
 
@@ -139,7 +139,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `locks` | 谁挡的人最多、它持有什么锁，再列出每个等锁的会话（等得最久的在前）和直接挡路者；等太久报 WARN | `--limit N`、`--lock-wait-warn 秒` |
 | `txn` | 最老的 xid 压着 vacuum、是谁压的，开着的事务，两阶段事务；过久报 WARN | `--limit N`、`--xact-warn 秒`、`--prepared-warn 秒` |
 | `waits` | 在干活的会话在等什么，按等待事件和状态汇总，人多的在前；idle 会话和后台进程只计数 | |
-| `slots` | 复制槽；未激活报 FAIL | |
+| `slots` | 复制槽，未激活的和保留 WAL 最多的排前面；未激活报 WARN | |
 
 默认阈值：idle in transaction 300 秒，等锁 10 秒，事务 300 秒，两阶段事务 900 秒，都报 WARN。`--limit` 只影响显示，判定始终覆盖全部行。
 

@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/Kevin-wenyu/kbdiag/internal/units"
 )
 
 // writeStatus lays status out for a person (plan 2026-09-24-polish-status §1):
@@ -230,37 +232,6 @@ func number(v any) (float64, bool) {
 	return 0, false
 }
 
-// size matches pg_size_pretty: 1024 steps, the next unit only once the
-// number reaches 10240, rounded half up.
-func size(b float64) string {
-	units := []string{"bytes", "kB", "MB", "GB", "TB", "PB"}
-	i := 0
-	for math.Abs(math.Round(b)) >= 10240 && i < len(units)-1 {
-		b /= 1024
-		i++
-	}
-	return fmt.Sprintf("%.0f %s", math.Round(b), units[i])
-}
-
-// duration keeps the two largest units: 5d 20h, 3m 7s, 8s. Seconds are
-// rounded, as the findings' "%.0f 秒" are, so text and finding agree.
-func duration(s float64) string {
-	n := int64(math.Round(s))
-	if n < 0 {
-		n = 0
-	}
-	parts := []struct {
-		v    int64
-		unit string
-	}{{n / 86400, "d"}, {n % 86400 / 3600, "h"}, {n % 3600 / 60, "m"}, {n % 60, "s"}}
-	for i, p := range parts {
-		if p.v == 0 && i < len(parts)-1 {
-			continue
-		}
-		if i == len(parts)-1 {
-			return fmt.Sprintf("%d%s", p.v, p.unit)
-		}
-		return fmt.Sprintf("%d%s %d%s", p.v, p.unit, parts[i+1].v, parts[i+1].unit)
-	}
-	return "0s"
-}
+// size and duration are the shared human units (internal/units).
+func size(b float64) string     { return units.Bytes(b) }
+func duration(s float64) string { return units.Duration(s) }

@@ -130,6 +130,16 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **没有判定，没有参数**：等待事件本身没有客观线（同样 10 个会话等 IO，对一个库是事故，对另一个库是常态）；锁等太久由 locks 报。看不全（遮蔽、untracked）照旧 UNKNOWN。
 - JSON 不变。
 
+### slots 打磨（2026-09-26）
+
+场景表：R1 有哪些槽、有没有人在消费；R2 每个槽保留了多少 WAL（磁盘）；R3 槽的 xmin / catalog_xmin 是否压着视界；R4 不活跃时下游还在不在 → `kbdiag status`（到下游上跑）。不归 slots：复制延迟数值 → v0.2；备库在不在收 WAL → `status`；会话压着的视界 → `txn`。
+
+- **`slot.inactive` 从 FAIL 改 WARN**（待用户确认）：槽不活跃时业务照常，危害（WAL 撑满磁盘、表膨胀、没有跟得上的备库）是以后的事，按"FAIL = 业务已经受影响"是 WARN。没有阈值、没有参数：不活跃本身就是客观线。repmgr 重启备库的那几秒也会报，属实。
+- **WAL 量用人读的单位**：symptom 原来一律按 MB 取整，备库上 45 kB 写成"保留 0 MB WAL"；改用 `internal/units`（和 pg_size_pretty 一致），文本和 finding 共用。`internal/units` 是新包：rule 要用，又不能 import report。
+- **逻辑槽的 catalog_xmin 写进 symptom 和 evidence**：它压着系统表的 vacuum。实验环境 wal_level=replica，建不了逻辑槽，只有 L1/L2。catalog xmin 列只在有槽带它时出现。
+- **next 说"到这个槽的下游节点上运行"**：备库上也可以有槽（级联），原来的"在备库上运行"对它不对。
+- 文本按不活跃在前、保留 WAL 多的在前排；JSON 行仍按槽名排。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

@@ -207,6 +207,19 @@ func (c capture) waitSummary(t *testing.T) facts.WaitSummary {
 	return w
 }
 
+// slotList rebuilds slot.list from a capture.
+func (c capture) slotList(t *testing.T) facts.SlotList {
+	t.Helper()
+	st, reason, rows := c.rows(t, facts.SlotListID)
+	l := facts.SlotList{Status: st, Reason: reason}
+	for _, m := range rows {
+		l.Rows = append(l.Rows, facts.Slot{Name: m["slot_name"].(string), Type: m["slot_type"].(string), Active: m["active"].(bool),
+			ActivePID: cI32(m["active_pid"]), Xmin: cU32(m["xmin"]), CatalogXmin: cU32(m["catalog_xmin"]), XminAge: cI32(m["xmin_age"]),
+			RestartLSN: cStr(m["restart_lsn"]), RetainedWALBytes: cI64(m["retained_wal_bytes"])})
+	}
+	return l
+}
+
 // Every capture file parses: a broken one would silently drop coverage.
 func TestCapturesParse(t *testing.T) {
 	names, err := filepath.Glob(filepath.Join("..", "..", "e2e", "testdata", "captures", "*.json"))

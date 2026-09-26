@@ -23,6 +23,7 @@ type Report struct {
 	session  *sessionView
 	txn      *txnView
 	waits    *waitsView
+	slots    *slotsView
 }
 
 type Context struct {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
+	"github.com/Kevin-wenyu/kbdiag/internal/units"
 )
 
 // Waits only reports; it has no threshold in v0.1. Hidden sessions keep the
@@ -101,7 +102,8 @@ func upstream(u facts.InstUpstream) (f Finding, found, unknown bool) {
 }
 
 // Slots flags inactive replication slots: nothing consumes them, yet they
-// keep WAL and, with an xmin, hold back the vacuum horizon.
+// keep WAL and, with an xmin, hold back the vacuum horizon. WARN: the harm
+// (a full disk, bloat, no up-to-date standby) comes later, not now.
 func Slots(l facts.SlotList) Result {
 	judge, unknown := collected(l.Status)
 	if !judge {
@@ -116,19 +118,22 @@ func Slots(l facts.SlotList) Result {
 		if s.RetainedWALBytes == nil {
 			symptom += "未保留 WAL"
 		} else {
-			symptom += fmt.Sprintf("保留 %.0f MB WAL", float64(*s.RetainedWALBytes)/(1<<20))
+			symptom += "保留 " + units.Bytes(float64(*s.RetainedWALBytes)) + " WAL"
 		}
 		if s.Xmin != nil {
 			symptom += fmt.Sprintf("，xmin %d 压着视界", *s.Xmin)
 		}
+		if s.CatalogXmin != nil { // logical slots: holds back vacuum of system catalogs
+			symptom += fmt.Sprintf("，catalog_xmin %d 压着系统表的视界", *s.CatalogXmin)
+		}
 		fs = append(fs, Finding{
 			ID:      "slot.inactive",
-			Level:   LevelFAIL,
+			Level:   LevelWARN,
 			Symptom: symptom,
 			Evidence: []Evidence{{ProbeID: facts.SlotListID, Fields: map[string]any{
-				"slot_name": s.Name, "active": s.Active, "xmin": s.Xmin, "retained_wal_bytes": s.RetainedWALBytes,
+				"slot_name": s.Name, "active": s.Active, "xmin": s.Xmin, "catalog_xmin": s.CatalogXmin, "retained_wal_bytes": s.RetainedWALBytes,
 			}}},
-			Next: []Next{{Kind: "verify", Command: "kbdiag status", Note: "在备库上运行：连不上说明备库实例挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 时隔十几秒再跑一次，last_msg 还在涨说明接收进程卡住了"}},
+			Next: []Next{{Kind: "verify", Command: "kbdiag status", Note: "到这个槽的下游节点（通常是备库）上运行：连不上说明它挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 时隔十几秒再跑一次，last_msg 还在涨说明接收进程卡住了"}},
 		})
 	}
 	return Result{Verdict: verdictOf(fs, unknown), Findings: fs}

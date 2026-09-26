@@ -186,12 +186,18 @@ func TestSlots(t *testing.T) {
 	}{
 		{"no slots", facts.SlotList{Status: facts.StatusOK}, VerdictOK, nil},
 		{"active slot", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{slot("a", true)}}, VerdictOK, nil},
-		{"inactive with xmin", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{slot("a", true), slot("repmgr_slot_2", false)}}, VerdictFAIL,
+		{"inactive with xmin", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{slot("a", true), slot("repmgr_slot_2", false)}}, VerdictWARN,
 			[]string{"复制槽 repmgr_slot_2 未激活，保留 48 MB WAL，xmin 5859 压着视界"}},
-		{"inactive, no xmin, never reserved WAL", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "b"}}}, VerdictFAIL,
+		{"inactive, no xmin, never reserved WAL", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "b"}}}, VerdictWARN,
 			[]string{"复制槽 b 未激活，未保留 WAL"}},
-		{"inactive, zero WAL", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "c", RetainedWALBytes: i64(0)}}}, VerdictFAIL,
-			[]string{"复制槽 c 未激活，保留 0 MB WAL"}},
+		{"inactive, zero WAL", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "c", RetainedWALBytes: i64(0)}}}, VerdictWARN,
+			[]string{"复制槽 c 未激活，保留 0 bytes WAL"}},
+		{"inactive, under a megabyte", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "d", RetainedWALBytes: i64(45720)}}}, VerdictWARN,
+			[]string{"复制槽 d 未激活，保留 45 kB WAL"}},
+		{"inactive logical slot", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "l", Type: "logical", CatalogXmin: xid(90), RetainedWALBytes: i64(0)}}}, VerdictWARN,
+			[]string{"复制槽 l 未激活，保留 0 bytes WAL，catalog_xmin 90 压着系统表的视界"}},
+		{"inactive, gigabytes", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "e", RetainedWALBytes: i64(12 << 30)}}}, VerdictWARN,
+			[]string{"复制槽 e 未激活，保留 12 GB WAL"}},
 		{"error", facts.SlotList{Status: facts.StatusError}, VerdictUNKNOWN, nil},
 		{"skipped", facts.SlotList{Status: facts.StatusSkipped}, VerdictUNKNOWN, nil},
 	}
@@ -203,7 +209,7 @@ func TestSlots(t *testing.T) {
 			}
 			var got []string
 			for _, f := range r.Findings {
-				if f.ID != "slot.inactive" || f.Level != LevelFAIL {
+				if f.ID != "slot.inactive" || f.Level != LevelWARN {
 					t.Errorf("finding %s/%s", f.ID, f.Level)
 				}
 				for _, k := range []string{"slot_name", "active", "xmin", "retained_wal_bytes"} {
@@ -211,7 +217,7 @@ func TestSlots(t *testing.T) {
 						t.Errorf("evidence missing %s", k)
 					}
 				}
-				if len(f.Next) != 1 || f.Next[0].Command != "kbdiag status" || !strings.Contains(f.Next[0].Note, "inst.upstream") {
+				if len(f.Next) != 1 || f.Next[0].Command != "kbdiag status" || !strings.Contains(f.Next[0].Note, "inst.upstream") || !strings.Contains(f.Next[0].Note, "下游") {
 					t.Errorf("next = %+v", f.Next)
 				}
 				got = append(got, f.Symptom)

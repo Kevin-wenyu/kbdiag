@@ -571,3 +571,34 @@ func TestTxnPartial(t *testing.T) {
 	// a tie between a 2PC's xid and a session's xmin lists both
 	assertGolden(t, "txn_tie", Txn(c, facts.SessionActivity{Status: facts.StatusOK, Rows: a.Rows[1:]}, p, TxnOptions{Limit: 50, Thresholds: rule.Defaults}))
 }
+
+// The first five goldens were drawn by hand from the stage-0 captures
+// before the code existed.
+func TestSlotsText(t *testing.T) {
+	for _, x := range []struct{ golden, capture string }{
+		{"slots_primary", "slots_node1_slot"},
+		{"slots_primary_clean", "slots_node1_clean"},
+		{"slots_standby", "slots_node2_standby_slot"},
+		{"slots_standby_clean", "slots_node2_clean"},
+		{"slots_ro", "slots_node1_slot_ro"},
+	} {
+		t.Run(x.golden, func(t *testing.T) {
+			c := loadCapture(t, x.capture)
+			assertGolden(t, x.golden, Slots(c.context(t), c.slotList(t)))
+		})
+	}
+}
+
+// Logical slots with a catalog_xmin, several slots (inactive and largest
+// first), a slot never used, a long wide name, a probe error.
+func TestSlotsTextEdges(t *testing.T) {
+	c, _ := locksCapture(t, "locks_node1_clean")
+	l := facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{
+		{Name: "a_active", Type: "physical", Active: true, ActivePID: i32(10), Xmin: xid(100), XminAge: i32(5), RestartLSN: str("0/10"), RetainedWALBytes: i64(1 << 20)},
+		{Name: "b_logical", Type: "logical", CatalogXmin: xid(90), XminAge: i32(15), RestartLSN: str("0/9"), RetainedWALBytes: i64(3 << 30)},
+		{Name: "c_never_used", Type: "physical"},
+		{Name: strings.Repeat("备库槽", 15), Type: "physical", RestartLSN: str("0/8"), RetainedWALBytes: i64(20 << 20)},
+	}}
+	assertGolden(t, "slots_edges", Slots(c, l))
+	assertGolden(t, "slots_error", Slots(c, facts.SlotList{Status: facts.StatusError, Reason: "42P01: relation does not exist"}))
+}

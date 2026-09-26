@@ -30,5 +30,6 @@ func Status(c facts.Context, i facts.InstInfo, d facts.InstDatabases, n facts.In
 func Slots(c facts.Context, l facts.SlotList) *report.Report {
 	rep := report.New("slots", c, rule.Slots(l))
 	rep.AddProbe(facts.SlotListID, l.Status, l.Reason, facts.SlotColumns, rows(l.Rows), 0)
+	rep.SetSlots(l)
 	return rep
 }

@@ -28,7 +28,7 @@
 - B4：`txn.long` 的 300 秒和 `txn.prepared` 的 900 秒都用 A（缩放到 1 秒）测；默认阈值下同一注入不出 finding 作为反例。备库上 `txn.prepared` 为 `not_applicable`（主库的 2PC 在备库查不到，实测）。2026-09-26 打磨：两条都只报 WARN，删 `--xact-fail`，`--prepared-fail` 改名 `--prepared-warn`；文本改成 oldest xid（按 2^32 取模比较，列出持有它的会话和 2PC）加 open transactions 加 prepared 三段；被遮蔽的会话 KES 仍给 xid/xmin（阶段 0 实采），所以照样列出、其余列写 `?`；什么都看不到的写 `N sessions hidden`（多半是 idle 会话，不是事务）；有一个来源没采到时 oldest xid 注明"可能有更老的"或写 unknown。文本由 L2 golden 覆盖（6 份手排草样来自阶段 0 实采），VM 上的文本断言和改级别后的 e2e 还没跑
 - E1：锁等待注入后断言 waiter 落在 `Lock/relation`（备库 `Lock/advisory`）组里；`track_off` 下 `skipped`；`kbdiag_ro` 下三列遮蔽，`rows_affected` 等于遮蔽组的会话总数。只按会话做计数，不判断，所以没有 finding。2026-09-26 打磨：文本只列在干活的组（`Activity` 类等待是进程在主循环里空闲，归后台；state 为空且没有等待事件的也归后台；后台进程卡在其他等待上照样列出，state 写 `(background)`；遮蔽和 untracked 的会话只计数），按会话数、active 优先排，active 却没有等待事件的写 `(running)`，pids 最多列 10 个；idle 和后台进程合成一行 `not shown:` 计数。文本由 L2 golden 覆盖（5 份手排草样来自阶段 0 实采），VM 上的文本断言还没跑
 - A1：连接数用 `sys_stat_database.numbackends` 求和，只数连到库的后端，不含后台进程。L3 逐项和 ksql 比：启动时间、`max_connections`、保留连接、数据目录、端口、库名列表、下游（主库 1 行、备库 0 行，`application_name`/`state`/`sync_state` 逐行比）、上游（备库上和 `sys_stat_wal_receiver` 比）、磁盘（和 `df -B1` 比，允许采集间隔内的小差）。没有 CONNECT 权限时库大小为 NULL，记进 `redacted[]` 但不影响 verdict；这一点只有 L2 覆盖，VM 上所有库对 `kbdiag_ro` 都可连。`inst.connections` 只有 FAIL（已用 ≥ 可用），用 L4 `conn.sh` 真实填满测（两节点）；填满时 kbdiag 自己的 system 连接走保留槽仍连得上（DS-03）。80% WARN 和 `--conn-warn`/`--conn-fail` 2026-09-26 删除：因应用而异，没有客观线。`inst.upstream` 的 WARN（备库没有接收进程或状态不是 `streaming`）目前只有 L1/L2，还没有注入：`slot.sh` 用 SIGSTOP 暂停 walreceiver，进程还在，共享内存里的 status 停在 `streaming`，造不出这个 WARN（只会让 `last_msg_age_s` 一直涨）；而停实例会被 kbha 拉起，注入方法待定。用户 2026-09-26 定为已知限制：先不为它动 sudo 或集群网络，等 slots 或复制延迟打磨做复制中断注入时顺带补上。非监控账号：和 PG 不同，KES V8R6 对不授任何监控角色的 `kbdiag_ro` 放开了 `sys_stat_replication` 全部列、`sys_stat_wal_receiver` 全部列和 `current_setting('data_directory')`（2026-09-26 两节点 ksql 和 L5 实测；同一账号看别人会话的 SQL 仍是 `<insufficient privilege>`），所以 status 在 `kbdiag_ro` 下没有遮蔽、verdict 和 system 一样。代码仍保留 PG 式遮蔽的处理（`state`/`sync_state` 为 NULL 记 `redacted[]` 不影响 verdict；upstream `status` 为 NULL 记 `redacted[]`、备库 UNKNOWN；`data_directory` 看不到时 `inst.disk` 为 `skipped`），这些分支只有 L2 覆盖，VM 上造不出来。`inst.disk` 只展示、不参与 verdict
-- I2：主库上的槽由 `slot.sh`（暂停备库 walreceiver）造成 inactive；备库上的槽由 `standby_slot.sh` 建，保留的 WAL 必须按 `sys_last_wal_replay_lsn()` 算（备库上 `sys_current_wal_lsn()` 报错），L3 断言它非空且 ≥ 0
+- I2：主库上的槽由 `slot.sh`（暂停备库 walreceiver）造成 inactive；备库上的槽由 `standby_slot.sh` 建，保留的 WAL 必须按 `sys_last_wal_replay_lsn()` 算（备库上 `sys_current_wal_lsn()` 报错），L3 断言它非空且 ≥ 0。2026-09-26 打磨：`slot.inactive` 从 FAIL 改 WARN；symptom 的 WAL 量改用和 pg_size_pretty 一致的单位（原来一律按 MB 取整，45 kB 会写成 0 MB）；逻辑槽的 catalog_xmin 写进 symptom 和 evidence（实验环境 wal_level=replica 建不了逻辑槽，只有 L1/L2）；next 改指 `kbdiag status` 并说"到这个槽的下游节点上运行"；文本按不活跃、保留 WAL 多少排序。文本由 L2 golden 覆盖（5 份手排草样来自阶段 0 实采），VM 上的文本断言和改级别后的 e2e 还没跑
 
 填写规则：
 - probe_id 格式 `<域>.<对象>`，和 finding.id 共用域前缀（PRD §5）；上表的 probe_id 和 PRD §5.1 示例一致；一个 probe 就是一条 SQL（例外：`inst.disk` 是 statfs），列名属于契约
@@ -245,7 +245,7 @@ VM 上还装了这些扩展：
 | 备库没在收 WAL（`inst.upstream`，已实现） | — | 没有 WAL 接收进程，或状态不是 `streaming`；不可调 | — |
 | idle in transaction 占连接数比例 | — | > 20% | — |
 | 物理复制回放延迟 | > 1 分钟 / 100MB | > 5 分钟 / 1GB | > 30 分钟 / 10GB |
-| 复制槽未激活（`slot.inactive`，已实现） | — | — | `active=false` |
+| 复制槽未激活（`slot.inactive`，已实现） | — | `active=false`（2026-09-26 从 FAIL 改为 WARN） | — |
 | 库年龄 `age(datfrozenxid)` | > 10 亿 | > 15 亿 | > 20 亿 |
 | 序列剩余可调用次数 | < 10 万 | < 1 万 | < 1000 |
 | 2PC 事务存在时长（`txn.prepared`，已实现） | — | ≥ 900 秒（`--prepared-warn`；2026-09-26 从 FAIL 改为 WARN） | — |

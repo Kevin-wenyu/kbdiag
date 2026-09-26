@@ -51,7 +51,7 @@
 | `txn` | 谁压着 vacuum 视界（最老的 xid/xmin 和持有者）、开着的事务、未结束的 2PC；长事务和 2PC 都只报 WARN（2026-09-26 起不再 FAIL） | `session.activity`、`txn.prepared` | 2PC 部分 `not_applicable`，提示去主库查 |
 | `waits` | 此刻在干活的会话在等什么（按等待事件和状态汇总，人多的在前）；idle 会话、空闲的后台进程（`Activity` 类等待）和看不到状态的会话只计数；后台进程卡在真正的等待上照样列出。没有判定，看不全时 UNKNOWN；JSON 不变 | `wait.summary` | 正常 |
 | `status` | 刚登上实例时的基本盘：身份（短版本号、数据目录、端口）、角色和复制（主库列出每个备库，备库看上游在不在收 WAL）、启动时间、连接数/可用数、各库大小、数据目录所在磁盘。只判两条：普通用户已经连不上（`inst.connections` FAIL），备库没在收 WAL（`inst.upstream` WARN）；没有参数 | `inst.info`、`inst.downstreams`、`inst.upstream`、`inst.databases`、`inst.disk` | 主库上 `inst.upstream` 为 `not_applicable`；远程运行时 `inst.disk` 为 `not_applicable` |
-| `slots` | 复制槽是否活跃、保留多少 WAL、xmin 是否压着视界 | `slot.list` | 正常；WAL 保留量改用 `sys_last_wal_replay_lsn()` 计算 |
+| `slots` | 复制槽是否活跃、保留多少 WAL、xmin（逻辑槽的 catalog_xmin）是否压着视界；不活跃的排前面、保留 WAL 多的排前面；不活跃报 WARN（2026-09-26 起不再 FAIL）；JSON 除 evidence 加了 `catalog_xmin` 外不变 | `slot.list` | 正常；WAL 保留量改用 `sys_last_wal_replay_lsn()` 计算 |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
 
@@ -432,7 +432,7 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
 ```json
 {
   "command": "slots",
-  "verdict": "FAIL",
+  "verdict": "WARN",
   "context": {"version": "KingbaseES V008R006C009B0014", "role": "primary", "location": "local", "user": "system", "collected_at": "2026-09-23T21:52:40+08:00"},
   "data": {
     "slot.list": {
@@ -448,11 +448,11 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
   "findings": [
     {
       "id": "slot.inactive",
-      "level": "FAIL",
+      "level": "WARN",
       "symptom": "复制槽 repmgr_slot_2 未激活，保留 48 MB WAL，xmin 5859 压着视界",
-      "evidence": [{"probe_id": "slot.list", "fields": {"slot_name": "repmgr_slot_2", "active": false, "xmin": 5859, "retained_wal_bytes": 50331648}}],
+      "evidence": [{"probe_id": "slot.list", "fields": {"slot_name": "repmgr_slot_2", "active": false, "xmin": 5859, "catalog_xmin": null, "retained_wal_bytes": 50331648}}],
       "cause": null,
-      "next": [{"kind": "verify", "command": "kbdiag status", "note": "在备库上运行：连不上说明备库实例挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 时隔十几秒再跑一次，last_msg 还在涨说明接收进程卡住了"}]
+      "next": [{"kind": "verify", "command": "kbdiag status", "note": "到这个槽的下游节点（通常是备库）上运行：连不上说明它挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 时隔十几秒再跑一次，last_msg 还在涨说明接收进程卡住了"}]
     }
   ],
   "redacted": []
