@@ -20,7 +20,7 @@ func Bytes(b float64) string {
 }
 
 // Duration keeps the two largest units: 5d 20h, 3m 7s, 8s. Seconds are
-// rounded, as the findings' "%.0f 秒" are, so text and finding agree.
+// rounded, as the findings' "%.0fs" are, so text and finding agree.
 func Duration(s float64) string {
 	n := int64(math.Round(s))
 	if n < 0 {

@@ -38,11 +38,11 @@ func longTxn(a facts.SessionActivity, th Thresholds) Result {
 		fs = append(fs, Finding{
 			ID:      "txn.long",
 			Level:   LevelWARN,
-			Symptom: fmt.Sprintf("会话 %d 的事务已开了 %.0f 秒，当前 %s", s.PID, *s.XactAgeS, state),
+			Symptom: fmt.Sprintf("session %d has had a transaction open for %.0fs, now %s", s.PID, *s.XactAgeS, state),
 			Evidence: []Evidence{{ProbeID: facts.SessionActivityID, Fields: map[string]any{
 				"pid": s.PID, "state": s.State, "xact_age_s": *s.XactAgeS, "backend_xid": s.BackendXID, "backend_xmin": s.BackendXmin,
 			}}},
-			Next: []Next{{Kind: "verify", Command: fmt.Sprintf("kbdiag session %d", s.PID), Note: "看它在跑什么、持有哪些锁、有没有挡住别人"}},
+			Next: []Next{{Kind: "verify", Command: fmt.Sprintf("kbdiag session %d", s.PID), Note: "what it is running, which locks it holds, whether it blocks anyone"}},
 		})
 	}
 	return Result{Verdict: verdictOf(fs, unknown), Findings: fs}
@@ -60,15 +60,15 @@ func prepared(p facts.TxnPrepared, th Thresholds) Result {
 		}
 		gid := strings.ReplaceAll(x.GID, "'", "''")
 		fix := Next{Kind: "fix", SQL: fmt.Sprintf("ROLLBACK PREPARED '%s'", gid),
-			Note: fmt.Sprintf("先和应用确认它该提交还是回滚（提交用 COMMIT PREPARED）；要连到库 %s 执行，且不能放在事务块里", x.Database)}
+			Note: fmt.Sprintf("check with the application whether to commit (COMMIT PREPARED) or roll back; run it connected to database %s, outside a transaction block", x.Database)}
 		if strings.IndexFunc(x.GID, unicode.IsControl) >= 0 {
 			// the printed text is escaped, so pasting it would not match
-			fix = Next{Kind: "verify", Command: "kbdiag txn --json", Note: "gid 含控制字符，终端上显示的是转义后的文本，要从 JSON 取原始 gid 再回滚或提交"}
+			fix = Next{Kind: "verify", Command: "kbdiag txn --json", Note: "the gid has control characters and the text shows it escaped: take the raw gid from the JSON before committing or rolling back"}
 		}
 		fs = append(fs, Finding{
 			ID:      "txn.prepared",
 			Level:   LevelWARN,
-			Symptom: fmt.Sprintf("两阶段事务 %s 已 prepare %.0f 秒未结束，压着视界", x.GID, x.AgeS),
+			Symptom: fmt.Sprintf("two-phase transaction %s prepared %.0fs ago and not finished, holding back the vacuum horizon", x.GID, x.AgeS),
 			Evidence: []Evidence{{ProbeID: facts.TxnPreparedID, Fields: map[string]any{
 				"gid": x.GID, "owner": x.Owner, "database": x.Database, "age_s": x.AgeS, "transaction": x.Transaction,
 			}}},

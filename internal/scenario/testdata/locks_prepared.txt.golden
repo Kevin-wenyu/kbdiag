@@ -1,7 +1,7 @@
 locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:43:02+08:00)
 
-[WARN] lock.waiting  会话 807225 等 public.kbdiag_inj_2pc 的 AccessExclusiveLock 已 4 秒，被 未提交的两阶段事务 挡住
-  verify: kbdiag txn  # 挡路的是未提交的两阶段事务，看它的 gid 和已经挂了多久
+[WARN] lock.waiting  session 807225 has waited 4s for AccessExclusiveLock on public.kbdiag_inj_2pc, blocked by an uncommitted two-phase transaction
+  verify: kbdiag txn  # the blocker is an uncommitted two-phase transaction: its gid and how long it has been pending
 
 blockers: 1
   pid  blocks  holds

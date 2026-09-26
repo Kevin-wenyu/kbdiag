@@ -318,7 +318,7 @@ func TestTxnPrepared(t *testing.T) {
 	if role == "standby" {
 		r, _ := kbdiag(t, nil, "txn")
 		p := r.Data["txn.prepared"]
-		if p.Status != "not_applicable" || p.Reason == nil || !strings.Contains(*p.Reason, "主库") || len(p.Rows) != 0 {
+		if p.Status != "not_applicable" || p.Reason == nil || !strings.Contains(*p.Reason, "primary") || len(p.Rows) != 0 {
 			t.Errorf("standby txn.prepared = %+v", p)
 		}
 		return

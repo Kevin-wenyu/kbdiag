@@ -67,7 +67,7 @@ func TestStatusConnections(t *testing.T) {
 	d := facts.InstDatabases{Status: facts.StatusOK}
 	n := facts.InstDownstreams{Status: facts.StatusOK}
 	u := facts.InstUpstream{Status: facts.StatusNotApplicable}
-	full := "连接已用 97 个，达到普通用户可用的 97 个（max_connections 100 减去超级用户保留 3），普通用户已经连不上"
+	full := "97 connections in use, reaching the 97 ordinary users may open (max_connections 100 minus 3 reserved for superusers): ordinary users can no longer connect"
 	cases := []struct {
 		name    string
 		i       facts.InstInfo
@@ -80,9 +80,9 @@ func TestStatusConnections(t *testing.T) {
 		{"one usable slot left", info(96, 100, 3), d, VerdictOK, ""},
 		{"fail when usable slots are used up", info(97, 100, 3), d, VerdictFAIL, full},
 		{"superusers past the usable limit", info(99, 100, 3), d, VerdictFAIL,
-			"连接已用 99 个，达到普通用户可用的 97 个（max_connections 100 减去超级用户保留 3），普通用户已经连不上"},
+			"99 connections in use, reaching the 97 ordinary users may open (max_connections 100 minus 3 reserved for superusers): ordinary users can no longer connect"},
 		{"no reserve", info(100, 100, 0), d, VerdictFAIL,
-			"连接已用 100 个，达到普通用户可用的 100 个（max_connections 100 减去超级用户保留 0），普通用户已经连不上"},
+			"100 connections in use, reaching the 100 ordinary users may open (max_connections 100 minus 0 reserved for superusers): ordinary users can no longer connect"},
 		{"no usable slots is not judged", info(3, 3, 3), d, VerdictOK, ""},
 		{"finding survives an unknown elsewhere", info(97, 100, 3), facts.InstDatabases{Status: facts.StatusError}, VerdictFAIL, full},
 		{"info error", facts.InstInfo{Status: facts.StatusError}, d, VerdictUNKNOWN, ""},
@@ -134,11 +134,11 @@ func TestStatusUpstream(t *testing.T) {
 	}{
 		{"streaming", up(str("streaming")), VerdictOK, "", nil},
 		{"no walreceiver", facts.InstUpstream{Status: facts.StatusOK}, VerdictWARN,
-			"备库没有 WAL 接收进程，没在从主库收 WAL；主库这时挂掉，没有能接管的备库", nil},
+			"the standby has no WAL receiver and is not receiving WAL from the primary: if the primary fails now, no standby can take over", nil},
 		{"stopping", up(str("stopping")), VerdictWARN,
-			"备库 WAL 接收进程的状态是 stopping，不是 streaming，没在从主库收 WAL；主库这时挂掉，没有能接管的备库", "stopping"},
+			"the standby's WAL receiver is stopping, not streaming, so it is not receiving WAL from the primary: if the primary fails now, no standby can take over", "stopping"},
 		{"starting", up(str("starting")), VerdictWARN,
-			"备库 WAL 接收进程的状态是 starting，不是 streaming，没在从主库收 WAL；主库这时挂掉，没有能接管的备库", "starting"},
+			"the standby's WAL receiver is starting, not streaming, so it is not receiving WAL from the primary: if the primary fails now, no standby can take over", "starting"},
 		{"status hidden", up(nil), VerdictUNKNOWN, "", nil},
 		{"primary", facts.InstUpstream{Status: facts.StatusNotApplicable, Reason: "primary"}, VerdictOK, "", nil},
 		{"error", facts.InstUpstream{Status: facts.StatusError}, VerdictUNKNOWN, "", nil},
@@ -166,7 +166,7 @@ func TestStatusUpstream(t *testing.T) {
 			if st, ok := ev.Fields["status"]; ev.ProbeID != facts.InstUpstreamID || !ok || st != c.status {
 				t.Errorf("evidence = %+v", ev)
 			}
-			if len(f.Next) != 1 || f.Next[0].Kind != "verify" || f.Next[0].Command != "kbdiag slots" || !strings.Contains(f.Next[0].Note, "主库") {
+			if len(f.Next) != 1 || f.Next[0].Kind != "verify" || f.Next[0].Command != "kbdiag slots" || !strings.Contains(f.Next[0].Note, "primary") {
 				t.Errorf("next = %+v", f.Next)
 			}
 		})
@@ -187,19 +187,19 @@ func TestSlots(t *testing.T) {
 		{"no slots", facts.SlotList{Status: facts.StatusOK}, VerdictOK, nil},
 		{"active slot", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{slot("a", true)}}, VerdictOK, nil},
 		{"inactive with xmin", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{slot("a", true), slot("repmgr_slot_2", false)}}, VerdictWARN,
-			[]string{"复制槽 repmgr_slot_2 未激活，保留 48 MB WAL，xmin 5859 压着视界"}},
+			[]string{"replication slot repmgr_slot_2 is inactive, retaining 48 MB WAL, xmin 5859 holding back the vacuum horizon"}},
 		{"inactive, no xmin, never reserved WAL", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "b"}}}, VerdictWARN,
-			[]string{"复制槽 b 未激活，未保留 WAL"}},
+			[]string{"replication slot b is inactive, retaining no WAL"}},
 		{"inactive, zero WAL", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "c", RetainedWALBytes: i64(0)}}}, VerdictWARN,
-			[]string{"复制槽 c 未激活，保留 0 bytes WAL"}},
+			[]string{"replication slot c is inactive, retaining 0 bytes WAL"}},
 		{"inactive, under a megabyte", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "d", RetainedWALBytes: i64(45720)}}}, VerdictWARN,
-			[]string{"复制槽 d 未激活，保留 45 kB WAL"}},
+			[]string{"replication slot d is inactive, retaining 45 kB WAL"}},
 		{"inactive logical slot", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "l", Type: "logical", CatalogXmin: xid(90), RetainedWALBytes: i64(0)}}}, VerdictWARN,
-			[]string{"复制槽 l 未激活，保留 0 bytes WAL，catalog_xmin 90 压着系统表的视界"}},
+			[]string{"replication slot l is inactive, retaining 0 bytes WAL, catalog_xmin 90 holding back the system catalogs' horizon"}},
 		{"inactive, replay ahead of restart_lsn", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "n", RetainedWALBytes: i64(-5)}}}, VerdictWARN,
-			[]string{"复制槽 n 未激活，保留 0 bytes WAL"}},
+			[]string{"replication slot n is inactive, retaining 0 bytes WAL"}},
 		{"inactive, gigabytes", facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "e", RetainedWALBytes: i64(12 << 30)}}}, VerdictWARN,
-			[]string{"复制槽 e 未激活，保留 12 GB WAL"}},
+			[]string{"replication slot e is inactive, retaining 12 GB WAL"}},
 		{"error", facts.SlotList{Status: facts.StatusError}, VerdictUNKNOWN, nil},
 		{"skipped", facts.SlotList{Status: facts.StatusSkipped}, VerdictUNKNOWN, nil},
 	}
@@ -219,7 +219,7 @@ func TestSlots(t *testing.T) {
 						t.Errorf("evidence missing %s", k)
 					}
 				}
-				if len(f.Next) != 1 || f.Next[0].Command != "kbdiag status" || !strings.Contains(f.Next[0].Note, "inst.upstream") || !strings.Contains(f.Next[0].Note, "下游") {
+				if len(f.Next) != 1 || f.Next[0].Command != "kbdiag status" || !strings.Contains(f.Next[0].Note, "inst.upstream") || !strings.Contains(f.Next[0].Note, "downstream") {
 					t.Errorf("next = %+v", f.Next)
 				}
 				got = append(got, f.Symptom)

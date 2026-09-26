@@ -50,7 +50,7 @@ func TestInstDisk(t *testing.T) {
 		{"socket", info, true, false, node1, nil, facts.StatusOK, "", true},
 		{"localhost", info, false, true, node1, nil, facts.StatusOK, "", true},
 		{"remote host is never statted", info, false, false, node1, nil, facts.StatusNotApplicable, "remote connection", false},
-		{"localhost forwarded elsewhere", info, false, true, facts.Disk{}, statErr, facts.StatusNotApplicable, "data_directory 在本机不可访问", true},
+		{"localhost forwarded elsewhere", info, false, true, facts.Disk{}, statErr, facts.StatusNotApplicable, "data_directory is not accessible on this host", true},
 		{"socket but stat fails", info, true, false, facts.Disk{}, statErr, facts.StatusError, "no such file", true},
 		{"data_directory hidden", facts.InstInfo{Status: facts.StatusOK, Rows: []facts.Info{{}}}, true, false, node1, nil, facts.StatusSkipped, "insufficient_privilege", false},
 		{"inst.info not collected", facts.InstInfo{Status: facts.StatusError}, true, false, node1, nil, facts.StatusSkipped, "inst.info", false},

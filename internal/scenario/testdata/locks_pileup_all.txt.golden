@@ -1,11 +1,11 @@
 locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:48+08:00)
 
-[WARN] lock.waiting  会话 101 等 public.orders 的 RowExclusiveLock 已 120 秒，被 100 挡住
-  verify: kbdiag session 100  # 看挡路的会话在干什么
+[WARN] lock.waiting  session 101 has waited 120s for RowExclusiveLock on public.orders, blocked by 100
+  verify: kbdiag session 100  # what the blocking session is doing
 
-[WARN] lock.waiting  会话 102 等 public.orders 的 AccessShareLock 已 30 秒，被 100、101 挡住
-  verify: kbdiag session 100  # 看挡路的会话在干什么
-  verify: kbdiag session 101  # 看挡路的会话在干什么
+[WARN] lock.waiting  session 102 has waited 30s for AccessShareLock on public.orders, blocked by 100, 101
+  verify: kbdiag session 100  # what the blocking session is doing
+  verify: kbdiag session 101  # what the blocking session is doing
 
 blockers: 3
   pid  blocks  holds

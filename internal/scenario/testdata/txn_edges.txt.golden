@@ -1,13 +1,13 @@
 txn  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:48+08:00)
 
-[WARN] txn.long  会话 1 的事务已开了 7200 秒，当前 active
-  verify: kbdiag session 1  # 看它在跑什么、持有哪些锁、有没有挡住别人
+[WARN] txn.long  session 1 has had a transaction open for 7200s, now active
+  verify: kbdiag session 1  # what it is running, which locks it holds, whether it blocks anyone
 
-[WARN] txn.long  会话 2 的事务已开了 3600 秒，当前 active
-  verify: kbdiag session 2  # 看它在跑什么、持有哪些锁、有没有挡住别人
+[WARN] txn.long  session 2 has had a transaction open for 3600s, now active
+  verify: kbdiag session 2  # what it is running, which locks it holds, whether it blocks anyone
 
-[WARN] txn.prepared  两阶段事务 g'\x1b1 已 prepare 3600 秒未结束，压着视界
-  verify: kbdiag txn --json  # gid 含控制字符，终端上显示的是转义后的文本，要从 JSON 取原始 gid 再回滚或提交
+[WARN] txn.prepared  two-phase transaction g'\x1b1 prepared 3600s ago and not finished, holding back the vacuum horizon
+  verify: kbdiag txn --json  # the gid has control characters and the text shows it escaped: take the raw gid from the JSON before committing or rolling back
 
 oldest xid: 4294967290  (1 xid, 2 xmin)
 

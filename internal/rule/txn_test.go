@@ -96,7 +96,7 @@ func TestTxnPreparedFix(t *testing.T) {
 
 func TestTxnLongContent(t *testing.T) {
 	f := Txn(ok(inTxn(42, 1830.4)), preps(), tth).Findings[0]
-	if f.Symptom != "会话 42 的事务已开了 1830 秒，当前 active" || f.Next[0].Command != "kbdiag session 42" {
+	if f.Symptom != "session 42 has had a transaction open for 1830s, now active" || f.Next[0].Command != "kbdiag session 42" {
 		t.Errorf("finding = %+v", f)
 	}
 	for _, k := range []string{"pid", "state", "xact_age_s", "backend_xid", "backend_xmin"} {

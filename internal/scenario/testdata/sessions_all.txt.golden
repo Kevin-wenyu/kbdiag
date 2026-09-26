@@ -1,7 +1,7 @@
 sessions  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:16+08:00)
 
-[WARN] session.idle_in_txn  会话 801150 处于 idle in transaction 已 13 秒
-  verify: kbdiag session 801150  # 看它持有哪些锁、有没有挡住别人
+[WARN] session.idle_in_txn  session 801150 has been idle in transaction for 13s
+  verify: kbdiag session 801150  # which locks it holds, whether it blocks anyone
 
 connected: 5 client sessions (not counting kbdiag), 1 walsender, 7 background
   count  user    database  application            client

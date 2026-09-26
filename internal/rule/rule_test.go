@@ -79,7 +79,7 @@ func TestSessions(t *testing.T) {
 func TestSessionsFindingContent(t *testing.T) {
 	r := Sessions(ok(idle(236201, 1830.4)), th)
 	f := r.Findings[0]
-	if f.Symptom != "会话 236201 处于 idle in transaction 已 1830 秒" {
+	if f.Symptom != "session 236201 has been idle in transaction for 1830s" {
 		t.Errorf("symptom = %q", f.Symptom)
 	}
 	ev := f.Evidence[0]

@@ -79,12 +79,12 @@ func TestLockWaitingContent(t *testing.T) {
 		next    []string // commands
 	}{
 		{"one blocker", facts.Lock{PID: i32(236155), Locktype: "relation", Relation: str("public.kbdiag_inj_lock"), Mode: "AccessShareLock", WaitS: f64(44), BlockedBy: []int32{236153}},
-			"会话 236155 等 public.kbdiag_inj_lock 的 AccessShareLock 已 44 秒，被 236153 挡住", []string{"kbdiag session 236153"}},
-		{"two blockers", waiter(5, 12.6, 1, 2), "会话 5 等 public.t 的 AccessShareLock 已 13 秒，被 1、2 挡住", []string{"kbdiag session 1", "kbdiag session 2"}},
-		{"prepared transaction", waiter(5, 11, 0), "会话 5 等 public.t 的 AccessShareLock 已 11 秒，被 未提交的两阶段事务 挡住", []string{"kbdiag txn"}},
+			"session 236155 has waited 44s for AccessShareLock on public.kbdiag_inj_lock, blocked by 236153", []string{"kbdiag session 236153"}},
+		{"two blockers", waiter(5, 12.6, 1, 2), "session 5 has waited 13s for AccessShareLock on public.t, blocked by 1, 2", []string{"kbdiag session 1", "kbdiag session 2"}},
+		{"prepared transaction", waiter(5, 11, 0), "session 5 has waited 11s for AccessShareLock on public.t, blocked by an uncommitted two-phase transaction", []string{"kbdiag txn"}},
 		{"no relation", facts.Lock{PID: i32(5), Locktype: "transactionid", Mode: "ShareLock", WaitS: f64(20), BlockedBy: []int32{7}},
-			"会话 5 等 transactionid 锁 已 20 秒，被 7 挡住", []string{"kbdiag session 7"}},
-		{"blocker gone", waiter(5, 20), "会话 5 等 public.t 的 AccessShareLock 已 20 秒", nil},
+			"session 5 has waited 20s for transactionid lock, blocked by 7", []string{"kbdiag session 7"}},
+		{"blocker gone", waiter(5, 20), "session 5 has waited 20s for AccessShareLock on public.t", nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

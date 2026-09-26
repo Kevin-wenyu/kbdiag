@@ -89,11 +89,11 @@ func Sessions(a facts.SessionActivity, th Thresholds) Result {
 		fs = append(fs, Finding{
 			ID:      "session.idle_in_txn",
 			Level:   LevelWARN,
-			Symptom: fmt.Sprintf("会话 %d 处于 %s 已 %.0f 秒", s.PID, *s.State, *s.StateAgeS),
+			Symptom: fmt.Sprintf("session %d has been %s for %.0fs", s.PID, *s.State, *s.StateAgeS),
 			Evidence: []Evidence{{ProbeID: facts.SessionActivityID, Fields: map[string]any{
 				"pid": s.PID, "state": *s.State, "state_age_s": *s.StateAgeS, "backend_xid": s.BackendXID,
 			}}},
-			Next: []Next{{Kind: "verify", Command: fmt.Sprintf("kbdiag session %d", s.PID), Note: "看它持有哪些锁、有没有挡住别人"}},
+			Next: []Next{{Kind: "verify", Command: fmt.Sprintf("kbdiag session %d", s.PID), Note: "which locks it holds, whether it blocks anyone"}},
 		})
 	}
 	return Result{Verdict: verdictOf(fs, masked), Findings: fs}

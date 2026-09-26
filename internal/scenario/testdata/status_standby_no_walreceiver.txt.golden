@@ -1,7 +1,7 @@
 status  WARN  (KingbaseES V008R006C009B0014, standby, system@remote, 2026-09-26T18:28:10+08:00)
 
-[WARN] inst.upstream  备库没有 WAL 接收进程，没在从主库收 WAL；主库这时挂掉，没有能接管的备库
-  verify: kbdiag slots  # 到主库上跑，看这个备库的槽是不是 inactive
+[WARN] inst.upstream  the standby has no WAL receiver and is not receiving WAL from the primary: if the primary fails now, no standby can take over
+  verify: kbdiag slots  # run on the primary: is this standby's slot inactive?
 
 inst.info
   version         V008R006C009B0014

@@ -39,7 +39,7 @@ func trackActivities(ctx context.Context, x *pgx.Conn) (facts.Status, string) {
 		return classify(err)
 	}
 	if track != "on" {
-		return facts.StatusSkipped, "track_activities=" + track + "：会话状态和 SQL 未被记录"
+		return facts.StatusSkipped, "track_activities=" + track + ": session states and SQL are not recorded"
 	}
 	return facts.StatusOK, ""
 }

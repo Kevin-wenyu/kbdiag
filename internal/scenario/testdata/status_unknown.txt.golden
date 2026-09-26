@@ -17,6 +17,6 @@ inst.databases: 5, total 382 MB
   mydb       14 MB
   security   14 MB
 
-inst.disk: skipped  (inst.info 没采到，不知道 data_directory)
+inst.disk: skipped  (inst.info was not collected, so data_directory is unknown)
 
 redacted: inst.upstream.status in 1 rows (insufficient_privilege)

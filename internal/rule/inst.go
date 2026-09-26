@@ -53,12 +53,12 @@ func connections(x facts.Info) (Finding, bool) {
 	return Finding{
 		ID:    "inst.connections",
 		Level: LevelFAIL,
-		Symptom: fmt.Sprintf("连接已用 %d 个，达到普通用户可用的 %d 个（max_connections %d 减去超级用户保留 %d），普通用户已经连不上",
+		Symptom: fmt.Sprintf("%d connections in use, reaching the %d ordinary users may open (max_connections %d minus %d reserved for superusers): ordinary users can no longer connect",
 			x.Connections, usable, x.MaxConnections, x.SuperuserReserved),
 		Evidence: []Evidence{{ProbeID: facts.InstInfoID, Fields: map[string]any{
 			"connections": x.Connections, "max_connections": x.MaxConnections, "superuser_reserved_connections": x.SuperuserReserved,
 		}}},
-		Next: []Next{{Kind: "verify", Command: "kbdiag sessions", Note: "看连接是谁占的：开头的汇总按用户、库、应用、客户端计数"}},
+		Next: []Next{{Kind: "verify", Command: "kbdiag sessions", Note: "who holds the connections: the summary at the top counts them by user, database, application and client"}},
 	}, true
 }
 
@@ -71,12 +71,12 @@ func upstream(u facts.InstUpstream) (f Finding, found, unknown bool) {
 	if !judge {
 		return Finding{}, false, unknown
 	}
-	next := []Next{{Kind: "verify", Command: "kbdiag slots", Note: "到主库上跑，看这个备库的槽是不是 inactive"}}
+	next := []Next{{Kind: "verify", Command: "kbdiag slots", Note: "run on the primary: is this standby's slot inactive?"}}
 	if len(u.Rows) == 0 {
 		return Finding{
 			ID:       "inst.upstream",
 			Level:    LevelWARN,
-			Symptom:  "备库没有 WAL 接收进程，没在从主库收 WAL；主库这时挂掉，没有能接管的备库",
+			Symptom:  "the standby has no WAL receiver and is not receiving WAL from the primary: if the primary fails now, no standby can take over",
 			Evidence: []Evidence{{ProbeID: facts.InstUpstreamID, Fields: map[string]any{"status": nil}}},
 			Next:     next,
 		}, true, false
@@ -91,7 +91,7 @@ func upstream(u facts.InstUpstream) (f Finding, found, unknown bool) {
 		return Finding{
 			ID:      "inst.upstream",
 			Level:   LevelWARN,
-			Symptom: fmt.Sprintf("备库 WAL 接收进程的状态是 %s，不是 streaming，没在从主库收 WAL；主库这时挂掉，没有能接管的备库", *x.Status),
+			Symptom: fmt.Sprintf("the standby's WAL receiver is %s, not streaming, so it is not receiving WAL from the primary: if the primary fails now, no standby can take over", *x.Status),
 			Evidence: []Evidence{{ProbeID: facts.InstUpstreamID, Fields: map[string]any{
 				"status": *x.Status, "sender_host": x.SenderHost, "sender_port": x.SenderPort, "slot_name": x.SlotName,
 			}}},
@@ -114,18 +114,18 @@ func Slots(l facts.SlotList) Result {
 		if s.Active {
 			continue
 		}
-		symptom := fmt.Sprintf("复制槽 %s 未激活，", s.Name)
+		symptom := fmt.Sprintf("replication slot %s is inactive, ", s.Name)
 		if s.RetainedWALBytes == nil {
-			symptom += "未保留 WAL"
+			symptom += "retaining no WAL"
 		} else {
 			// a standby's replay can pass restart_lsn for a moment
-			symptom += "保留 " + units.Bytes(max(0, float64(*s.RetainedWALBytes))) + " WAL"
+			symptom += "retaining " + units.Bytes(max(0, float64(*s.RetainedWALBytes))) + " WAL"
 		}
 		if s.Xmin != nil {
-			symptom += fmt.Sprintf("，xmin %d 压着视界", *s.Xmin)
+			symptom += fmt.Sprintf(", xmin %d holding back the vacuum horizon", *s.Xmin)
 		}
 		if s.CatalogXmin != nil { // logical slots: holds back vacuum of system catalogs
-			symptom += fmt.Sprintf("，catalog_xmin %d 压着系统表的视界", *s.CatalogXmin)
+			symptom += fmt.Sprintf(", catalog_xmin %d holding back the system catalogs' horizon", *s.CatalogXmin)
 		}
 		fs = append(fs, Finding{
 			ID:      "slot.inactive",
@@ -134,7 +134,7 @@ func Slots(l facts.SlotList) Result {
 			Evidence: []Evidence{{ProbeID: facts.SlotListID, Fields: map[string]any{
 				"slot_name": s.Name, "active": s.Active, "xmin": s.Xmin, "catalog_xmin": s.CatalogXmin, "retained_wal_bytes": s.RetainedWALBytes,
 			}}},
-			Next: []Next{{Kind: "verify", Command: "kbdiag status", Note: "到这个槽的下游节点（通常是备库）上运行：连不上说明它挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 时隔十几秒再跑一次，last_msg 还在涨说明接收进程卡住了"}},
+			Next: []Next{{Kind: "verify", Command: "kbdiag status", Note: "run on this slot's downstream node (usually a standby): if it cannot connect, the node is down; inst.upstream with no receiver or not streaming means it is not receiving WAL; if it shows streaming, run it again after 10-20s: a last_msg that keeps growing means the receiver is stuck"}},
 		})
 	}
 	return Result{Verdict: verdictOf(fs, unknown), Findings: fs}

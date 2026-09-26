@@ -33,24 +33,24 @@ func Locks(l facts.LockList, th Thresholds) Result {
 }
 
 func lockWaiting(x facts.Lock) Finding {
-	target := x.Locktype + " 锁"
+	target := x.Locktype + " lock"
 	if x.Relation != nil {
-		target = *x.Relation + " 的 " + x.Mode
+		target = x.Mode + " on " + *x.Relation
 	}
-	symptom := fmt.Sprintf("会话 %d 等 %s 已 %.0f 秒", *x.PID, target, *x.WaitS)
+	symptom := fmt.Sprintf("session %d has waited %.0fs for %s", *x.PID, *x.WaitS, target)
 	var names []string
 	var next []Next
 	for _, b := range x.Blockers() {
 		if b == facts.PreparedBlocker {
-			names = append(names, "未提交的两阶段事务")
-			next = append(next, Next{Kind: "verify", Command: "kbdiag txn", Note: "挡路的是未提交的两阶段事务，看它的 gid 和已经挂了多久"})
+			names = append(names, "an uncommitted two-phase transaction")
+			next = append(next, Next{Kind: "verify", Command: "kbdiag txn", Note: "the blocker is an uncommitted two-phase transaction: its gid and how long it has been pending"})
 			continue
 		}
 		names = append(names, strconv.Itoa(int(b)))
-		next = append(next, Next{Kind: "verify", Command: fmt.Sprintf("kbdiag session %d", b), Note: "看挡路的会话在干什么"})
+		next = append(next, Next{Kind: "verify", Command: fmt.Sprintf("kbdiag session %d", b), Note: "what the blocking session is doing"})
 	}
 	if len(names) > 0 {
-		symptom += "，被 " + strings.Join(names, "、") + " 挡住"
+		symptom += ", blocked by " + strings.Join(names, ", ")
 	}
 	blockers := x.Blockers()
 	if blockers == nil {

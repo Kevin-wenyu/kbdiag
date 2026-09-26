@@ -26,7 +26,7 @@ order by prepared, gid`
 // primary's (measured 2026-09-23), so there the probe is not applicable.
 func TxnPrepared(ctx context.Context, x *pgx.Conn, c facts.Context) facts.TxnPrepared {
 	if c.Role == "standby" {
-		return facts.TxnPrepared{Status: facts.StatusNotApplicable, Reason: "备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn"}
+		return facts.TxnPrepared{Status: facts.StatusNotApplicable, Reason: "a standby cannot see the primary's two-phase transactions: run kbdiag txn on the primary"}
 	}
 	st, reason, out := collect(ctx, x, txnPreparedSQL, func(r pgx.CollectableRow) (facts.Prepared, error) {
 		var p facts.Prepared

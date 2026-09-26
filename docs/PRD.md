@@ -128,7 +128,7 @@ Report
 - **role**：只表示恢复角色，取自 `sys_is_in_recovery()`；不读 repmgr，不判断 standalone。集群拓扑（`topology`）v0.2 以后再做
 - **stdout/stderr**：结果只进 stdout；日志、进度、调试信息只进 stderr
 - **JSON 稳定性**：字段只增不改；finding.id 和 probe_id 一经发布不改名
-- **帮助文本**：英文（沿用旧约定）；finding 文案中文/英文由 `--lang` 决定，默认中文（待确认，见 §9）
+- **输出语言**：工具输出的全部文字（help、finding 的 symptom 和 note、probe 的 reason、文本排版）一律英文，没有 `--lang`（用户 2026-09-26 定）
 
 ### 5.1 v0.1 各命令的 JSON 示例
 
@@ -159,10 +159,10 @@ Report
     {
       "id": "session.idle_in_txn",
       "level": "WARN",
-      "symptom": "会话 236201 处于 idle in transaction 已 1830 秒",
+      "symptom": "session 236201 has been idle in transaction for 1830s",
       "evidence": [{"probe_id": "session.activity", "fields": {"pid": 236201, "state": "idle in transaction", "state_age_s": 1830.4, "backend_xid": 5855}}],
       "cause": null,
-      "next": [{"kind": "verify", "command": "kbdiag session 236201", "note": "看它持有哪些锁、有没有挡住别人"}]
+      "next": [{"kind": "verify", "command": "kbdiag session 236201", "note": "which locks it holds, whether it blocks anyone"}]
     }
   ],
   "redacted": []
@@ -202,10 +202,10 @@ Report
     {
       "id": "lock.waiting",
       "level": "WARN",
-      "symptom": "会话 236155 等 public.kbdiag_inj_lock 的 AccessShareLock 已 42 秒，被 236153 挡住",
+      "symptom": "session 236155 has waited 42s for AccessShareLock on public.kbdiag_inj_lock, blocked by 236153",
       "evidence": [{"probe_id": "lock.list", "fields": {"waiter_pid": 236155, "blocker_pids": [236153], "relation": "public.kbdiag_inj_lock", "lock_mode": "AccessShareLock", "wait_s": 42.0}}],
       "cause": null,
-      "next": [{"kind": "verify", "command": "kbdiag session 236153", "note": "看挡路的会话在干什么"}]
+      "next": [{"kind": "verify", "command": "kbdiag session 236153", "note": "what the blocking session is doing"}]
     }
   ],
   "redacted": []
@@ -237,10 +237,10 @@ Report
     {
       "id": "lock.waiting",
       "level": "WARN",
-      "symptom": "会话 236155 等 public.kbdiag_inj_lock 的 AccessShareLock 已 44 秒，被 236153 挡住",
+      "symptom": "session 236155 has waited 44s for AccessShareLock on public.kbdiag_inj_lock, blocked by 236153",
       "evidence": [{"probe_id": "lock.list", "fields": {"waiter_pid": 236155, "blocker_pids": [236153], "relation": "public.kbdiag_inj_lock", "lock_mode": "AccessShareLock", "wait_s": 44.0}}],
       "cause": null,
-      "next": [{"kind": "verify", "command": "kbdiag session 236153", "note": "看挡路的会话在干什么"}]
+      "next": [{"kind": "verify", "command": "kbdiag session 236153", "note": "what the blocking session is doing"}]
     }
   ],
   "redacted": []
@@ -266,7 +266,7 @@ Report
     },
     "txn.prepared": {
       "status": "not_applicable",
-      "reason": "备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn",
+      "reason": "a standby cannot see the primary's two-phase transactions: run kbdiag txn on the primary",
       "columns": ["gid", "owner", "database", "prepared_at", "age_s", "transaction"],
       "rows": [],
       "truncated": 0
@@ -417,10 +417,10 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
 
 ```text
 {"id": "inst.upstream", "level": "WARN",
- "symptom": "备库没有 WAL 接收进程，没在从主库收 WAL；主库这时挂掉，没有能接管的备库",
+ "symptom": "the standby has no WAL receiver and is not receiving WAL from the primary: if the primary fails now, no standby can take over",
  "evidence": [{"probe_id": "inst.upstream", "fields": {"status": null}}],
  "cause": null,
- "next": [{"kind": "verify", "command": "kbdiag slots", "note": "到主库上跑，看这个备库的槽是不是 inactive"}]}
+ "next": [{"kind": "verify", "command": "kbdiag slots", "note": "run on the primary: is this standby's slot inactive?"}]}
 ```
 
 有接收进程但状态不是 `streaming` 时，symptom 写出状态，evidence 字段为 `status`、`sender_host`、`sender_port`、`slot_name`。`inst.connections`（FAIL）的 evidence 字段为 `connections`、`max_connections`、`superuser_reserved_connections`。
@@ -449,10 +449,10 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
     {
       "id": "slot.inactive",
       "level": "WARN",
-      "symptom": "复制槽 repmgr_slot_2 未激活，保留 48 MB WAL，xmin 5859 压着视界",
+      "symptom": "replication slot repmgr_slot_2 is inactive, retaining 48 MB WAL, xmin 5859 holding back the vacuum horizon",
       "evidence": [{"probe_id": "slot.list", "fields": {"slot_name": "repmgr_slot_2", "active": false, "xmin": 5859, "catalog_xmin": null, "retained_wal_bytes": 50331648}}],
       "cause": null,
-      "next": [{"kind": "verify", "command": "kbdiag status", "note": "到这个槽的下游节点（通常是备库）上运行：连不上说明它挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 时隔十几秒再跑一次，last_msg 还在涨说明接收进程卡住了"}]
+      "next": [{"kind": "verify", "command": "kbdiag status", "note": "run on this slot's downstream node (usually a standby): if it cannot connect, the node is down; inst.upstream with no receiver or not streaming means it is not receiving WAL; if it shows streaming, run it again after 10-20s: a last_msg that keeps growing means the receiver is stuck"}]
     }
   ],
   "redacted": []
@@ -502,7 +502,7 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
 | Q1 | MVP 范围 | **已定（2026-09-23）**：v0.1 是 7 条单次查询命令（见 §10），不做 check/diagnose；`kill` 推到 v0.2 以后 | 用户纠正"简单查询优先"（§12）；取代原先"conn+lock+check+diagnose"的建议 |
 | Q2 | 版本支持范围 | 只保证 V8R6；其他版本出现时再加 probe 版本分支 | 手头只有 V8R6 测试环境，承诺测不了的版本就是重复旧版"测试不可信"的错 |
 | Q3 | 旧代码处置 | 同仓库：旧 shell 打 tag `shell-final` 后整体删除，新代码从零开始 | 保留历史可追溯，又不让旧代码继续干扰 |
-| Q4 | finding 文案语言 | 默认中文，`--lang en` 可选；help 英文 | 用户是中文 DBA；help 英文沿用旧约定 |
+| Q4 | 输出语言 | **已定（2026-09-26）**：全部英文，不做 `--lang` | 取代原先"finding 默认中文、`--lang en` 可选"：同一屏里 help、列名、状态值都是英文，只有 finding 是中文，混排不合理；两套文案也要两套测试 |
 | Q5 | 远程模式范围 | MVP 就支持 TCP，但 `host` 族在远程模式下进 `skipped` | 直连协议天然支持远程，成本低；OS 指标在远程不可得要明说 |
 
 ## 10. 版本路线

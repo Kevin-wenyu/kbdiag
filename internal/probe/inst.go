@@ -120,11 +120,11 @@ func InstDisk(i facts.InstInfo, socket, loopback bool) facts.InstDisk {
 		return facts.InstDisk{Status: facts.StatusNotApplicable, Reason: "remote connection"}
 	}
 	if i.Status != facts.StatusOK || len(i.Rows) == 0 {
-		return facts.InstDisk{Status: facts.StatusSkipped, Reason: "inst.info 没采到，不知道 data_directory"}
+		return facts.InstDisk{Status: facts.StatusSkipped, Reason: "inst.info was not collected, so data_directory is unknown"}
 	}
 	dir := i.Rows[0].DataDirectory
 	if dir == nil {
-		return facts.InstDisk{Status: facts.StatusSkipped, Reason: "insufficient_privilege: 看不到 data_directory"}
+		return facts.InstDisk{Status: facts.StatusSkipped, Reason: "insufficient_privilege: data_directory is not visible"}
 	}
 	d, err := statfs(*dir)
 	switch {
@@ -133,7 +133,7 @@ func InstDisk(i facts.InstInfo, socket, loopback bool) facts.InstDisk {
 	case socket:
 		return facts.InstDisk{Status: facts.StatusError, Reason: err.Error()}
 	}
-	return facts.InstDisk{Status: facts.StatusNotApplicable, Reason: "data_directory 在本机不可访问，连的可能是转发到别处的端口：" + err.Error()}
+	return facts.InstDisk{Status: facts.StatusNotApplicable, Reason: "data_directory is not accessible on this host (the port may be forwarded elsewhere): " + err.Error()}
 }
 
 // versionNumber keeps "V008R006C009B0014" from "KingbaseES V008R006C009B0014

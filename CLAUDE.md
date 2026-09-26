@@ -51,6 +51,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **默认只读**：连接开 `default_transaction_read_only`，设 `lock_timeout`；诊断路径的代码里不出现 `pg_terminate_backend`（只读事务拦不住它）。
 - **不假装 OK**：没采到（`skipped`/`error`）不能当成空结果判 OK；角色上不适用的用 `not_applicable`，不参与 verdict。
 - **不假设 sudo**：以 `kingbase` 用户运行；每项检查在没有 repmgr 时都要能降级。
+- **输出全部英文，没有 `--lang`**（用户 2026-09-26 定，取代 PRD 原先"finding 默认中文、`--lang en` 可选"）：help、列名、状态值、JSON 字段本来就是英文，只有 finding 的 symptom/note 和 probe 的 reason 是中文，同一屏里混排不合理；两套文案还要两套测试。代码注释里引用的 KES 手册章节名（如"动态性能视图"）不是输出，保留原文方便查手册。
 
 ### v0.1 范围（2026-09-23 定）
 

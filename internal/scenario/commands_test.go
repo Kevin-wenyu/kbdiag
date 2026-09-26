@@ -130,7 +130,7 @@ func TestTxnMatchesPRD(t *testing.T) {
 		{PID: 5000, BackendType: str("walreceiver")},
 		{PID: 5001, BackendType: str("startup")},
 	}}
-	p := facts.TxnPrepared{Status: facts.StatusNotApplicable, Reason: "备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn"}
+	p := facts.TxnPrepared{Status: facts.StatusNotApplicable, Reason: "a standby cannot see the primary's two-phase transactions: run kbdiag txn on the primary"}
 	rep := Txn(prdContext("standby", "system", "local", 21, 45, 0), a, p, TxnOptions{Limit: 50, Thresholds: rule.Defaults})
 	assertPRD(t, "txn", rep)
 }
@@ -243,7 +243,7 @@ func TestStatusText(t *testing.T) {
 		d.Rows[0].SizeBytes = nil
 		n := facts.InstDownstreams{Status: facts.StatusOK, Rows: []facts.Downstream{{ApplicationName: str("node2")}}}
 		rep := Status(c, i, d, n, facts.InstUpstream{Status: facts.StatusNotApplicable, Reason: "primary"},
-			facts.InstDisk{Status: facts.StatusSkipped, Reason: "insufficient_privilege: 看不到 data_directory"})
+			facts.InstDisk{Status: facts.StatusSkipped, Reason: "insufficient_privilege: data_directory is not visible"})
 		if rep.Verdict != rule.VerdictFAIL {
 			t.Errorf("verdict = %s", rep.Verdict)
 		}
@@ -253,7 +253,7 @@ func TestStatusText(t *testing.T) {
 		c, _, d, n, _, _ := statusFacts("standby")
 		u := facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{}}}
 		rep := Status(c, facts.InstInfo{Status: facts.StatusError, Reason: "42P01: relation does not exist"}, d, n, u,
-			facts.InstDisk{Status: facts.StatusSkipped, Reason: "inst.info 没采到，不知道 data_directory"})
+			facts.InstDisk{Status: facts.StatusSkipped, Reason: "inst.info was not collected, so data_directory is unknown"})
 		if rep.Verdict != rule.VerdictUNKNOWN {
 			t.Errorf("verdict = %s", rep.Verdict)
 		}

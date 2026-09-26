@@ -1,6 +1,6 @@
 session  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:19+08:00)
 
-[WARN] session.idle_in_txn  会话 801150 处于 idle in transaction 已 16 秒
+[WARN] session.idle_in_txn  session 801150 has been idle in transaction for 16s
 
 session 801150
   user         system

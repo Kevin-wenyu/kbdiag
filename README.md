@@ -63,8 +63,8 @@ The password comes from `PGPASSWORD` or `~/.pgpass`. Every connection is a read-
 ```text
 locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:41+08:00)
 
-[WARN] lock.waiting  会话 803890 等 public.kbdiag_inj_lock 的 AccessShareLock 已 14 秒，被 803881 挡住
-  verify: kbdiag session 803881  # 看挡路的会话在干什么
+[WARN] lock.waiting  session 803890 has waited 14s for AccessShareLock on public.kbdiag_inj_lock, blocked by 803881
+  verify: kbdiag session 803881  # what the blocking session is doing
 
 blockers: 1
   pid     blocks  holds
@@ -76,7 +76,7 @@ waiting: 1
 ```
 
 - First line: command, verdict, and context (version, role, user@location, collection time).
-- Findings: an id, a symptom (in Chinese), and a `verify` or `fix` next step.
+- Findings: an id, a symptom, and a `verify` or `fix` next step.
 - Data: laid out for reading, sizes and durations in readable units; `-` is null, `?` is hidden from this account. `--json` gives every probe's raw table (bytes, seconds) with stable field names.
 
 ## Exit codes
@@ -161,8 +161,8 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 ```text
 locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:41+08:00)
 
-[WARN] lock.waiting  会话 803890 等 public.kbdiag_inj_lock 的 AccessShareLock 已 14 秒，被 803881 挡住
-  verify: kbdiag session 803881  # 看挡路的会话在干什么
+[WARN] lock.waiting  session 803890 has waited 14s for AccessShareLock on public.kbdiag_inj_lock, blocked by 803881
+  verify: kbdiag session 803881  # what the blocking session is doing
 
 blockers: 1
   pid     blocks  holds
@@ -174,7 +174,7 @@ waiting: 1
 ```
 
 - 第一行：命令、结论和上下文（版本、角色、用户@位置、采集时间）。
-- finding：编号、症状、下一步（`verify` 看什么或 `fix` 怎么处理）。
+- finding：编号、症状（英文，工具输出全部是英文）、下一步（`verify` 看什么或 `fix` 怎么处理）。
 - 数据：按阅读排版，大小和时长换成易读单位；`-` 表示空值，`?` 表示当前账号看不到。`--json` 给每个探针的原始表（字节、秒），字段名稳定。
 
 ## 退出码
