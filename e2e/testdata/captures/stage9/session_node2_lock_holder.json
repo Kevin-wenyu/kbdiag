@@ -1,0 +1,93 @@
+{
+  "command": "session",
+  "verdict": "OK",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "standby",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T21:20:24+08:00"
+  },
+  "data": {
+    "lock.list": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "locktype",
+        "relation",
+        "mode",
+        "granted",
+        "wait_s",
+        "blocked_by"
+      ],
+      "rows": [
+        [
+          452375,
+          "advisory",
+          null,
+          "ExclusiveLock",
+          true,
+          null,
+          []
+        ],
+        [
+          452384,
+          "advisory",
+          null,
+          "ExclusiveLock",
+          false,
+          9.8,
+          [
+            452375
+          ]
+        ]
+      ],
+      "truncated": 0
+    },
+    "session.activity": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "usename",
+        "datname",
+        "application_name",
+        "client_addr",
+        "backend_type",
+        "state",
+        "backend_xid",
+        "backend_xmin",
+        "xact_age_s",
+        "query_age_s",
+        "state_age_s",
+        "wait_event_type",
+        "wait_event",
+        "query"
+      ],
+      "rows": [
+        [
+          452375,
+          "system",
+          "test",
+          "kbdiag_inj_lock_holder",
+          null,
+          "client backend",
+          "idle",
+          null,
+          null,
+          null,
+          9.9,
+          9.9,
+          "Client",
+          "ClientRead",
+          "select pg_advisory_lock(424242);"
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [],
+  "redacted": []
+}
+EXIT_CODE=0

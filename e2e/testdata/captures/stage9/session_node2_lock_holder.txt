@@ -1,0 +1,27 @@
+session  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T21:20:24+08:00)
+
+session 452375
+  user         system
+  database     test
+  application  kbdiag_inj_lock_holder
+  client       local
+  type         client backend
+  state        idle  (for 9s)
+  xact         -
+  query        9s
+  wait         -
+  xid / xmin   - / -
+
+last sql
+  select pg_advisory_lock(424242);
+
+waiting for: 0
+
+blocking: 1
+  pid     object    wants          waited
+  452384  advisory  ExclusiveLock  9s
+
+holds: 1
+  object    mode
+  advisory  ExclusiveLock
+EXIT_CODE=0

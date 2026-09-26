@@ -1,0 +1,62 @@
+{
+  "command": "txn",
+  "verdict": "OK",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "primary",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T21:20:30+08:00"
+  },
+  "data": {
+    "session.activity": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "usename",
+        "datname",
+        "application_name",
+        "client_addr",
+        "backend_type",
+        "state",
+        "backend_xid",
+        "backend_xmin",
+        "xact_age_s",
+        "query_age_s",
+        "state_age_s",
+        "wait_event_type",
+        "wait_event",
+        "query"
+      ],
+      "rows": [],
+      "truncated": 0
+    },
+    "txn.prepared": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "gid",
+        "owner",
+        "database",
+        "prepared_at",
+        "age_s",
+        "transaction"
+      ],
+      "rows": [
+        [
+          "kbdiag_inj_2pc",
+          "system",
+          "test",
+          "2026-09-26T21:20:28+08:00",
+          1.3,
+          6215
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [],
+  "redacted": []
+}
+EXIT_CODE=0

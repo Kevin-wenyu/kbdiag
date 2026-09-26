@@ -1,0 +1,11 @@
+txn  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:19:14+08:00)
+
+oldest xid: 6210  (841374 xid, 841490 xmin)
+
+open transactions: 2
+  pid     user    database  application            state                xact  xid   xmin  sql
+  841374  system  test      kbdiag_inj_idle_txn    idle in transaction  9s    6210  -     select txid_current() as kbdiag_last, pg_sleep(1);
+  841490  system  test      kbdiag_inj_long_query  active               7s    -     6210  select pg_sleep(3600);
+
+prepared: 0
+EXIT_CODE=0

@@ -1,0 +1,11 @@
+locks  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-26T21:19:34+08:00)
+
+blockers: 1
+  pid     blocks  holds
+  843588  1       public.kbdiag_inj_lock AccessExclusiveLock
+
+waiting: 1
+  pid     object                  wants            waited  blocked by
+  843597  public.kbdiag_inj_lock  AccessShareLock  ?       843588
+redacted: 1 row of lock.list hides wait (insufficient_privilege; grant sys_monitor)
+EXIT_CODE=3

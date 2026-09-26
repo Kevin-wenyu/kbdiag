@@ -1,0 +1,10 @@
+txn  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T21:20:22+08:00)
+
+oldest xid: 6214  (452384 xmin)
+
+open transactions: 1
+  pid     user    database  application             state   xact  xid  xmin  sql
+  452384  system  test      kbdiag_inj_lock_waiter  active  7s    -    6214  select pg_advisory_lock(424242);
+
+txn.prepared: not_applicable  (备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn)
+EXIT_CODE=0

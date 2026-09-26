@@ -1,0 +1,13 @@
+locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:29:39+08:00)
+
+[WARN] lock.waiting  会话 862379 等 public.kbdiag_inj_lock 的 AccessShareLock 已 14 秒，被 862369 挡住
+  verify: kbdiag session 862369  # 看挡路的会话在干什么
+
+blockers: 1
+  pid     blocks  holds
+  862369  1       public.kbdiag_inj_lock AccessExclusiveLock
+
+waiting: 1
+  pid     object                  wants            waited  blocked by
+  862379  public.kbdiag_inj_lock  AccessShareLock  14s     862369
+EXIT_CODE=1

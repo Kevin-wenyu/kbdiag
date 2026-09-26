@@ -1,0 +1,10 @@
+locks  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T21:20:18+08:00)
+
+blockers: 1
+  pid     blocks  holds
+  452375  1       advisory ExclusiveLock
+
+waiting: 1
+  pid     object    wants          waited  blocked by
+  452384  advisory  ExclusiveLock  4s      452375
+EXIT_CODE=0

@@ -1,0 +1,7 @@
+txn  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-26T21:18:57+08:00)
+
+open transactions: 0, 10 sessions hidden
+
+prepared: 0
+redacted: 10 rows of session.activity hide state, backend_type, client_addr, ages, wait, query (insufficient_privilege; grant sys_monitor)
+EXIT_CODE=3

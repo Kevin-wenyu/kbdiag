@@ -1,0 +1,9 @@
+waits  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T21:20:05+08:00)
+
+not idle: 2
+  wait               state                sessions  pids
+  Timeout:PgSleep    active               1         450237
+  Client:ClientRead  idle in transaction  1         450116
+
+not shown: 2 idle, 4 background
+EXIT_CODE=0

@@ -1,0 +1,13 @@
+locks  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:30:34+08:00)
+
+[WARN] lock.waiting  会话 863803 等 public.kbdiag_inj_2pc 的 AccessExclusiveLock 已 13 秒，被 未提交的两阶段事务 挡住
+  verify: kbdiag txn  # 挡路的是未提交的两阶段事务，看它的 gid 和已经挂了多久
+
+blockers: 1
+  pid  blocks  holds
+  2PC  1       public.kbdiag_inj_2pc RowExclusiveLock
+
+waiting: 1
+  pid     object                 wants                waited  blocked by
+  863803  public.kbdiag_inj_2pc  AccessExclusiveLock  13s     2PC
+EXIT_CODE=1

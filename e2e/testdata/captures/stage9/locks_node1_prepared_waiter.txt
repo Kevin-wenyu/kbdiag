@@ -1,0 +1,10 @@
+locks  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:20:37+08:00)
+
+blockers: 1
+  pid  blocks  holds
+  2PC  1       public.kbdiag_inj_2pc RowExclusiveLock
+
+waiting: 1
+  pid     object                 wants                waited  blocked by
+  845860  public.kbdiag_inj_2pc  AccessExclusiveLock  3s      2PC
+EXIT_CODE=0

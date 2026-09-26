@@ -1,0 +1,10 @@
+txn  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:20:29+08:00)
+
+oldest xid: 6215  (2PC kbdiag_inj_2pc)
+
+open transactions: 0
+
+prepared: 1
+  gid             owner   database  age  xid
+  kbdiag_inj_2pc  system  test      1s   6215
+EXIT_CODE=0

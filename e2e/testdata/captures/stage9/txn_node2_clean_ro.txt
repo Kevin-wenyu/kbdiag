@@ -1,0 +1,7 @@
+txn  UNKNOWN  (KingbaseES V008R006C009B0014, standby, kbdiag_ro@remote, 2026-09-26T21:19:45+08:00)
+
+open transactions: 0, 5 sessions hidden
+
+txn.prepared: not_applicable  (备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn)
+redacted: 5 rows of session.activity hide state, backend_type, client_addr, ages, wait, query (insufficient_privilege; grant sys_monitor)
+EXIT_CODE=3

@@ -1,0 +1,7 @@
+waits  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-26T21:19:18+08:00)
+
+not idle: 0
+
+not shown: 1 background, 12 hidden (state unknown)
+redacted: 12 rows of wait.summary hide wait, state (insufficient_privilege; grant sys_monitor)
+EXIT_CODE=3

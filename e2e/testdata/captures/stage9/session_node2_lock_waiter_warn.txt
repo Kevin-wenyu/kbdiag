@@ -1,0 +1,28 @@
+session  WARN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T21:30:09+08:00)
+
+[WARN] lock.waiting  会话 464958 等 advisory 锁 已 16 秒，被 464948 挡住
+  verify: kbdiag session 464948  # 看挡路的会话在干什么
+
+session 464958
+  user         system
+  database     test
+  application  kbdiag_inj_lock_waiter
+  client       local
+  type         client backend
+  state        active  (for 16s)
+  xact         16s
+  query        16s
+  wait         Lock:advisory
+  xid / xmin   - / 6258
+
+sql
+  select pg_advisory_lock(424242);
+
+waiting for: 1
+  object    wants          waited  blocked by
+  advisory  ExclusiveLock  16s     464948
+
+blocking: 0
+
+holds: 0
+EXIT_CODE=1

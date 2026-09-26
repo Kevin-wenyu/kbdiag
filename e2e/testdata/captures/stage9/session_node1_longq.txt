@@ -1,0 +1,23 @@
+session  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:19:22+08:00)
+
+session 841490
+  user         system
+  database     test
+  application  kbdiag_inj_long_query
+  client       local
+  type         client backend
+  state        active  (for 14s)
+  xact         14s
+  query        14s
+  wait         Timeout:PgSleep
+  xid / xmin   - / 6210
+
+sql
+  select pg_sleep(3600);
+
+waiting for: 0
+
+blocking: 0
+
+holds: 0
+EXIT_CODE=0

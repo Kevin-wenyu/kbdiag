@@ -1,0 +1,6 @@
+txn  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:18:56+08:00)
+
+open transactions: 0
+
+prepared: 0
+EXIT_CODE=0

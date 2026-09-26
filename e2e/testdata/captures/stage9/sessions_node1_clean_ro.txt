@@ -1,0 +1,16 @@
+sessions  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-26T21:18:52+08:00)
+
+connected: 1 walsender, 10 hidden
+  count  user    database  application          client
+  3      esrep   esrep     internal_rwcmgr      ?
+  1      -       -         auto vacuum          ?
+  1      -       -         background flush     ?
+  1      -       -         check pointer        ?
+  1      -       -         wal flush            ?
+  1      system  -         logical replication  ?
+  1      system  -         sys_ksh collector    ?
+  1      system  kingbase  -                    ?
+
+not idle: 0 visible, 10 hidden
+redacted: 10 rows of session.activity hide state, backend_type, client_addr, ages, wait, query (insufficient_privilege; grant sys_monitor)
+EXIT_CODE=3

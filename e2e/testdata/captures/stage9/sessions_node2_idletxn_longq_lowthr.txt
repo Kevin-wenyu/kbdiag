@@ -1,0 +1,16 @@
+sessions  WARN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T21:20:07+08:00)
+
+[WARN] session.idle_in_txn  会话 450116 处于 idle in transaction 已 13 秒
+  verify: kbdiag session 450116  # 看它持有哪些锁、有没有挡住别人
+
+connected: 4 client sessions (not counting kbdiag), 4 background
+  count  user    database  application            client
+  2      esrep   esrep     internal_rwcmgr        192.168.105.11
+  1      system  test      kbdiag_inj_idle_txn    local
+  1      system  test      kbdiag_inj_long_query  local
+
+not idle: 2
+  pid     user    database  application            client  state                xact  query  wait             sql
+  450116  system  test      kbdiag_inj_idle_txn    local   idle in transaction  15s   14s    -                select 1 as kbdiag_last, pg_sleep(1);
+  450237  system  test      kbdiag_inj_long_query  local   active               12s   12s    Timeout:PgSleep  select pg_sleep(3600);
+EXIT_CODE=1

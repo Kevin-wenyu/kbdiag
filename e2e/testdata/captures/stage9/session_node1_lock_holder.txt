@@ -1,0 +1,27 @@
+session  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:19:35+08:00)
+
+session 843588
+  user         system
+  database     test
+  application  kbdiag_inj_lock_holder
+  client       local
+  type         client backend
+  state        idle in transaction  (for 10s)
+  xact         10s
+  query        10s
+  wait         -
+  xid / xmin   6212 / -
+
+last sql
+  lock table kbdiag_inj_lock in access exclusive mode;
+
+waiting for: 0
+
+blocking: 1
+  pid     object                  wants            waited
+  843597  public.kbdiag_inj_lock  AccessShareLock  10s
+
+holds: 1
+  object                  mode
+  public.kbdiag_inj_lock  AccessExclusiveLock
+EXIT_CODE=0

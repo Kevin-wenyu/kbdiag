@@ -1,0 +1,82 @@
+{
+  "command": "session",
+  "verdict": "OK",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "primary",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T21:19:22+08:00"
+  },
+  "data": {
+    "lock.list": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "locktype",
+        "relation",
+        "mode",
+        "granted",
+        "wait_s",
+        "blocked_by"
+      ],
+      "rows": [
+        [
+          841490,
+          "virtualxid",
+          null,
+          "ExclusiveLock",
+          true,
+          null,
+          []
+        ]
+      ],
+      "truncated": 0
+    },
+    "session.activity": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "usename",
+        "datname",
+        "application_name",
+        "client_addr",
+        "backend_type",
+        "state",
+        "backend_xid",
+        "backend_xmin",
+        "xact_age_s",
+        "query_age_s",
+        "state_age_s",
+        "wait_event_type",
+        "wait_event",
+        "query"
+      ],
+      "rows": [
+        [
+          841490,
+          "system",
+          "test",
+          "kbdiag_inj_long_query",
+          null,
+          "client backend",
+          "active",
+          null,
+          6210,
+          14.9,
+          14.9,
+          14.9,
+          "Timeout",
+          "PgSleep",
+          "select pg_sleep(3600);"
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [],
+  "redacted": []
+}
+EXIT_CODE=0

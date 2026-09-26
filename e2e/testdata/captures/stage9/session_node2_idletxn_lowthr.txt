@@ -1,0 +1,25 @@
+session  WARN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T21:30:18+08:00)
+
+[WARN] session.idle_in_txn  会话 465795 处于 idle in transaction 已 5 秒
+
+session 465795
+  user         system
+  database     test
+  application  kbdiag_inj_idle_txn
+  client       local
+  type         client backend
+  state        idle in transaction  (for 5s)
+  xact         7s
+  query        6s
+  wait         -
+  xid / xmin   - / -
+
+last sql
+  select 1 as kbdiag_last, pg_sleep(1);
+
+waiting for: 0
+
+blocking: 0
+
+holds: 0
+EXIT_CODE=1

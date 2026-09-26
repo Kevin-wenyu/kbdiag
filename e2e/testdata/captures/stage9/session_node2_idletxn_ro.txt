@@ -1,0 +1,24 @@
+session  UNKNOWN  (KingbaseES V008R006C009B0014, standby, kbdiag_ro@remote, 2026-09-26T21:20:12+08:00)
+
+session 450116
+  user         system
+  database     test
+  application  kbdiag_inj_idle_txn
+  client       ?
+  type         ?
+  state        ?
+  xact         ?
+  query        ?
+  wait         ?
+  xid / xmin   - / -
+
+sql
+  ?
+
+waiting for: 0
+
+blocking: 0
+
+holds: 0
+redacted: 1 row of session.activity hides state, backend_type, client_addr, ages, wait, query (insufficient_privilege; grant sys_monitor)
+EXIT_CODE=3

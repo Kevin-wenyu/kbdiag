@@ -1,0 +1,101 @@
+{
+  "command": "session",
+  "verdict": "WARN",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "standby",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T21:30:19+08:00"
+  },
+  "data": {
+    "lock.list": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "locktype",
+        "relation",
+        "mode",
+        "granted",
+        "wait_s",
+        "blocked_by"
+      ],
+      "rows": [
+        [
+          465795,
+          "virtualxid",
+          null,
+          "ExclusiveLock",
+          true,
+          null,
+          []
+        ]
+      ],
+      "truncated": 0
+    },
+    "session.activity": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "usename",
+        "datname",
+        "application_name",
+        "client_addr",
+        "backend_type",
+        "state",
+        "backend_xid",
+        "backend_xmin",
+        "xact_age_s",
+        "query_age_s",
+        "state_age_s",
+        "wait_event_type",
+        "wait_event",
+        "query"
+      ],
+      "rows": [
+        [
+          465795,
+          "system",
+          "test",
+          "kbdiag_inj_idle_txn",
+          null,
+          "client backend",
+          "idle in transaction",
+          null,
+          null,
+          7.1,
+          6.1,
+          5.1,
+          "Client",
+          "ClientRead",
+          "select 1 as kbdiag_last, pg_sleep(1);"
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [
+    {
+      "id": "session.idle_in_txn",
+      "level": "WARN",
+      "symptom": "会话 465795 处于 idle in transaction 已 5 秒",
+      "evidence": [
+        {
+          "probe_id": "session.activity",
+          "fields": {
+            "backend_xid": null,
+            "pid": 465795,
+            "state": "idle in transaction",
+            "state_age_s": 5.1
+          }
+        }
+      ],
+      "cause": null,
+      "next": []
+    }
+  ],
+  "redacted": []
+}
+EXIT_CODE=1

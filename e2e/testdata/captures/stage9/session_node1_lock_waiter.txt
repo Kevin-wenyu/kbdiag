@@ -1,0 +1,28 @@
+session  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:19:36+08:00)
+
+[WARN] lock.waiting  会话 843597 等 public.kbdiag_inj_lock 的 AccessShareLock 已 11 秒，被 843588 挡住
+  verify: kbdiag session 843588  # 看挡路的会话在干什么
+
+session 843597
+  user         system
+  database     test
+  application  kbdiag_inj_lock_waiter
+  client       local
+  type         client backend
+  state        active  (for 11s)
+  xact         11s
+  query        11s
+  wait         Lock:relation
+  xid / xmin   - / 6212
+
+sql
+  select count(*) from kbdiag_inj_lock;
+
+waiting for: 1
+  object                  wants            waited  blocked by
+  public.kbdiag_inj_lock  AccessShareLock  11s     843588
+
+blocking: 0
+
+holds: 0
+EXIT_CODE=1

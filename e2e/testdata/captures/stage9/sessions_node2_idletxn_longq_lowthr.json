@@ -1,0 +1,201 @@
+{
+  "command": "sessions",
+  "verdict": "WARN",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "standby",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T21:20:08+08:00"
+  },
+  "data": {
+    "session.activity": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "usename",
+        "datname",
+        "application_name",
+        "client_addr",
+        "backend_type",
+        "state",
+        "backend_xid",
+        "backend_xmin",
+        "xact_age_s",
+        "query_age_s",
+        "state_age_s",
+        "wait_event_type",
+        "wait_event",
+        "query"
+      ],
+      "rows": [
+        [
+          450116,
+          "system",
+          "test",
+          "kbdiag_inj_idle_txn",
+          null,
+          "client backend",
+          "idle in transaction",
+          null,
+          null,
+          15.2,
+          14.2,
+          13.2,
+          "Client",
+          "ClientRead",
+          "select 1 as kbdiag_last, pg_sleep(1);"
+        ],
+        [
+          450237,
+          "system",
+          "test",
+          "kbdiag_inj_long_query",
+          null,
+          "client backend",
+          "active",
+          null,
+          6214,
+          12.1,
+          12.1,
+          12.1,
+          "Timeout",
+          "PgSleep",
+          "select pg_sleep(3600);"
+        ],
+        [
+          6002,
+          null,
+          null,
+          "startup",
+          null,
+          "startup",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Activity",
+          "RecoveryWalAll",
+          ""
+        ],
+        [
+          6006,
+          null,
+          null,
+          "check pointer",
+          null,
+          "checkpointer",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Activity",
+          "CheckpointerMain",
+          ""
+        ],
+        [
+          6007,
+          null,
+          null,
+          "background flush",
+          null,
+          "background writer",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Activity",
+          "BgWriterHibernate",
+          ""
+        ],
+        [
+          6019,
+          "esrep",
+          "esrep",
+          "internal_rwcmgr",
+          "192.168.105.11",
+          "client backend",
+          "idle",
+          null,
+          null,
+          null,
+          1.9,
+          1.9,
+          "Client",
+          "ClientRead",
+          "SELECT n.node_id as nodeId, n.type as nodeType, n.upstream_node_id as upstreamNodeId, n.node_name as nodeName,  n.conninfo as kesConninfo, n.repluser as kesReplUserName, n.slot_name as replSlotName, n.location as nodeLocation, n.priority as nodePriority, n.active as isActive, n.config_file as configFilePath, '' AS upstream_node_name, NULL AS attached, n.primary_seen as isSeenPrimary, n.lsn as lsnOnWitness  FROM repmgr.nodes n WHERE n.node_id = 2"
+        ],
+        [
+          6069,
+          "esrep",
+          "esrep",
+          "internal_rwcmgr",
+          "192.168.105.11",
+          "client backend",
+          "idle",
+          null,
+          null,
+          null,
+          0.6,
+          0.6,
+          "Client",
+          "ClientRead",
+          "  SELECT n.node_id as nodeId, n.type as nodeType, n.upstream_node_id as upstreamNodeId, n.node_name as nodeName,  n.conninfo as kesConninfo, n.repluser as kesReplUserName, n.slot_name as replSlotName, n.location as nodeLocation, n.priority as nodePriority, n.active as isActive, n.config_file as configFilePath, '' AS upstream_node_name, NULL AS attached, n.primary_seen as isSeenPrimary, n.lsn as lsnOnWitness    FROM repmgr.nodes n ORDER BY n.node_id "
+        ],
+        [
+          438167,
+          null,
+          null,
+          "walreceiver",
+          null,
+          "walreceiver",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Activity",
+          "WalReceiverMain",
+          ""
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [
+    {
+      "id": "session.idle_in_txn",
+      "level": "WARN",
+      "symptom": "会话 450116 处于 idle in transaction 已 13 秒",
+      "evidence": [
+        {
+          "probe_id": "session.activity",
+          "fields": {
+            "backend_xid": null,
+            "pid": 450116,
+            "state": "idle in transaction",
+            "state_age_s": 13.2
+          }
+        }
+      ],
+      "cause": null,
+      "next": [
+        {
+          "kind": "verify",
+          "command": "kbdiag session 450116",
+          "note": "看它持有哪些锁、有没有挡住别人"
+        }
+      ]
+    }
+  ],
+  "redacted": []
+}
+EXIT_CODE=1

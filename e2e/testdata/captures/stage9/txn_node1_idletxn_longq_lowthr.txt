@@ -1,0 +1,17 @@
+txn  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:19:19+08:00)
+
+[WARN] txn.long  会话 841374 的事务已开了 15 秒，当前 idle in transaction
+  verify: kbdiag session 841374  # 看它在跑什么、持有哪些锁、有没有挡住别人
+
+[WARN] txn.long  会话 841490 的事务已开了 12 秒，当前 active
+  verify: kbdiag session 841490  # 看它在跑什么、持有哪些锁、有没有挡住别人
+
+oldest xid: 6210  (841374 xid, 841490 xmin)
+
+open transactions: 2
+  pid     user    database  application            state                xact  xid   xmin  sql
+  841374  system  test      kbdiag_inj_idle_txn    idle in transaction  15s   6210  -     select txid_current() as kbdiag_last, pg_sleep(1);
+  841490  system  test      kbdiag_inj_long_query  active               12s   -     6210  select pg_sleep(3600);
+
+prepared: 0
+EXIT_CODE=1

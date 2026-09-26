@@ -1,0 +1,6 @@
+waits  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T21:19:46+08:00)
+
+not idle: 0
+
+not shown: 2 idle, 4 background
+EXIT_CODE=0

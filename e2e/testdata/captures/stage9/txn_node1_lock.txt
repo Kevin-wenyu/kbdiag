@@ -1,0 +1,11 @@
+txn  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T21:19:33+08:00)
+
+oldest xid: 6212  (843588 xid, 843597 xmin)
+
+open transactions: 2
+  pid     user    database  application             state                xact  xid   xmin  sql
+  843588  system  test      kbdiag_inj_lock_holder  idle in transaction  7s    6212  -     lock table kbdiag_inj_lock in access exclusive mode;
+  843597  system  test      kbdiag_inj_lock_waiter  active               7s    -     6212  select count(*) from kbdiag_inj_lock;
+
+prepared: 0
+EXIT_CODE=0
