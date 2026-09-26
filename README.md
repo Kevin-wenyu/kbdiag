@@ -35,7 +35,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 
 | Command | What it shows | Flags |
 |---|---|---|
-| `status` | Version, role, uptime, connections, database sizes, downstream count; WARN/FAIL when connections near the limit | `--conn-warn P`, `--conn-fail P` |
+| `status` | Version, data directory, port, role; each standby (on a primary) or the WAL upstream (on a standby); uptime, connections used / usable, database sizes, disk of the data directory (local runs only). FAIL when ordinary users can no longer connect; WARN when a standby is not receiving WAL | |
 | `sessions` | All sessions; WARN on long idle in transaction | `--active`, `--limit N`, `--idle-in-txn-warn S` |
 | `session <pid>` | One session: its activity, its locks, whom it blocks or is blocked by | `--lock-wait-warn S`, `--idle-in-txn-warn S` |
 | `locks` | Lock waits and their direct blockers; WARN on long waits | `--limit N`, `--lock-wait-warn S` |
@@ -43,7 +43,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `waits` | Sessions grouped by wait event and state | |
 | `slots` | Replication slots; FAIL on inactive ones | |
 
-Defaults: connections 80% (WARN) / 100% (FAIL) of what ordinary users may open (`max_connections` less `superuser_reserved_connections`), idle in transaction 300 s, lock wait 10 s, transaction 300 s (WARN) / 1800 s (FAIL), prepared transaction 900 s (FAIL). `--limit` only trims what is shown; findings always cover every row.
+Defaults: idle in transaction 300 s, lock wait 10 s, transaction 300 s (WARN) / 1800 s (FAIL), prepared transaction 900 s (FAIL). `--limit` only trims what is shown; findings always cover every row.
 
 ## Connection
 
@@ -130,7 +130,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 
 | 命令 | 看什么 | 参数 |
 |---|---|---|
-| `status` | 版本、角色、运行时长、连接数、各库大小、下游数量；连接快满时 WARN/FAIL | `--conn-warn 百分比`、`--conn-fail 百分比` |
+| `status` | 版本、数据目录、端口、角色；主库列出每个备库，备库看上游在不在收 WAL；运行时长、连接数已用/可用、各库大小、数据目录所在磁盘（只在本机运行时有）。普通用户已经连不上报 FAIL，备库没在收 WAL 报 WARN | |
 | `sessions` | 全部会话；idle in transaction 过久报 WARN | `--active`、`--limit N`、`--idle-in-txn-warn 秒` |
 | `session <pid>` | 一个会话：活动、持有的锁、挡住谁或被谁挡住 | `--lock-wait-warn 秒`、`--idle-in-txn-warn 秒` |
 | `locks` | 锁等待和直接挡路者；等太久报 WARN | `--limit N`、`--lock-wait-warn 秒` |
@@ -138,7 +138,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `waits` | 按等待事件和状态汇总会话 | |
 | `slots` | 复制槽；未激活报 FAIL | |
 
-默认阈值：连接数到普通用户可用上限（`max_connections` 减去 `superuser_reserved_connections`）的 80% WARN、100% FAIL，idle in transaction 300 秒，等锁 10 秒，事务 300 秒 WARN、1800 秒 FAIL，两阶段事务 900 秒 FAIL。`--limit` 只影响显示，判定始终覆盖全部行。
+默认阈值：idle in transaction 300 秒，等锁 10 秒，事务 300 秒 WARN、1800 秒 FAIL，两阶段事务 900 秒 FAIL。`--limit` 只影响显示，判定始终覆盖全部行。
 
 ## 连接
 

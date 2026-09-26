@@ -71,9 +71,18 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### 场景验收后的补丁（2026-09-24）
 
-- **status 判连接数，分母是 `max_connections - superuser_reserved_connections`**：用满这部分时业务已经连不上、只剩超级用户能进，这就是 FAIL；80% 给 WARN。按 `max_connections` 算会让"业务已经连不上"只显示 97%。
+- **status 判连接数，分母是 `max_connections - superuser_reserved_connections`**：用满这部分时业务已经连不上、只剩超级用户能进，这就是 FAIL。按 `max_connections` 算会让"业务已经连不上"只显示 97%。（原来的 80% WARN 已在 2026-09-26 删除，见下节）
 - **slots 的下一步指向备库上的 `kbdiag sessions`，不指向 `status`**：status 没有 WAL 接收状态，回答不了"在不在接收 WAL"；sessions 在备库上能看到 walreceiver 进程。只说"没有这个进程说明没在收"，不说"有就在收"（进程被暂停时仍在列表里）。
 - **README 构建用 `git describe --match 'v2*'`**：不加的话会取到 shell 版的 `shell-final` tag，版本号像 `shell-final-5-g…`。
+
+### status 打磨（2026-09-26）
+
+- **只判两条，没有参数**：FAIL 只给"普通用户已经连不上"（已用 ≥ 可用），WARN 只给"备库没在收 WAL"（没有接收进程，或状态不是 `streaming`）。80% 的 WARN 和 `--conn-warn`/`--conn-fail` 删掉：多少算快满因应用而异，没有客观线；没人会调的阈值不做成参数。
+- **`last_msg_age_s` 只展示不判**：空闲的主库每 `wal_receiver_status_interval`（默认 10s）才发一条，实测 8 秒前是正常值。代价是 walreceiver 被暂停（SIGSTOP）时状态仍是 `streaming`，status 不报；要判就得定一条客观线（比如超过 `wal_receiver_timeout`），留给以后。
+- **`inst.disk` 是"一个 probe 一条 SQL"的唯一例外**：KES 没有查磁盘剩余空间的函数，而磁盘满是库挂掉最常见的原因之一，status 又是第一个跑的命令，所以直接对 `data_directory` 做 statfs。只有确定跑在数据库主机上才读：走 socket，或者 host 是 localhost/127.0.0.1/::1 并且目录在本机能 stat（端口可能被转发到别的机器，所以只看 host 不够）；否则 `not_applicable`。它只展示、不参与 verdict，所以没读到也不会让结论变成 UNKNOWN。
+- **`inst.upstream` 在主库上由 probe 自己报 `not_applicable`**：和备库上的 2PC 一样，是"能不能采"，不是业务判断。
+- **downstreams 的 `sync_state` 不翻译**：repmgr 下实测是 `quorum`，不是 `sync`/`async`，翻译会丢信息。
+- **status 有专用的文本排版**（`internal/report/status.go`）：单行数据用键值、大小按 1024 进位（和 `pg_size_pretty` 一致）、时长留两个最大单位、各段按问题的先后排（备库上游在前，主库下游在前）。JSON 不变形，保留字节和秒。后面 6 条命令打磨时照这个模板。
 
 ### 三层深度（看 / 查 / 断）
 

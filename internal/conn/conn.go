@@ -30,6 +30,17 @@ func (c Config) Local() bool {
 	return c.Host == "" || strings.HasPrefix(c.Host, "/")
 }
 
+// Loopback reports whether a TCP connection names this machine. It may still
+// reach another one through a forwarded port, so it alone does not make the
+// connection local.
+func (c Config) Loopback() bool {
+	switch strings.ToLower(c.Host) {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	}
+	return false
+}
+
 func (c Config) dsn() string {
 	host := c.Host
 	if host == "" {

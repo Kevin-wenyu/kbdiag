@@ -3,7 +3,6 @@
 package main
 
 import (
-	"math"
 	"context"
 	"errors"
 	"fmt"
@@ -220,33 +219,19 @@ func newWaits(g *globalFlags, stdout io.Writer) *cobra.Command {
 }
 
 func newStatus(g *globalFlags, stdout io.Writer) *cobra.Command {
-	th := rule.Defaults
-	c := &cobra.Command{
+	return &cobra.Command{
 		Use:   "status",
-		Short: "Show version, role, uptime, connections, databases and downstreams; flag connections nearing the limit",
+		Short: "Show what this instance is and whether its basics hold: role, replication, connections, sizes, disk",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			for _, v := range []struct {
-				name string
-				pct  float64
-			}{{"--conn-warn", th.ConnWarnPct}, {"--conn-fail", th.ConnFailPct}} {
-				if !(v.pct > 0) || math.IsInf(v.pct, 0) {
-					return fmt.Errorf("%s must be a positive number, got %v", v.name, v.pct)
-				}
-			}
-			if th.ConnFailPct < th.ConnWarnPct {
-				return fmt.Errorf("--conn-fail (%v) must not be below --conn-warn (%v)", th.ConnFailPct, th.ConnWarnPct)
-			}
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
-				return scenario.Status(info, probe.InstInfo(ctx, x), probe.InstDatabases(ctx, x), probe.InstDownstreams(ctx, x), th)
+				i := probe.InstInfo(ctx, x)
+				return scenario.Status(info, i, probe.InstDatabases(ctx, x), probe.InstDownstreams(ctx, x),
+					probe.InstUpstream(ctx, x, info), probe.InstDisk(i, g.cfg.Local(), g.cfg.Loopback()))
 			})
 		},
 	}
-	f := c.Flags()
-	f.Float64Var(&th.ConnWarnPct, "conn-warn", rule.Defaults.ConnWarnPct, "percent of usable connections (max_connections - superuser_reserved_connections) before WARN")
-	f.Float64Var(&th.ConnFailPct, "conn-fail", rule.Defaults.ConnFailPct, "percent of usable connections before FAIL")
-	return c
 }
 
 func newSlots(g *globalFlags, stdout io.Writer) *cobra.Command {

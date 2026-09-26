@@ -113,3 +113,68 @@ func TestCell(t *testing.T) {
 		}
 	}
 }
+
+// size agrees with pg_size_pretty, including where it switches units.
+func TestSize(t *testing.T) {
+	cases := []struct {
+		in   float64
+		want string
+	}{
+		{0, "0 bytes"}, {10239, "10239 bytes"}, {10240, "10 kB"}, {10239 * 1024, "10239 kB"}, {10240*1024 - 1, "10 MB"},
+		{10240 * 1024, "10 MB"}, {340459571, "325 MB"}, {400819359, "382 MB"}, {15614003, "15 MB"},
+		{15089946624, "14 GB"}, {213452304384, "199 GB"}, {198362357760, "185 GB"},
+		{1.5 * (1 << 20), "1536 kB"}, {10.5 * (1 << 30), "11 GB"}, {1 << 60, "1024 PB"},
+	}
+	for _, c := range cases {
+		if got := size(c.in); got != c.want {
+			t.Errorf("size(%v) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestDuration(t *testing.T) {
+	cases := []struct {
+		in   float64
+		want string
+	}{
+		{0, "0s"}, {0.9, "0s"}, {8.0, "8s"}, {59.9, "59s"}, {60, "1m 0s"}, {187, "3m 7s"}, {3600, "1h 0m"},
+		{3661, "1h 1m"}, {86399, "23h 59m"}, {86400, "1d 0h"}, {268991, "3d 2h"}, {504535, "5d 20h"},
+		{400 * 86400, "400d 0h"}, {-5, "0s"},
+	}
+	for _, c := range cases {
+		if got := duration(c.in); got != c.want {
+			t.Errorf("duration(%v) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestNumber(t *testing.T) {
+	i32, f, u := int32(7), 1.5, uint64(9)
+	var nilp *float64
+	cases := []struct {
+		in   any
+		want float64
+		ok   bool
+	}{
+		{i32, 7, true}, {&i32, 7, true}, {f, 1.5, true}, {&f, 1.5, true}, {u, 9, true},
+		{nil, 0, false}, {nilp, 0, false}, {"7", 0, false},
+	}
+	for _, c := range cases {
+		if got, ok := number(c.in); got != c.want || ok != c.ok {
+			t.Errorf("number(%#v) = %v %v", c.in, got, ok)
+		}
+	}
+}
+
+// A reason from the server is escaped like any other cell.
+func TestStatusReasonEscaped(t *testing.T) {
+	r := New("status", facts.Context{}, rule.Result{Verdict: rule.VerdictUNKNOWN})
+	r.AddProbe(facts.InstInfoID, facts.StatusError, "XX000: \x1b[2J", facts.InfoColumns, nil, 0)
+	var buf bytes.Buffer
+	if err := r.WriteText(&buf); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(buf.String(), "\x1b") || !strings.Contains(buf.String(), `inst.info: error  (XX000: \x1b[2J)`) {
+		t.Errorf("text = %q", buf.String())
+	}
+}

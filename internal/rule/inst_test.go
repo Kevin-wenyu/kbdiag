@@ -32,25 +32,30 @@ func TestWaits(t *testing.T) {
 
 func TestStatus(t *testing.T) {
 	okInfo := facts.InstInfo{Status: facts.StatusOK}
-	okDown := facts.InstDownstreams{Status: facts.StatusOK, Rows: []int64{1}}
+	okDown := facts.InstDownstreams{Status: facts.StatusOK, Rows: []facts.Downstream{{ApplicationName: str("node2"), State: str("streaming"), SyncState: str("quorum")}}}
+	maskedDown := facts.InstDownstreams{Status: facts.StatusOK, Rows: []facts.Downstream{{ApplicationName: str("node2")}}}
+	noUp := facts.InstUpstream{Status: facts.StatusNotApplicable, Reason: "primary"}
 	hidden := facts.InstDatabases{Status: facts.StatusOK, Rows: []facts.Database{{Datname: "secret"}}}
 	cases := []struct {
 		name string
 		i    facts.InstInfo
 		d    facts.InstDatabases
 		n    facts.InstDownstreams
+		u    facts.InstUpstream
 		want Verdict
 	}{
-		{"all ok", okInfo, facts.InstDatabases{Status: facts.StatusOK}, okDown, VerdictOK},
-		{"hidden database size is not judged", okInfo, hidden, okDown, VerdictOK},
-		{"info error", facts.InstInfo{Status: facts.StatusError}, hidden, okDown, VerdictUNKNOWN},
-		{"databases skipped", okInfo, facts.InstDatabases{Status: facts.StatusSkipped}, okDown, VerdictUNKNOWN},
-		{"downstreams error", okInfo, hidden, facts.InstDownstreams{Status: facts.StatusError}, VerdictUNKNOWN},
-		{"not applicable does not count", okInfo, hidden, facts.InstDownstreams{Status: facts.StatusNotApplicable}, VerdictOK},
+		{"all ok", okInfo, facts.InstDatabases{Status: facts.StatusOK}, okDown, noUp, VerdictOK},
+		{"hidden database size is not judged", okInfo, hidden, okDown, noUp, VerdictOK},
+		{"hidden downstream state is not judged", okInfo, hidden, maskedDown, noUp, VerdictOK},
+		{"info error", facts.InstInfo{Status: facts.StatusError}, hidden, okDown, noUp, VerdictUNKNOWN},
+		{"databases skipped", okInfo, facts.InstDatabases{Status: facts.StatusSkipped}, okDown, noUp, VerdictUNKNOWN},
+		{"downstreams error", okInfo, hidden, facts.InstDownstreams{Status: facts.StatusError}, noUp, VerdictUNKNOWN},
+		{"upstream error", okInfo, hidden, okDown, facts.InstUpstream{Status: facts.StatusError}, VerdictUNKNOWN},
+		{"upstream skipped", okInfo, hidden, okDown, facts.InstUpstream{Status: facts.StatusSkipped}, VerdictUNKNOWN},
 	}
 	for _, c := range cases {
-		if r := Status(c.i, c.d, c.n, Defaults); r.Verdict != c.want {
-			t.Errorf("%s: verdict=%s, want %s", c.name, r.Verdict, c.want)
+		if r := Status(c.i, c.d, c.n, c.u); r.Verdict != c.want || len(r.Findings) != 0 {
+			t.Errorf("%s: verdict=%s findings=%d, want %s/0", c.name, r.Verdict, len(r.Findings), c.want)
 		}
 	}
 }
@@ -61,28 +66,30 @@ func TestStatusConnections(t *testing.T) {
 	}
 	d := facts.InstDatabases{Status: facts.StatusOK}
 	n := facts.InstDownstreams{Status: facts.StatusOK}
+	u := facts.InstUpstream{Status: facts.StatusNotApplicable}
+	full := "连接已用 97 个，达到普通用户可用的 97 个（max_connections 100 减去超级用户保留 3），普通用户已经连不上"
 	cases := []struct {
 		name    string
 		i       facts.InstInfo
 		d       facts.InstDatabases
-		th      Thresholds
 		want    Verdict
 		symptom string
 	}{
-		{"idle", info(6, 100, 3), d, Defaults, VerdictOK, ""},
-		{"just below warn", info(77, 100, 3), d, Defaults, VerdictOK, ""},
-		{"warn at 80% of usable", info(78, 100, 3), d, Defaults, VerdictWARN, "连接已用 78 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 80%"},
-		{"just below fail", info(96, 100, 3), d, Defaults, VerdictWARN, "连接已用 96 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 99%"},
-		{"fail when usable slots are used up", info(97, 100, 3), d, Defaults, VerdictFAIL, "连接已用 97 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 100%"},
-		{"superusers past the usable limit", info(99, 100, 3), d, Defaults, VerdictFAIL, "连接已用 99 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 102%"},
-		{"custom thresholds", info(50, 100, 0), d, Thresholds{ConnWarnPct: 40, ConnFailPct: 50}, VerdictFAIL, "连接已用 50 个，普通用户可用 100 个（max_connections 100 减去超级用户保留 0），占 50%"},
-		{"no usable slots is not judged", info(3, 3, 3), d, Defaults, VerdictOK, ""},
-		{"finding survives an unknown elsewhere", info(97, 100, 3), facts.InstDatabases{Status: facts.StatusError}, Defaults, VerdictFAIL, "连接已用 97 个，普通用户可用 97 个（max_connections 100 减去超级用户保留 3），占 100%"},
-		{"info error", facts.InstInfo{Status: facts.StatusError}, d, Defaults, VerdictUNKNOWN, ""},
+		{"idle", info(6, 100, 3), d, VerdictOK, ""},
+		{"80% is no longer a warning", info(78, 100, 3), d, VerdictOK, ""},
+		{"one usable slot left", info(96, 100, 3), d, VerdictOK, ""},
+		{"fail when usable slots are used up", info(97, 100, 3), d, VerdictFAIL, full},
+		{"superusers past the usable limit", info(99, 100, 3), d, VerdictFAIL,
+			"连接已用 99 个，达到普通用户可用的 97 个（max_connections 100 减去超级用户保留 3），普通用户已经连不上"},
+		{"no reserve", info(100, 100, 0), d, VerdictFAIL,
+			"连接已用 100 个，达到普通用户可用的 100 个（max_connections 100 减去超级用户保留 0），普通用户已经连不上"},
+		{"no usable slots is not judged", info(3, 3, 3), d, VerdictOK, ""},
+		{"finding survives an unknown elsewhere", info(97, 100, 3), facts.InstDatabases{Status: facts.StatusError}, VerdictFAIL, full},
+		{"info error", facts.InstInfo{Status: facts.StatusError}, d, VerdictUNKNOWN, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r := Status(c.i, c.d, n, c.th)
+			r := Status(c.i, c.d, n, u)
 			if r.Verdict != c.want {
 				t.Errorf("verdict = %s, want %s", r.Verdict, c.want)
 			}
@@ -96,8 +103,8 @@ func TestStatusConnections(t *testing.T) {
 				t.Fatalf("findings = %d, want 1", len(r.Findings))
 			}
 			f := r.Findings[0]
-			if f.ID != "inst.connections" || f.Symptom != c.symptom {
-				t.Errorf("finding %s %q", f.ID, f.Symptom)
+			if f.ID != "inst.connections" || f.Level != LevelFAIL || f.Symptom != c.symptom {
+				t.Errorf("finding %s %s %q", f.ID, f.Level, f.Symptom)
 			}
 			for _, k := range []string{"connections", "max_connections", "superuser_reserved_connections"} {
 				if _, ok := f.Evidence[0].Fields[k]; !ok || f.Evidence[0].ProbeID != facts.InstInfoID {
@@ -105,6 +112,61 @@ func TestStatusConnections(t *testing.T) {
 				}
 			}
 			if len(f.Next) != 1 || f.Next[0].Command != "kbdiag sessions --limit 0" {
+				t.Errorf("next = %+v", f.Next)
+			}
+		})
+	}
+}
+
+func TestStatusUpstream(t *testing.T) {
+	info := facts.InstInfo{Status: facts.StatusOK}
+	d := facts.InstDatabases{Status: facts.StatusOK}
+	n := facts.InstDownstreams{Status: facts.StatusOK}
+	up := func(status *string) facts.InstUpstream {
+		return facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{Status: status, SenderHost: str("192.168.105.10"), SenderPort: i32(54321), SlotName: str("repmgr_slot_2"), LastMsgAgeS: f64(8)}}}
+	}
+	cases := []struct {
+		name    string
+		u       facts.InstUpstream
+		want    Verdict
+		symptom string
+		status  any
+	}{
+		{"streaming", up(str("streaming")), VerdictOK, "", nil},
+		{"no walreceiver", facts.InstUpstream{Status: facts.StatusOK}, VerdictWARN,
+			"备库没有 WAL 接收进程，没在从主库收 WAL；主库这时挂掉，没有能接管的备库", nil},
+		{"stopping", up(str("stopping")), VerdictWARN,
+			"备库 WAL 接收进程的状态是 stopping，不是 streaming，没在从主库收 WAL；主库这时挂掉，没有能接管的备库", "stopping"},
+		{"starting", up(str("starting")), VerdictWARN,
+			"备库 WAL 接收进程的状态是 starting，不是 streaming，没在从主库收 WAL；主库这时挂掉，没有能接管的备库", "starting"},
+		{"status hidden", up(nil), VerdictUNKNOWN, "", nil},
+		{"primary", facts.InstUpstream{Status: facts.StatusNotApplicable, Reason: "primary"}, VerdictOK, "", nil},
+		{"error", facts.InstUpstream{Status: facts.StatusError}, VerdictUNKNOWN, "", nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			r := Status(info, d, n, c.u)
+			if r.Verdict != c.want {
+				t.Errorf("verdict = %s, want %s", r.Verdict, c.want)
+			}
+			if c.symptom == "" {
+				if len(r.Findings) != 0 {
+					t.Errorf("findings = %+v, want none", r.Findings)
+				}
+				return
+			}
+			if len(r.Findings) != 1 {
+				t.Fatalf("findings = %d, want 1", len(r.Findings))
+			}
+			f := r.Findings[0]
+			if f.ID != "inst.upstream" || f.Level != LevelWARN || f.Symptom != c.symptom {
+				t.Errorf("finding %s %s %q", f.ID, f.Level, f.Symptom)
+			}
+			ev := f.Evidence[0]
+			if st, ok := ev.Fields["status"]; ev.ProbeID != facts.InstUpstreamID || !ok || st != c.status {
+				t.Errorf("evidence = %+v", ev)
+			}
+			if len(f.Next) != 1 || f.Next[0].Kind != "verify" || f.Next[0].Command != "kbdiag slots" || !strings.Contains(f.Next[0].Note, "主库") {
 				t.Errorf("next = %+v", f.Next)
 			}
 		})

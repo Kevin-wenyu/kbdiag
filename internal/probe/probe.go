@@ -1,5 +1,6 @@
-// Package probe collects facts: one probe_id, one SQL. It makes no
-// judgment; its correctness is only provable on a real KES (L3).
+// Package probe collects facts: one probe_id, one SQL (inst.disk, a statfs,
+// is the one exception). It makes no judgment; its correctness is only
+// provable on a real KES (L3).
 package probe
 
 import (

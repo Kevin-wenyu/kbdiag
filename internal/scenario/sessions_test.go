@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -82,23 +81,7 @@ func TestSessionsMatchesPRD(t *testing.T) {
 
 func TestSessionsTextGolden(t *testing.T) {
 	c, a := prdFacts()
-	var buf bytes.Buffer
-	if err := Sessions(c, a, defaults).WriteText(&buf); err != nil {
-		t.Fatal(err)
-	}
-	golden := filepath.Join("testdata", "sessions.txt.golden")
-	if *update {
-		if err := os.WriteFile(golden, buf.Bytes(), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	want, err := os.ReadFile(golden)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if buf.String() != string(want) {
-		t.Errorf("text output differs from %s (run go test -update after review)\n got:\n%s\nwant:\n%s", golden, buf.String(), want)
-	}
+	assertGolden(t, "sessions", Sessions(c, a, defaults))
 }
 
 func TestSessionsActiveOnly(t *testing.T) {

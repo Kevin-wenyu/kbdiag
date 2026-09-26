@@ -1,0 +1,25 @@
+status  WARN  (KingbaseES V008R006C009B0014, standby, system@remote, 2026-09-26T18:28:10+08:00)
+
+[WARN] inst.upstream  备库没有 WAL 接收进程，没在从主库收 WAL；主库这时挂掉，没有能接管的备库
+  verify: kbdiag slots  # 到主库上跑，看这个备库的槽是不是 inactive
+
+inst.info
+  version         V008R006C009B0014
+  data_directory  /home/kingbase/cluster/install/kingbase/data
+  port            54321
+  start_time      2026-09-23 15:44:58  (up 3d 2h)
+  connections     3 / 97  (max_connections 100 - superuser_reserved 3)
+
+inst.upstream
+  status    (no walreceiver process)
+
+inst.downstreams: 0
+
+inst.databases: 5, total 382 MB
+  test      325 MB
+  esrep      15 MB
+  kingbase   14 MB
+  mydb       14 MB
+  security   14 MB
+
+inst.disk: not_applicable  (remote connection)

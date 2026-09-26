@@ -37,6 +37,24 @@ func (r *Report) WriteText(w io.Writer) error {
 			fmt.Fprintf(w, "  %s: %s  # %s\n", n.Kind, action, n.Note)
 		}
 	}
+	if r.Command == "status" {
+		if err := r.writeStatus(w); err != nil {
+			return err
+		}
+	} else if err := r.writeTables(w); err != nil {
+		return err
+	}
+	for _, x := range r.Redacted {
+		fmt.Fprintf(w, "\nredacted: %s.%s in %d rows (%s)", x.ProbeID, x.Field, x.RowsAffected, x.Reason)
+	}
+	if len(r.Redacted) > 0 {
+		fmt.Fprintln(w)
+	}
+	return nil
+}
+
+// writeTables prints each probe as a table, in probe_id order.
+func (r *Report) writeTables(w io.Writer) error {
 	ids := make([]string, 0, len(r.Data))
 	for id := range r.Data {
 		ids = append(ids, id)
@@ -68,12 +86,6 @@ func (r *Report) WriteText(w io.Writer) error {
 		if p.Truncated > 0 {
 			fmt.Fprintf(w, "... %d more rows not shown (use --limit 0 to show all)\n", p.Truncated)
 		}
-	}
-	for _, x := range r.Redacted {
-		fmt.Fprintf(w, "\nredacted: %s.%s in %d rows (%s)", x.ProbeID, x.Field, x.RowsAffected, x.Reason)
-	}
-	if len(r.Redacted) > 0 {
-		fmt.Fprintln(w)
 	}
 	return nil
 }

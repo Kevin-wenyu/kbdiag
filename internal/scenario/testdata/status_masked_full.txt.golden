@@ -1,0 +1,30 @@
+status  FAIL  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@local, 2026-09-26T18:28:09+08:00)
+
+[FAIL] inst.connections  连接已用 99 个，达到普通用户可用的 97 个（max_connections 100 减去超级用户保留 3），普通用户已经连不上
+  verify: kbdiag sessions --limit 0  # 看连接是谁占的：按 usename、application_name、client_addr 看有没有扎堆
+
+inst.info
+  version         V008R006C009B0014
+  data_directory  -
+  port            54321
+  start_time      2026-09-20 22:19:13  (up 5d 20h)
+  connections     99 / 97  (max_connections 100 - superuser_reserved 3)
+
+inst.downstreams: 1
+  name   address  state  sync
+  node2  -        -      -
+
+inst.upstream: not_applicable  (primary)
+
+inst.databases: 5, total 367 MB  (size of 1 not visible)
+  test      325 MB
+  kingbase   14 MB
+  mydb       14 MB
+  security   14 MB
+  esrep          -
+
+inst.disk: skipped  (insufficient_privilege: 看不到 data_directory)
+
+redacted: inst.databases.size_bytes in 1 rows (insufficient_privilege)
+redacted: inst.downstreams.state in 1 rows (insufficient_privilege)
+redacted: inst.downstreams.sync_state in 1 rows (insufficient_privilege)

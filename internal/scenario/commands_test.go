@@ -3,6 +3,8 @@ package scenario
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -160,23 +162,130 @@ func TestWaitsMatchesPRD(t *testing.T) {
 	assertPRD(t, "waits", Waits(prdContext("primary", "kbdiag_ro", "remote", 21, 47, 30), w))
 }
 
-func TestStatusMatchesPRD(t *testing.T) {
-	i := facts.InstInfo{Status: facts.StatusOK, Rows: []facts.Info{{
-		Version: "KingbaseES V008R006C009B0014 on x86_64-pc-linux-gnu", StartTime: time.Date(2026, 9, 20, 9, 12, 44, 0, cst),
-		UptimeS: 304036, Connections: 12, MaxConnections: 100, SuperuserReserved: 3, DataDirectory: str("/data/kingbase/data"),
-	}}}
+// statusFacts is what node1 (primary) and node2 (standby) reported on
+// 2026-09-26 18:28 (chronicle/2026-09-26.md, "status 打磨").
+func statusFacts(role string) (facts.Context, facts.InstInfo, facts.InstDatabases, facts.InstDownstreams, facts.InstUpstream, facts.InstDisk) {
+	c := facts.Context{Version: "KingbaseES V008R006C009B0014", Role: role, Location: "local", User: "system",
+		CollectedAt: time.Date(2026, 9, 26, 18, 28, 9, 0, cst)}
+	info := facts.Info{Version: "V008R006C009B0014", StartTime: time.Date(2026, 9, 20, 22, 19, 13, 0, cst), UptimeS: 504535,
+		Connections: 6, MaxConnections: 100, SuperuserReserved: 3, DataDirectory: str("/home/kingbase/cluster/install/kingbase/data"), Port: 54321}
 	d := facts.InstDatabases{Status: facts.StatusOK, Rows: []facts.Database{
-		{Datname: "kingbase", SizeBytes: i64(13918723)}, {Datname: "security", SizeBytes: i64(12321059)}, {Datname: "test", SizeBytes: i64(14647811)},
+		{Datname: "esrep", SizeBytes: i64(15614003)}, {Datname: "kingbase", SizeBytes: i64(15024179)}, {Datname: "mydb", SizeBytes: i64(14877187)},
+		{Datname: "security", SizeBytes: i64(14844419)}, {Datname: "test", SizeBytes: i64(340459571)},
 	}}
-	n := facts.InstDownstreams{Status: facts.StatusOK, Rows: []int64{1}}
-	assertPRD(t, "status", Status(prdContext("primary", "system", "local", 21, 50, 0), i, d, n, rule.Defaults))
+	n := facts.InstDownstreams{Status: facts.StatusOK, Rows: []facts.Downstream{
+		{ApplicationName: str("node2"), ClientAddr: str("192.168.105.11"), State: str("streaming"), SyncState: str("quorum")},
+	}}
+	u := facts.InstUpstream{Status: facts.StatusNotApplicable, Reason: "primary"}
+	disk := facts.Disk{TotalBytes: 213452304384, UsedBytes: 15089946624, AvailBytes: 198362357760}
+	if role == "standby" {
+		c.CollectedAt = c.CollectedAt.Add(time.Second)
+		info.StartTime, info.UptimeS, info.Connections = time.Date(2026, 9, 23, 15, 44, 58, 0, cst), 268991, 3
+		n.Rows = nil
+		u = facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{Status: str("streaming"), SenderHost: str("192.168.105.10"),
+			SenderPort: i32(54321), SlotName: str("repmgr_slot_2"), LastMsgAgeS: f64(8.0)}}}
+		disk = facts.Disk{TotalBytes: 213452304384, UsedBytes: 12501807104, AvailBytes: 200950497280}
+	}
+	return c, facts.InstInfo{Status: facts.StatusOK, Rows: []facts.Info{info}}, d, n, u, facts.InstDisk{Status: facts.StatusOK, Rows: []facts.Disk{disk}}
 }
 
-func TestStatusHiddenSize(t *testing.T) {
+func TestStatusMatchesPRD(t *testing.T) {
+	assertPRD(t, "status", Status(statusFacts("primary")))
+}
+
+func TestStatusStandbyMatchesPRD(t *testing.T) {
+	assertPRD(t, "status（备库）", Status(statusFacts("standby")))
+}
+
+func assertGolden(t *testing.T, name string, rep *report.Report) {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := rep.WriteText(&buf); err != nil {
+		t.Fatal(err)
+	}
+	golden := filepath.Join("testdata", name+".txt.golden")
+	if *update {
+		if err := os.WriteFile(golden, buf.Bytes(), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want, err := os.ReadFile(golden)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if buf.String() != string(want) {
+		t.Errorf("text output differs from %s (run go test -update after review)\n got:\n%s\nwant:\n%s", golden, buf.String(), want)
+	}
+}
+
+// The first three goldens are the drafts the user confirmed on 2026-09-26.
+func TestStatusText(t *testing.T) {
+	t.Run("primary", func(t *testing.T) { assertGolden(t, "status_primary", Status(statusFacts("primary"))) })
+	t.Run("standby", func(t *testing.T) { assertGolden(t, "status_standby", Status(statusFacts("standby"))) })
+	t.Run("standby without walreceiver, remote", func(t *testing.T) {
+		c, i, d, n, _, _ := statusFacts("standby")
+		c.Location = "remote"
+		rep := Status(c, i, d, n, facts.InstUpstream{Status: facts.StatusOK}, facts.InstDisk{Status: facts.StatusNotApplicable, Reason: "remote connection"})
+		if rep.Verdict != rule.VerdictWARN {
+			t.Errorf("verdict = %s", rep.Verdict)
+		}
+		assertGolden(t, "status_standby_no_walreceiver", rep)
+	})
+	// kbdiag_ro without sys_monitor, every usable slot taken: masked cells,
+	// a hidden size, nothing collected for the disk.
+	t.Run("masked and full", func(t *testing.T) {
+		c, i, d, _, _, _ := statusFacts("primary")
+		c.User = "kbdiag_ro"
+		i.Rows[0].Connections, i.Rows[0].DataDirectory = 99, nil
+		d.Rows[0].SizeBytes = nil
+		n := facts.InstDownstreams{Status: facts.StatusOK, Rows: []facts.Downstream{{ApplicationName: str("node2")}}}
+		rep := Status(c, i, d, n, facts.InstUpstream{Status: facts.StatusNotApplicable, Reason: "primary"},
+			facts.InstDisk{Status: facts.StatusSkipped, Reason: "insufficient_privilege: 看不到 data_directory"})
+		if rep.Verdict != rule.VerdictFAIL {
+			t.Errorf("verdict = %s", rep.Verdict)
+		}
+		assertGolden(t, "status_masked_full", rep)
+	})
+	t.Run("standby, status hidden, info error", func(t *testing.T) {
+		c, _, d, n, _, _ := statusFacts("standby")
+		u := facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{}}}
+		rep := Status(c, facts.InstInfo{Status: facts.StatusError, Reason: "42P01: relation does not exist"}, d, n, u,
+			facts.InstDisk{Status: facts.StatusSkipped, Reason: "inst.info 没采到，不知道 data_directory"})
+		if rep.Verdict != rule.VerdictUNKNOWN {
+			t.Errorf("verdict = %s", rep.Verdict)
+		}
+		assertGolden(t, "status_unknown", rep)
+	})
+}
+
+func TestStatusRedacted(t *testing.T) {
+	c, i, _, _, u, disk := statusFacts("primary")
 	d := facts.InstDatabases{Status: facts.StatusOK, Rows: []facts.Database{{Datname: "secret"}}}
-	rep := Status(prdContext("primary", "kbdiag_ro", "remote", 0, 0, 0), facts.InstInfo{Status: facts.StatusOK}, d, facts.InstDownstreams{Status: facts.StatusOK}, rule.Defaults)
-	if rep.Verdict != rule.VerdictOK || len(rep.Redacted) != 1 || rep.Redacted[0].Field != "size_bytes" {
-		t.Errorf("verdict=%s redacted=%+v", rep.Verdict, rep.Redacted)
+	n := facts.InstDownstreams{Status: facts.StatusOK, Rows: []facts.Downstream{{ApplicationName: str("node2")}}}
+	rep := Status(c, i, d, n, u, disk)
+	var fields []string
+	for _, x := range rep.Redacted {
+		fields = append(fields, x.ProbeID+"."+x.Field)
+	}
+	want := []string{"inst.databases.size_bytes", "inst.downstreams.state", "inst.downstreams.sync_state"}
+	if rep.Verdict != rule.VerdictOK || !reflect.DeepEqual(fields, want) {
+		t.Errorf("verdict=%s redacted=%v, want OK %v", rep.Verdict, fields, want)
+	}
+	c.Role = "standby"
+	rep = Status(c, i, facts.InstDatabases{Status: facts.StatusOK}, facts.InstDownstreams{Status: facts.StatusOK},
+		facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{}}}, disk)
+	if rep.Verdict != rule.VerdictUNKNOWN || len(rep.Redacted) != 1 || rep.Redacted[0].ProbeID+"."+rep.Redacted[0].Field != "inst.upstream.status" {
+		t.Errorf("standby: verdict=%s redacted=%+v", rep.Verdict, rep.Redacted)
+	}
+}
+
+// inst.disk is shown, never judged: however it ends, the verdict stays OK.
+func TestStatusDiskNotJudged(t *testing.T) {
+	c, i, d, n, u, _ := statusFacts("primary")
+	for _, st := range []facts.Status{facts.StatusError, facts.StatusSkipped, facts.StatusNotApplicable} {
+		if rep := Status(c, i, d, n, u, facts.InstDisk{Status: st, Reason: "x"}); rep.Verdict != rule.VerdictOK {
+			t.Errorf("disk %s: verdict = %s", st, rep.Verdict)
+		}
 	}
 }
 

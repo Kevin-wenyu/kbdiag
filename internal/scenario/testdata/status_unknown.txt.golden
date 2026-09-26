@@ -1,0 +1,22 @@
+status  UNKNOWN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T18:28:10+08:00)
+
+inst.info: error  (42P01: relation does not exist)
+
+inst.upstream
+  status    -
+  upstream  -
+  slot      -
+  last_msg  -
+
+inst.downstreams: 0
+
+inst.databases: 5, total 382 MB
+  test      325 MB
+  esrep      15 MB
+  kingbase   14 MB
+  mydb       14 MB
+  security   14 MB
+
+inst.disk: skipped  (inst.info 没采到，不知道 data_directory)
+
+redacted: inst.upstream.status in 1 rows (insufficient_privilege)

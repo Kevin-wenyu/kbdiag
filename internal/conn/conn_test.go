@@ -35,6 +35,15 @@ func TestLocal(t *testing.T) {
 	}
 }
 
+func TestLoopback(t *testing.T) {
+	for host, want := range map[string]bool{"localhost": true, "LocalHost": true, "127.0.0.1": true, "::1": true,
+		"": false, "/tmp": false, "127.0.0.2": false, "192.168.105.10": false, "kes-node1": false, "localhost.example.com": false} {
+		if got := (Config{Host: host}).Loopback(); got != want {
+			t.Errorf("Loopback(%q) = %v, want %v", host, got, want)
+		}
+	}
+}
+
 // statement_timeout=0 means no timeout, so a sub-millisecond value must not
 // round down to 0.
 func TestTimeoutMillis(t *testing.T) {

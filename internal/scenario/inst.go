@@ -13,16 +13,16 @@ func Waits(c facts.Context, w facts.WaitSummary) *report.Report {
 	return rep
 }
 
-func Status(c facts.Context, i facts.InstInfo, d facts.InstDatabases, n facts.InstDownstreams, th rule.Thresholds) *report.Report {
-	rep := report.New("status", c, rule.Status(i, d, n, th))
+func Status(c facts.Context, i facts.InstInfo, d facts.InstDatabases, n facts.InstDownstreams, u facts.InstUpstream, disk facts.InstDisk) *report.Report {
+	rep := report.New("status", c, rule.Status(i, d, n, u))
 	rep.AddProbe(facts.InstInfoID, i.Status, i.Reason, facts.InfoColumns, rows(i.Rows), 0)
 	rep.AddProbe(facts.InstDatabasesID, d.Status, d.Reason, facts.DatabaseColumns, rows(d.Rows), 0)
-	down := make([][]any, len(n.Rows))
-	for j, x := range n.Rows {
-		down[j] = []any{x}
-	}
-	rep.AddProbe(facts.InstDownstreamsID, n.Status, n.Reason, facts.DownstreamsColumns, down, 0)
+	rep.AddProbe(facts.InstDownstreamsID, n.Status, n.Reason, facts.DownstreamsColumns, rows(n.Rows), 0)
+	rep.AddProbe(facts.InstUpstreamID, u.Status, u.Reason, facts.UpstreamColumns, rows(u.Rows), 0)
+	rep.AddProbe(facts.InstDiskID, disk.Status, disk.Reason, facts.DiskColumns, rows(disk.Rows), 0)
 	rep.AddRedacted(d.Redacted())
+	rep.AddRedacted(n.Redacted())
+	rep.AddRedacted(u.Redacted())
 	return rep
 }
 

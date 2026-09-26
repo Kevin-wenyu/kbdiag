@@ -60,3 +60,8 @@ alpha.1 刚发布，还没有外部使用者，所以一次性改完：
 ## 6. 确认后的步骤
 
 实现 → L1/L2 测试 → node1/node2 的 e2e → Codex 审查 → VM 实跑输出贴给用户看 → 同步文档 → 完成后删除本计划。
+
+## 7. 进度
+
+- 2026-09-26（云会话）：实现和 L1/L2 完成，`go vet ./... && go test ./...` 全绿；PRD §4/§5.1、queries.md、engineering.md、README、CLAUDE.md 已同步；e2e 按新契约改写，只编译过（`go vet -tags vm ./e2e/`），没在 VM 上跑。详情见 `chronicle/2026-09-26.md`"status 打磨：实现"一节。
+- 下一步：回本地跑 node1/node2 的 e2e → Codex 审查 → VM 实跑输出贴给用户看 → 写 kbdiag-docs 的 status 页 → 删除本计划。

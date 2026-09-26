@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -52,6 +53,16 @@ func okProbe(t *testing.T, r report, id string, cols []string) probeData {
 		t.Fatalf("%s status=%s reason=%v columns=%v", id, p.Status, p.Reason, p.Columns)
 	}
 	return p
+}
+
+// vmOut runs a command on the node as kingbase and returns its stdout.
+func vmOut(t *testing.T, args ...string) string {
+	t.Helper()
+	out, err := vm(args...).Output()
+	if err != nil {
+		t.Fatalf("%v: %v", args, err)
+	}
+	return string(out)
 }
 
 // lockWait is how long ksql says pid has been in its current statement.
@@ -318,17 +329,17 @@ func TestWaitsTrackActivitiesOff(t *testing.T) {
 	}
 }
 
-// L3: status agrees with ksql.
+// L3: status agrees with ksql and df.
 func TestStatus(t *testing.T) {
 	want := strings.Split(ksql(t, `select floor(extract(epoch from sys_postmaster_start_time()))::bigint,
 current_setting('max_connections'), current_setting('superuser_reserved_connections'),
-current_setting('data_directory'), (select count(*) from sys_stat_replication),
+current_setting('data_directory'), current_setting('port'), split_part(version(), ' ', 2),
 (select string_agg(datname::text, ',' order by datname) from sys_database where not datistemplate)`), "|")
 	r, code := kbdiag(t, nil, "status")
 	if r.Verdict != "OK" || code != 0 || len(r.Findings) != 0 {
 		t.Errorf("verdict=%s exit=%d findings=%d", r.Verdict, code, len(r.Findings))
 	}
-	info := okProbe(t, r, "inst.info", []string{"version", "start_time", "uptime_s", "connections", "max_connections", "superuser_reserved_connections", "data_directory"})
+	info := okProbe(t, r, "inst.info", []string{"version", "start_time", "uptime_s", "connections", "max_connections", "superuser_reserved_connections", "data_directory", "port", "usable_connections"})
 	if len(info.Rows) != 1 {
 		t.Fatalf("inst.info rows = %v", info.Rows)
 	}
@@ -340,14 +351,18 @@ current_setting('data_directory'), (select count(*) from sys_stat_replication),
 	if up, _ := row["uptime_s"].(float64); up < 1 || up-time.Since(start).Seconds() > 5 || time.Since(start).Seconds()-up > 5 {
 		t.Errorf("uptime_s = %v, start %v", row["uptime_s"], start)
 	}
-	if fmt.Sprint(row["max_connections"]) != want[1] || fmt.Sprint(row["superuser_reserved_connections"]) != want[2] || row["data_directory"] != want[3] {
+	if fmt.Sprint(row["max_connections"]) != want[1] || fmt.Sprint(row["superuser_reserved_connections"]) != want[2] ||
+		row["data_directory"] != want[3] || fmt.Sprint(row["port"]) != want[4] || row["version"] != want[5] {
 		t.Errorf("row = %v, ksql says %v", row, want)
+	}
+	if u, _ := row["usable_connections"].(float64); u != row["max_connections"].(float64)-row["superuser_reserved_connections"].(float64) {
+		t.Errorf("usable_connections = %v", row["usable_connections"])
 	}
 	if c, _ := row["connections"].(float64); c < 1 || c > 100 {
 		t.Errorf("connections = %v", row["connections"])
 	}
-	if v, _ := row["version"].(string); !strings.HasPrefix(v, "KingbaseES V") {
-		t.Errorf("version = %v", row["version"])
+	if v, _ := row["version"].(string); !strings.HasPrefix(v, "V") || strings.Contains(v, " ") {
+		t.Errorf("version = %v, want the short version number", row["version"])
 	}
 	var names []string
 	for _, d := range okProbe(t, r, "inst.databases", []string{"datname", "size_bytes"}).rowsOf() {
@@ -356,25 +371,72 @@ current_setting('data_directory'), (select count(*) from sys_stat_replication),
 			t.Errorf("size of %v = %v", d["datname"], d["size_bytes"])
 		}
 	}
-	if strings.Join(names, ",") != want[5] {
-		t.Errorf("databases = %v, ksql says %s", names, want[5])
-	}
-	down := okProbe(t, r, "inst.downstreams", []string{"downstreams"})
-	if len(down.Rows) != 1 || fmt.Sprint(down.Rows[0][0]) != want[4] {
-		t.Errorf("downstreams = %v, ksql says %s", down.Rows, want[4])
-	}
-	if (role == "primary") != (want[4] != "0") {
-		t.Errorf("%s with %s downstreams: the lab has one standby", role, want[4])
+	if strings.Join(names, ",") != want[6] {
+		t.Errorf("databases = %v, ksql says %s", names, want[6])
 	}
 
-	// The idle lab sits far below 80%; scaling the threshold down (§6.5 A) makes
-	// the same connections a WARN.
-	t.Run("connections past a scaled warn threshold", func(t *testing.T) {
-		r, code := kbdiag(t, nil, "status", "--conn-warn", "1")
-		if got := findings(r, "inst.connections", "max_connections", row["max_connections"]); !reflect.DeepEqual(got, []string{"WARN"}) || code != 1 {
-			t.Errorf("findings=%v exit=%d", got, code)
+	// inst.downstreams: one row per walsender, sync_state raw (quorum in the lab).
+	wantDown := ksql(t, `select coalesce(string_agg(application_name || ':' || state || ':' || sync_state, ',' order by application_name, pid), '-')
+from sys_stat_replication`)
+	var down []string
+	for _, d := range okProbe(t, r, "inst.downstreams", []string{"application_name", "client_addr", "state", "sync_state"}).rowsOf() {
+		down = append(down, fmt.Sprintf("%v:%v:%v", d["application_name"], d["state"], d["sync_state"]))
+	}
+	if got := strings.Join(down, ","); (got == "" && wantDown != "-") || (got != "" && got != wantDown) {
+		t.Errorf("downstreams = %s, ksql says %s", got, wantDown)
+	}
+	if (role == "primary") != (len(down) == 1) {
+		t.Errorf("%s with %d downstreams: the lab has one standby", role, len(down))
+	}
+
+	// inst.upstream: not_applicable on the primary; on the standby it agrees
+	// with sys_stat_wal_receiver.
+	up := r.Data["inst.upstream"]
+	if role == "primary" {
+		if up.Status != "not_applicable" || up.Reason == nil || *up.Reason != "primary" || len(up.Rows) != 0 {
+			t.Errorf("inst.upstream on the primary = %+v", up)
+		}
+	} else {
+		wantUp := ksql(t, "select status || '|' || sender_host || '|' || sender_port || '|' || slot_name from sys_stat_wal_receiver")
+		u := okProbe(t, r, "inst.upstream", []string{"status", "sender_host", "sender_port", "slot_name", "last_msg_age_s"}).rowsOf()
+		if len(u) != 1 {
+			t.Fatalf("inst.upstream rows = %v", u)
+		}
+		if got := fmt.Sprintf("%v|%v|%v|%v", u[0]["status"], u[0]["sender_host"], u[0]["sender_port"], u[0]["slot_name"]); got != wantUp {
+			t.Errorf("upstream = %s, ksql says %s", got, wantUp)
+		}
+		if age, ok := u[0]["last_msg_age_s"].(float64); !ok || age < 0 || age > 60 {
+			t.Errorf("last_msg_age_s = %v", u[0]["last_msg_age_s"])
+		}
+	}
+
+	// inst.disk agrees with df on the data directory; used and avail move
+	// between the two reads, so they only have to be close.
+	df := strings.Fields(strings.TrimSpace(vmOut(t, "df", "-B1", "--output=size,used,avail", want[3])))
+	disk := okProbe(t, r, "inst.disk", []string{"total_bytes", "used_bytes", "avail_bytes"}).rowsOf()
+	if len(df) != 6 || len(disk) != 1 {
+		t.Fatalf("df = %q, inst.disk = %v", df, disk)
+	}
+	for i, col := range []string{"total_bytes", "used_bytes", "avail_bytes"} {
+		d, _ := strconv.ParseFloat(df[3+i], 64)
+		if got, _ := disk[0][col].(float64); math.Abs(got-d) > 64<<20 {
+			t.Errorf("%s = %.0f, df says %.0f", col, got, d)
+		}
+	}
+
+	// Over TCP to the node's own address kbdiag cannot tell it is on the
+	// database host, so the disk is not read.
+	t.Run("disk not applicable over TCP", func(t *testing.T) {
+		ip := map[string]string{"kes-node1": "192.168.105.10", "kes-node2": "192.168.105.11"}[node]
+		if ip == "" {
+			t.Skipf("no internal IP known for %s", node)
+		}
+		r, _ := kbdiag(t, []string{"PGPASSWORD=kbdiag_ro_T3st"}, "status", "--host", ip, "-U", "kbdiag_ro")
+		if p := r.Data["inst.disk"]; p.Status != "not_applicable" || p.Reason == nil || *p.Reason != "remote connection" {
+			t.Errorf("inst.disk = %+v", p)
 		}
 	})
+
 	// DS-03: every connection ordinary users may open is taken; kbdiag still gets
 	// in through the superuser reserve and says FAIL.
 	t.Run("usable connections used up", func(t *testing.T) {
@@ -516,17 +578,42 @@ func TestNonMonitorUser(t *testing.T) {
 		}
 	})
 
-	t.Run("status and slots still answer", func(t *testing.T) {
-		for _, cmd := range []string{"status", "slots"} {
-			r, code := kbdiag(t, env, append([]string{cmd}, ro...)...)
-			for id, p := range r.Data {
-				if p.Status != "ok" {
-					t.Errorf("%s: %s status=%s reason=%v", cmd, id, p.Status, p.Reason)
-				}
+	t.Run("slots still answers", func(t *testing.T) {
+		r, code := kbdiag(t, env, append([]string{"slots"}, ro...)...)
+		for id, p := range r.Data {
+			if p.Status != "ok" {
+				t.Errorf("%s status=%s reason=%v", id, p.Status, p.Reason)
 			}
-			if r.Context.User != "kbdiag_ro" || r.Verdict != "OK" || code != 0 {
-				t.Errorf("%s: context=%+v verdict=%s exit=%d, want OK/0", cmd, r.Context, r.Verdict, code)
+		}
+		if r.Context.User != "kbdiag_ro" || r.Verdict != "OK" || code != 0 {
+			t.Errorf("context=%+v verdict=%s exit=%d, want OK/0", r.Context, r.Verdict, code)
+		}
+	})
+
+	// Expected from PG behavior, not yet seen on KES: without sys_monitor
+	// sys_stat_replication shows only application_name, sys_stat_wal_receiver
+	// a row of NULLs, and data_directory may be hidden. Only the upstream
+	// status is judged, so only the standby turns UNKNOWN.
+	t.Run("status", func(t *testing.T) {
+		r, code := kbdiag(t, env, append([]string{"status"}, ro...)...)
+		for _, id := range []string{"inst.info", "inst.databases", "inst.downstreams"} {
+			if p := r.Data[id]; p.Status != "ok" {
+				t.Errorf("%s status=%s reason=%v", id, p.Status, p.Reason)
 			}
+		}
+		if p := r.Data["inst.disk"]; p.Status != "ok" && p.Status != "skipped" {
+			t.Errorf("inst.disk status=%s reason=%v, want ok or skipped over loopback", p.Status, p.Reason)
+		}
+		var fields []string
+		for _, x := range r.Redacted {
+			fields = append(fields, x.ProbeID+"."+x.Field)
+		}
+		wantVerdict, wantCode, wantFields := "OK", 0, []string{"inst.downstreams.state", "inst.downstreams.sync_state"}
+		if role == "standby" {
+			wantVerdict, wantCode, wantFields = "UNKNOWN", 3, []string{"inst.upstream.status"}
+		}
+		if r.Context.User != "kbdiag_ro" || r.Verdict != wantVerdict || code != wantCode || !reflect.DeepEqual(fields, wantFields) {
+			t.Errorf("context=%+v verdict=%s exit=%d redacted=%v, want %s/%d %v", r.Context, r.Verdict, code, fields, wantVerdict, wantCode, wantFields)
 		}
 	})
 }

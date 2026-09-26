@@ -1,6 +1,6 @@
 # kbdiag 2.0 需求说明书（PRD）
 
-状态: active | 最后核对: 2026-09-24
+状态: active | 最后核对: 2026-09-26
 
 **职责**：需求、范围、输出契约、版本目标、DS 场景表。查询条目和它们属于哪个版本以 `docs/queries.md` 为准；选型、架构、测试以 `docs/engineering.md` 为准。
 
@@ -50,7 +50,7 @@
 | `locks` | 谁在等锁、直接被谁挡住（一层）、等了多久 | `lock.list` | 正常 |
 | `txn` | 长事务、idle in txn、最老的 backend_xmin、未结束的 2PC | `session.activity`、`txn.prepared` | 2PC 部分 `not_applicable`，提示去主库查 |
 | `waits` | 此刻各会话在等什么（汇总） | `wait.summary` | 正常 |
-| `status` | 版本、role、downstreams、启动时长、连接数/上限、库大小、数据目录；连接快满了没有（`inst.connections`） | `inst.info`、`inst.databases`、`inst.downstreams` | 视角切换 |
+| `status` | 刚登上实例时的基本盘：身份（短版本号、数据目录、端口）、角色和复制（主库列出每个备库，备库看上游在不在收 WAL）、启动时间、连接数/可用数、各库大小、数据目录所在磁盘。只判两条：普通用户已经连不上（`inst.connections` FAIL），备库没在收 WAL（`inst.upstream` WARN）；没有参数 | `inst.info`、`inst.downstreams`、`inst.upstream`、`inst.databases`、`inst.disk` | 主库上 `inst.upstream` 为 `not_applicable`；远程运行时 `inst.disk` 为 `not_applicable` |
 | `slots` | 复制槽是否活跃、保留多少 WAL、xmin 是否压着视界 | `slot.list` | 正常；WAL 保留量改用 `sys_last_wal_replay_lsn()` 计算 |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
@@ -104,7 +104,7 @@ Report
 **data（命令的主体）**
 - 列表命令的主体放在 `data` 里；findings 只放被阈值标出的行，不重复整张表。
 - 键是 probe_id，格式 `<域>.<对象>`（如 `session.activity`、`lock.list`、`txn.prepared`、`slot.list`、`inst.info`、`inst.downstreams`），和 finding.id 共用域前缀，不带命令名。每个 probe_id 登记在 `docs/queries.md` 的追溯表里。
-- 一个 probe 就是一条 SQL；**列名属于契约**，同一个 probe_id 在所有命令里列相同，命令只决定过滤哪些行。
+- 一个 probe 就是一条 SQL（唯一的例外是 `inst.disk`，它对数据目录做 statfs，只在本机运行时有）；**列名属于契约**，同一个 probe_id 在所有命令里列相同，命令只决定过滤哪些行。
 - `rows` 是和 `columns` 对齐的数组；时长一律是秒（`*_s`），大小一律是字节（`*_bytes`），时间是带时区的 ISO 8601。
 - `truncated` 是没显示的行数（修 GAP-4），0 表示没截断。
 - `status`：
@@ -309,35 +309,49 @@ Report
 
 #### 示例：status
 
-主库，一个下游备库。
+node1（主库），2026-09-26 18:28 实采（chronicle/2026-09-26.md）。`inst.info.version` 是短版本号，完整的 `version()` 不再输出；`usable_connections` = `max_connections - superuser_reserved_connections`；`inst.downstreams` 每个备库一行，`sync_state` 保留原值（repmgr 下是 `quorum`）；`inst.disk` 的 `used_bytes + avail_bytes` 小于 `total_bytes`，差值是给 root 保留的块，和 df 一致。文本输出另有排版（大小、时长换成人能读的单位），JSON 保留字节和秒。
 
 ```json
 {
   "command": "status",
   "verdict": "OK",
-  "context": {"version": "KingbaseES V008R006C009B0014", "role": "primary", "location": "local", "user": "system", "collected_at": "2026-09-23T21:50:00+08:00"},
+  "context": {"version": "KingbaseES V008R006C009B0014", "role": "primary", "location": "local", "user": "system", "collected_at": "2026-09-26T18:28:09+08:00"},
   "data": {
     "inst.info": {
       "status": "ok",
       "reason": null,
-      "columns": ["version", "start_time", "uptime_s", "connections", "max_connections", "superuser_reserved_connections", "data_directory"],
+      "columns": ["version", "start_time", "uptime_s", "connections", "max_connections", "superuser_reserved_connections", "data_directory", "port", "usable_connections"],
       "rows": [
-        ["KingbaseES V008R006C009B0014 on x86_64-pc-linux-gnu", "2026-09-20T09:12:44+08:00", 304036.0, 12, 100, 3, "/data/kingbase/data"]
+        ["V008R006C009B0014", "2026-09-20T22:19:13+08:00", 504535.0, 6, 100, 3, "/home/kingbase/cluster/install/kingbase/data", 54321, 97]
       ],
+      "truncated": 0
+    },
+    "inst.downstreams": {
+      "status": "ok",
+      "reason": null,
+      "columns": ["application_name", "client_addr", "state", "sync_state"],
+      "rows": [["node2", "192.168.105.11", "streaming", "quorum"]],
+      "truncated": 0
+    },
+    "inst.upstream": {
+      "status": "not_applicable",
+      "reason": "primary",
+      "columns": ["status", "sender_host", "sender_port", "slot_name", "last_msg_age_s"],
+      "rows": [],
       "truncated": 0
     },
     "inst.databases": {
       "status": "ok",
       "reason": null,
       "columns": ["datname", "size_bytes"],
-      "rows": [["kingbase", 13918723], ["security", 12321059], ["test", 14647811]],
+      "rows": [["esrep", 15614003], ["kingbase", 15024179], ["mydb", 14877187], ["security", 14844419], ["test", 340459571]],
       "truncated": 0
     },
-    "inst.downstreams": {
+    "inst.disk": {
       "status": "ok",
       "reason": null,
-      "columns": ["downstreams"],
-      "rows": [[1]],
+      "columns": ["total_bytes", "used_bytes", "avail_bytes"],
+      "rows": [[213452304384, 15089946624, 198362357760]],
       "truncated": 0
     }
   },
@@ -345,6 +359,71 @@ Report
   "redacted": []
 }
 ```
+
+#### 示例：status（备库）
+
+node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，只有上游地址；`last_msg_age_s` 只展示不判定（空闲时主库每 `wal_receiver_status_interval` 发一次，8 秒是正常值）。
+
+```json
+{
+  "command": "status",
+  "verdict": "OK",
+  "context": {"version": "KingbaseES V008R006C009B0014", "role": "standby", "location": "local", "user": "system", "collected_at": "2026-09-26T18:28:10+08:00"},
+  "data": {
+    "inst.info": {
+      "status": "ok",
+      "reason": null,
+      "columns": ["version", "start_time", "uptime_s", "connections", "max_connections", "superuser_reserved_connections", "data_directory", "port", "usable_connections"],
+      "rows": [
+        ["V008R006C009B0014", "2026-09-23T15:44:58+08:00", 268991.0, 3, 100, 3, "/home/kingbase/cluster/install/kingbase/data", 54321, 97]
+      ],
+      "truncated": 0
+    },
+    "inst.upstream": {
+      "status": "ok",
+      "reason": null,
+      "columns": ["status", "sender_host", "sender_port", "slot_name", "last_msg_age_s"],
+      "rows": [["streaming", "192.168.105.10", 54321, "repmgr_slot_2", 8.0]],
+      "truncated": 0
+    },
+    "inst.downstreams": {
+      "status": "ok",
+      "reason": null,
+      "columns": ["application_name", "client_addr", "state", "sync_state"],
+      "rows": [],
+      "truncated": 0
+    },
+    "inst.databases": {
+      "status": "ok",
+      "reason": null,
+      "columns": ["datname", "size_bytes"],
+      "rows": [["esrep", 15614003], ["kingbase", 15024179], ["mydb", 14877187], ["security", 14844419], ["test", 340459571]],
+      "truncated": 0
+    },
+    "inst.disk": {
+      "status": "ok",
+      "reason": null,
+      "columns": ["total_bytes", "used_bytes", "avail_bytes"],
+      "rows": [[213452304384, 12501807104, 200950497280]],
+      "truncated": 0
+    }
+  },
+  "findings": [],
+  "redacted": []
+}
+```
+
+备库不收 WAL 时（没有接收进程），findings 为：
+
+```text
+{"id": "inst.upstream", "level": "WARN",
+ "symptom": "备库没有 WAL 接收进程，没在从主库收 WAL；主库这时挂掉，没有能接管的备库",
+ "evidence": [{"probe_id": "inst.upstream", "fields": {"status": null}}],
+ "cause": null,
+ "next": [{"kind": "verify", "command": "kbdiag slots", "note": "到主库上跑，看这个备库的槽是不是 inactive"}]}
+```
+
+有接收进程但状态不是 `streaming` 时，symptom 写出状态，evidence 字段为 `status`、`sender_host`、`sender_port`、`slot_name`。`inst.connections`（FAIL）的 evidence 字段为 `connections`、`max_connections`、`superuser_reserved_connections`。
 
 #### 示例：slots
 
@@ -385,7 +464,7 @@ Report
 | 编号 | 需求 | 验收（对应 DS / GAP） |
 |---|---|---|
 | F-01 | 连接：本地 socket（兼容 `.s.KINGBASE.<port>` 命名）/ TCP + SCRAM | 两种方式都能在测试 VM 上连通 |
-| F-02 | 角色识别：primary/standby（`sys_is_in_recovery()`），外加下游数 `downstreams` | 备库上不适用的 probe 标 `not_applicable` 而非报错；repmgr 状态 v0.2 起 |
+| F-02 | 角色识别：primary/standby（`sys_is_in_recovery()`），外加每个下游备库（`inst.downstreams`）和备库的上游（`inst.upstream`） | 备库上不适用的 probe 标 `not_applicable` 而非报错；repmgr 状态 v0.2 起 |
 | F-03 | 连接族 | DS-01~04；DS-04 对照组（持排他锁的 idle-in-txn）**不得**被标记为可安全终止 |
 | F-04 | 锁族：多级阻塞链、按等待时长分级、DDL 专项建议 | DS-05~09；修 GAP-1/2/3 |
 | F-05 | SQL 族：Top N 截断必须提示"还有 M 条未显示" | DS-10/11/15；修 GAP-4 |

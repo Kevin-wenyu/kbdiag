@@ -1,6 +1,6 @@
 # kbdiag 2.0 查询清单
 
-状态: active | 最后核对: 2026-09-24
+状态: active | 最后核对: 2026-09-26
 
 **职责**：所有查询条目、所属版本、probe_id、DS、SQL 出处、开关、验证状态。版本条目以本文的"版本"列为唯一来源；PRD 只写版本目标和验收。
 **参考**：`ora`（`~/Documents/oracle/ora:100-320`）、pgmetrics、pgBadger、pg_profile、pganalyze；digoal/skills（https://github.com/digoal/skills/tree/main/postgresql ，下文简称 **digoal**）；KingbaseES V8 官方文档（https://help.kingbase.com.cn/v8/ ，下文简称 **KES 文档**）
@@ -19,7 +19,7 @@
 | C1 | `locks` | `lock.list` | 05, 06, 07, 09 | 自写，`sys_locks` + `sys_blocking_pids()`；SQL 在 `internal/probe/lock.go` | — | 正常 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
 | B4 | `txn` | `session.activity`、`txn.prepared` | 04, 06, 18 | 自写，`sys_prepared_xacts`；SQL 在 `internal/probe/txn.go` | — | 2PC 部分 `not_applicable` | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
 | E1 | `waits` | `wait.summary` | 05, 13 | 自写，`sys_stat_activity` 按等待事件和状态聚合；SQL 在 `internal/probe/wait.go` | `track_activities` | 正常 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
-| A1 | `status` | `inst.info`、`inst.databases`、`inst.downstreams` | 01, 02, 03 | 自写；SQL 在 `internal/probe/inst.go` | — | 视角切换 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
+| A1 | `status` | `inst.info`、`inst.downstreams`、`inst.upstream`、`inst.databases`、`inst.disk` | 01, 02, 03 | 自写；SQL 在 `internal/probe/inst.go`；`inst.disk` 不是 SQL，是 statfs | — | 主库上 `inst.upstream` 为 `not_applicable`；远程运行时 `inst.disk` 为 `not_applicable` | `inst.info`（除 port、短版本号外）、`inst.databases` 已验证 2026-09-24；2026-09-26 打磨后的 port、`inst.downstreams` 逐行、`inst.upstream`、`inst.disk` 和连接数只判 FAIL：未验证（L1/L2 已过，e2e 已按新契约改写但还没在 VM 上跑） |
 | I2 | `slots` | `slot.list` | 16, 22 | 自写，`sys_replication_slots`；SQL 在 `internal/probe/slot.go` | — | 按角色取 LSN | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
 
 注记：
@@ -27,11 +27,11 @@
 - C1/B2：`sys_locks` 在 V8R6 上没有 `waitstart` 列，`wait_s` 用等锁会话的 `now()-state_change` 近似，是上限：语句开始后先干了别的再等锁，就会算长一点。L3 用 ksql 在调用前后各取一次 `now()-state_change` 夹住它。被两阶段事务挡住时 `sys_blocking_pids()` 返回 `{0}`，而 prepared 事务的锁行 pid 为 NULL（实测）；这种 blocker 在 finding 里写成"未提交的两阶段事务"，下一步指向 `kbdiag txn`，由 `prepared_waiter.sh` 注入验证（仅主库）。备库上建不了表也拿不到 AccessExclusive，`lock.sh` 在备库改用 advisory lock，所以备库行的 relation 是 NULL。阈值 10 秒用 §6.5 的 A 缩放到 1 秒测。非监控账号看不到别人的 `state_change`，`wait_s` 记进 `redacted[]`，verdict UNKNOWN（L5 一格）
 - B4：`txn.long` 的 300/1800 秒和 `txn.prepared` 的 900 秒都用 A（缩放到 1 秒）测；默认阈值下同一注入不出 finding 作为反例。备库上 `txn.prepared` 为 `not_applicable`（主库的 2PC 在备库查不到，实测）
 - E1：锁等待注入后断言 waiter 落在 `Lock/relation`（备库 `Lock/advisory`）组里；`track_off` 下 `skipped`；`kbdiag_ro` 下三列遮蔽，`rows_affected` 等于遮蔽组的会话总数。只按会话做计数，不判断，所以没有 finding
-- A1：连接数用 `sys_stat_database.numbackends` 求和，只数连到库的后端，不含后台进程。L3 逐项和 ksql 比：启动时间、`max_connections`、保留连接、数据目录、库名列表、下游数（主库 1、备库 0）。没有 CONNECT 权限时库大小为 NULL，记进 `redacted[]` 但不影响 verdict；这一点只有 L2 覆盖，VM 上所有库对 `kbdiag_ro` 都可连。`inst.connections` 的 80%/100% 用 L4 `conn.sh` 真实填满（默认阈值，FAIL，两节点）加 A 缩放（`--conn-warn 1`，WARN）测；填满时 kbdiag 自己的 system 连接走保留槽仍连得上（DS-03）
+- A1：连接数用 `sys_stat_database.numbackends` 求和，只数连到库的后端，不含后台进程。L3 逐项和 ksql 比：启动时间、`max_connections`、保留连接、数据目录、端口、库名列表、下游（主库 1 行、备库 0 行，`application_name`/`state`/`sync_state` 逐行比）、上游（备库上和 `sys_stat_wal_receiver` 比）、磁盘（和 `df -B1` 比，允许采集间隔内的小差）。没有 CONNECT 权限时库大小为 NULL，记进 `redacted[]` 但不影响 verdict；这一点只有 L2 覆盖，VM 上所有库对 `kbdiag_ro` 都可连。`inst.connections` 只有 FAIL（已用 ≥ 可用），用 L4 `conn.sh` 真实填满测（两节点）；填满时 kbdiag 自己的 system 连接走保留槽仍连得上（DS-03）。80% WARN 和 `--conn-warn`/`--conn-fail` 2026-09-26 删除：因应用而异，没有客观线。`inst.upstream` 的 WARN（备库没有接收进程或状态不是 `streaming`）目前只有 L1/L2，还没有注入：`slot.sh` 用 SIGSTOP 暂停 walreceiver，进程还在，共享内存里的 status 停在 `streaming`，造不出这个 WARN（只会让 `last_msg_age_s` 一直涨）；而停实例会被 kbha 拉起，注入方法待定。非监控账号：按 PG 行为，`sys_stat_replication` 只露 `application_name`（`state`/`sync_state` 记进 `redacted[]`，不影响 verdict），`sys_stat_wal_receiver` 有行但全是 NULL（`status` 记进 `redacted[]`，备库 verdict UNKNOWN）；`data_directory` 对非超级用户可能是 NULL，这时 `inst.disk` 为 `skipped`。这三点都还没用 `kbdiag_ro` 在 VM 上确认。`inst.disk` 只展示、不参与 verdict
 - I2：主库上的槽由 `slot.sh`（暂停备库 walreceiver）造成 inactive；备库上的槽由 `standby_slot.sh` 建，保留的 WAL 必须按 `sys_last_wal_replay_lsn()` 算（备库上 `sys_current_wal_lsn()` 报错），L3 断言它非空且 ≥ 0
 
 填写规则：
-- probe_id 格式 `<域>.<对象>`，和 finding.id 共用域前缀（PRD §5）；上表的 probe_id 和 PRD §5.1 示例一致；一个 probe 就是一条 SQL，列名属于契约
+- probe_id 格式 `<域>.<对象>`，和 finding.id 共用域前缀（PRD §5）；上表的 probe_id 和 PRD §5.1 示例一致；一个 probe 就是一条 SQL（例外：`inst.disk` 是 statfs），列名属于契约
 - "SQL 出处"写来源 URL/文件，或"自写"；"验证状态"写 `未验证` 或 `已验证 YYYY-MM-DD`，只在 L3/L4 在 VM 上跑通后改
 - 用了 L4 以外的覆盖手段（engineering.md §6.5 的 A~E）或有没覆盖到的部分，写在该行下方的注记里
 
@@ -41,7 +41,7 @@
 
 | # | 暂定名 | 回答的问题 | 参考来源 | KES 数据源 | 版本 |
 |---|---|---|---|---|---|
-| A1 | `status` | 版本、角色（主/备）、下游数、启动时长、连接数/上限、库列表和大小、数据目录 | ora `version`、pgmetrics | `version()`、`sys_is_in_recovery()`、`sys_postmaster_start_time()`、`sys_database`、`sys_stat_replication` 计数 | v0.1 |
+| A1 | `status` | 版本、角色（主/备）、每个下游备库、上游和 WAL 接收状态、启动时长、连接数/可用数、库列表和大小、数据目录、端口、数据目录所在磁盘 | ora `version`、pgmetrics | `version()`、`sys_is_in_recovery()`、`sys_postmaster_start_time()`、`sys_database`、`sys_stat_replication`、`sys_stat_wal_receiver`、statfs | v0.1 |
 | A2 | `params [pattern]` | 参数当前值、来源（默认/配置文件/ALTER SYSTEM）、是否待重启生效；可只看非默认值 | ora `params` | `sys_settings`（`source`、`pending_restart`） | v0.2 |
 | A3 | `ext` | 装了哪些扩展、哪些在 `shared_preload_libraries` 里 | pgmetrics | `sys_extension`、`sys_available_extensions` | 待排 |
 | A4 | `license` | License 类型、到期时间、剩余天数 | —（KES 特有） | `get_license_validdays()` 类函数（待核实） | 待排 |
@@ -241,7 +241,8 @@ VM 上还装了这些扩展：
 
 | 指标 | 关注 | 警告 | 严重 |
 |---|---|---|---|
-| 连接使用率（`inst.connections`，已实现） | — | ≥ 80%（`--conn-warn`） | ≥ 100%（`--conn-fail`）；分母是普通用户可用的 `max_connections - superuser_reserved_connections` |
+| 普通用户连不上（`inst.connections`，已实现） | — | — | 已用 ≥ 可用（`max_connections - superuser_reserved_connections`），不可调 |
+| 备库没在收 WAL（`inst.upstream`，已实现） | — | 没有 WAL 接收进程，或状态不是 `streaming`；不可调 | — |
 | idle in transaction 占连接数比例 | — | > 20% | — |
 | 物理复制回放延迟 | > 1 分钟 / 100MB | > 5 分钟 / 1GB | > 30 分钟 / 10GB |
 | 复制槽未激活（`slot.inactive`，已实现） | — | — | `active=false` |
@@ -252,7 +253,7 @@ VM 上还装了这些扩展：
 | 单个事务时长（`txn.long`，已实现） | — | ≥ 300 秒（`--xact-warn`） | ≥ 1800 秒（`--xact-fail`） |
 | 单个会话等锁时长（`lock.waiting`，已实现） | — | ≥ 10 秒（`--lock-wait-warn`） | — |
 
-连接使用率的分母取普通用户可用数而不是 `max_connections`：用满这部分时业务已经连不上，只剩超级用户能进，这才是 FAIL 的含义；digoal 的 90% 严重档不要，用满之前都是 WARN。连接数只数连到库的后端，超级用户占保留槽时可以超过 100%。
+连接数的分母取普通用户可用数而不是 `max_connections`：用满这部分时业务已经连不上，只剩超级用户能进，这才是 FAIL 的含义。用满之前不报：多少算"快满"因应用而异，没有客观线（2026-09-26 删掉了 80% WARN 和两个参数）。连接数只数连到库的后端，超级用户占保留槽时已用可以超过可用数。
 
 最后三行不来自 digoal：idle in transaction 和事务时长的 300 秒沿用 shell 版 `KB_WARN_TXN=300`（`idle in transaction (aborted)` 也算在内）；事务 1800 秒和等锁 10 秒是自定的起点，大规模使用后按实际误报再调。
 
