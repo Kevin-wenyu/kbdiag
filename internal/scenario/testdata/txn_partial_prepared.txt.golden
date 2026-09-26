@@ -1,0 +1,11 @@
+txn  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:48+08:00)
+
+oldest xid: 99  (3 xid; txn.prepared not collected, an older one may exist)
+
+open transactions: 2
+  pid  user  database  application  state     xact  xid  xmin  sql
+  3    app   -         -            disabled  ?     99   -     ?
+  4    app   -         -            active    1s    -    100   select 1
+
+prepared: skipped  (timeout 57014)
+redacted: 1 row of session.activity hides state, ages, wait, query (track_activities_off)

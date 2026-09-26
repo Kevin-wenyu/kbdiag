@@ -116,7 +116,9 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **长事务和 2PC 都只报 WARN**（待用户确认）：按"FAIL = 业务已经受影响"，它们的危害是压住视界（表膨胀、2PC 还占着锁），是以后的事；它们挡住的会话由 locks 的 `lock.waiting` 报。删 `txn.long` 的 1800 秒 FAIL 和 `--xact-fail`；`txn.prepared` 从 FAIL 改 WARN，`--prepared-fail` 改名 `--prepared-warn`（alpha 阶段直接改，不留兼容）。
 - **300 秒和 900 秒保留，参数保留**：没有服务器端的客观线；300 秒会碰上正常的批处理，所以参数留给批处理库调高。保留参数还有一个原因：e2e 要靠把阈值缩到 1 秒来造出 finding（engineering.md §6.5 A）。
 - **文本先给 oldest xid**：`oldest xid: 6170  (801150 xid, 801314 xmin)`，按 2^32 取模比较（和服务器一样），列出持有这个值的所有会话和 2PC。再列开着的事务（有 xact_start、xid 或 xmin 的），最后是 2PC。
-- **被遮蔽的会话照样列**：KES 对非监控账号不遮蔽 backend_xid/backend_xmin（阶段 0 实采），所以有 xid/xmin 的遮蔽会话仍然能说"它在事务里、压着多少"，其余列写 `?`；两者都没有的只计数（`N known, M hidden`）。
+- **被遮蔽的会话照样列**：KES 对非监控账号不遮蔽 backend_xid/backend_xmin（阶段 0 实采），所以有 xid/xmin 的遮蔽会话仍然能说"它在事务里、压着多少"，其余列写 `?`；两者都没有的只计数（`N, M sessions hidden`：多半是 idle 会话，不能说成 M 个事务）。
+- **oldest xid 不在缺数据时下结论**：activity 或 2PC 有一个没采到（备库 2PC 的 `not_applicable` 除外），就注明"可能有更老的"，一个持有者都没有时写 `unknown`。
+- **gid 含控制字符时不给 ROLLBACK 语句**：终端上显示的是转义后的文本，照抄执行匹配不到；改成 `verify: kbdiag txn --json` 去取原始 gid。
 - 和 sessions 的 `session.idle_in_txn` 在默认阈值下必然同时报（附录 A.3），两条回答的问题不同，都保留。
 
 ### waits 打磨（2026-09-26）

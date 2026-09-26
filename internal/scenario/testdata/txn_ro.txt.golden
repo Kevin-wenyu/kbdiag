@@ -2,7 +2,7 @@ txn  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-
 
 oldest xid: 6170  (801150 xid, 801314 xmin)
 
-open transactions: 2 known, 10 hidden
+open transactions: 2, 10 sessions hidden
   pid     user    database  application            state  xact  xid   xmin  sql
   801150  system  test      kbdiag_inj_idle_txn    ?      ?     6170  -     ?
   801314  system  test      kbdiag_inj_long_query  ?      ?     -     6170  ?

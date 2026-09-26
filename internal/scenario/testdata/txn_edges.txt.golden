@@ -7,11 +7,11 @@ txn  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:4
   verify: kbdiag session 2  # 看它在跑什么、持有哪些锁、有没有挡住别人
 
 [WARN] txn.prepared  两阶段事务 g'\x1b1 已 prepare 3600 秒未结束，压着视界
-  fix: ROLLBACK PREPARED 'g''\x1b1'  # 先和应用确认它该提交还是回滚（提交用 COMMIT PREPARED）；要连到库 test 执行，且不能放在事务块里
+  verify: kbdiag txn --json  # gid 含控制字符，终端上显示的是转义后的文本，要从 JSON 取原始 gid 再回滚或提交
 
 oldest xid: 4294967290  (1 xid, 2 xmin)
 
-open transactions: 4 known, 1 hidden
+open transactions: 4, 1 session hidden
   pid  user  database  application                    state   xact   xid         xmin        sql
   1    app   库        报表报表报表报表报表报表报...  active  2h 0m  4294967290  -           update t set x = x + 1
   2    app   库        报表报表报表报表报表报表报...  active  1h 0m  5           4294967290  update t set x = x + 1

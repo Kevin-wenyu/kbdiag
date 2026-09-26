@@ -3,6 +3,7 @@ package rule
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
 )
@@ -58,6 +59,12 @@ func prepared(p facts.TxnPrepared, th Thresholds) Result {
 			continue
 		}
 		gid := strings.ReplaceAll(x.GID, "'", "''")
+		fix := Next{Kind: "fix", SQL: fmt.Sprintf("ROLLBACK PREPARED '%s'", gid),
+			Note: fmt.Sprintf("先和应用确认它该提交还是回滚（提交用 COMMIT PREPARED）；要连到库 %s 执行，且不能放在事务块里", x.Database)}
+		if strings.IndexFunc(x.GID, unicode.IsControl) >= 0 {
+			// the printed text is escaped, so pasting it would not match
+			fix = Next{Kind: "verify", Command: "kbdiag txn --json", Note: "gid 含控制字符，终端上显示的是转义后的文本，要从 JSON 取原始 gid 再回滚或提交"}
+		}
 		fs = append(fs, Finding{
 			ID:      "txn.prepared",
 			Level:   LevelWARN,
@@ -65,8 +72,7 @@ func prepared(p facts.TxnPrepared, th Thresholds) Result {
 			Evidence: []Evidence{{ProbeID: facts.TxnPreparedID, Fields: map[string]any{
 				"gid": x.GID, "owner": x.Owner, "database": x.Database, "age_s": x.AgeS, "transaction": x.Transaction,
 			}}},
-			Next: []Next{{Kind: "fix", SQL: fmt.Sprintf("ROLLBACK PREPARED '%s'", gid),
-				Note: fmt.Sprintf("先和应用确认它该提交还是回滚（提交用 COMMIT PREPARED）；要连到库 %s 执行，且不能放在事务块里", x.Database)}},
+			Next: []Next{fix},
 		})
 	}
 	return Result{Verdict: verdictOf(fs, unknown), Findings: fs}

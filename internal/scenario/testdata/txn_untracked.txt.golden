@@ -1,6 +1,6 @@
 txn  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:43:17+08:00)
 
-open transactions: 0 known, 1 hidden
+open transactions: 0, 1 session hidden
 
 prepared: 0
 redacted: 1 row of session.activity hides state, ages, wait, query (track_activities_off)

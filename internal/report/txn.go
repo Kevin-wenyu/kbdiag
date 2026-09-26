@@ -24,7 +24,9 @@ func (r *Report) SetTxn(a facts.SessionActivity, p facts.TxnPrepared, limit int)
 	r.txn = &txnView{activity: a, prepared: p, limit: limit}
 }
 
-// olderXID compares transaction ids modulo 2^32, as the server does.
+// olderXID compares transaction ids modulo 2^32, as the server does for
+// normal xids. Live xids are within 2^31 of each other, so a linear scan
+// finds the oldest; the special xids 0-2 never appear (NULL instead).
 func olderXID(a, b uint32) bool { return int32(a-b) < 0 }
 
 func (v *txnView) write(w io.Writer) error {
@@ -60,7 +62,23 @@ func (v *txnView) writeOldest(w io.Writer) {
 			}
 		}
 	}
+	// A source we could not read may hold an older xid: say so rather than
+	// name a false oldest (not_applicable prepared on a standby is fine).
+	var missing []string
+	if v.activity.Status != facts.StatusOK {
+		missing = append(missing, facts.SessionActivityID)
+	}
+	if v.prepared.Status != facts.StatusOK && v.prepared.Status != facts.StatusNotApplicable {
+		missing = append(missing, facts.TxnPreparedID)
+	}
+	caveat := ""
+	if len(missing) > 0 {
+		caveat = "; " + strings.Join(missing, ", ") + " not collected, an older one may exist"
+	}
 	if len(hs) == 0 {
+		if len(missing) > 0 {
+			fmt.Fprintf(w, "\noldest xid: unknown  (%s not collected)\n", strings.Join(missing, ", "))
+		}
 		return
 	}
 	oldest := hs[0].xid
@@ -75,7 +93,7 @@ func (v *txnView) writeOldest(w io.Writer) {
 			labels = append(labels, h.label)
 		}
 	}
-	fmt.Fprintf(w, "\noldest xid: %d  (%s)\n", oldest, strings.Join(labels, ", "))
+	fmt.Fprintf(w, "\noldest xid: %d  (%s%s)\n", oldest, strings.Join(labels, ", "), caveat)
 }
 
 // writeOpen lists the sessions inside a transaction: an xact start, an xid
@@ -101,9 +119,10 @@ func (v *txnView) writeOpen(w io.Writer) error {
 			shown = append(shown, s)
 		}
 	}
+	// hidden are sessions we cannot see at all, mostly idle: not transactions
 	fmt.Fprintf(w, "\nopen transactions: %d", len(shown))
 	if hidden > 0 {
-		fmt.Fprintf(w, " known, %d hidden", hidden)
+		fmt.Fprintf(w, ", %s hidden", plural(hidden, "session", "sessions"))
 	}
 	fmt.Fprintln(w)
 	if len(shown) == 0 {

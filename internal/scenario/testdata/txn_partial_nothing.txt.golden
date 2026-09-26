@@ -1,0 +1,7 @@
+txn  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:48+08:00)
+
+oldest xid: unknown  (session.activity, txn.prepared not collected)
+
+open transactions: skipped  (track_activities=off)
+
+prepared: error  (XX000: boom)

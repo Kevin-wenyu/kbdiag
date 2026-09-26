@@ -105,3 +105,16 @@ func TestTxnLongContent(t *testing.T) {
 		}
 	}
 }
+
+// A gid with a control character is printed escaped; pasting the ROLLBACK
+// would not match, so the next step sends the reader to the JSON.
+func TestTxnPreparedControlGID(t *testing.T) {
+	r := Txn(ok(), preps(prep("g\x1b", 1000)), tth)
+	if len(r.Findings) != 1 || r.Findings[0].Next[0].Kind != "verify" || r.Findings[0].Next[0].Command != "kbdiag txn --json" {
+		t.Errorf("findings = %+v", r.Findings)
+	}
+	r = Txn(ok(), preps(prep("it's", 1000)), tth)
+	if n := r.Findings[0].Next[0]; n.Kind != "fix" || n.SQL != "ROLLBACK PREPARED 'it''s'" {
+		t.Errorf("next = %+v", n)
+	}
+}

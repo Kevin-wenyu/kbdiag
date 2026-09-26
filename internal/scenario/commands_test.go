@@ -544,3 +544,22 @@ func TestWaitsTextEdges(t *testing.T) {
 	assertGolden(t, "waits_edges", rep)
 	assertGolden(t, "waits_empty", Waits(c, facts.WaitSummary{Status: facts.StatusOK}))
 }
+
+// Stage 4 review: the oldest xid is not claimed on partial data, and an
+// untracked row with an xid is listed with its xact age unknown.
+func TestTxnPartial(t *testing.T) {
+	c, _ := locksCapture(t, "locks_node1_clean")
+	p := facts.TxnPrepared{Status: facts.StatusOK, Rows: []facts.Prepared{
+		{GID: "g", Owner: "app", Database: "test", PreparedAt: c.CollectedAt, AgeS: 5, Transaction: 100},
+	}}
+	skipped := facts.SessionActivity{Status: facts.StatusSkipped, Reason: "track_activities=off"}
+	assertGolden(t, "txn_partial_sessions", Txn(c, skipped, p, TxnOptions{Limit: 50, Thresholds: rule.Defaults}))
+	assertGolden(t, "txn_partial_nothing", Txn(c, skipped, facts.TxnPrepared{Status: facts.StatusError, Reason: "XX000: boom"}, TxnOptions{Limit: 50, Thresholds: rule.Defaults}))
+	a := facts.SessionActivity{Status: facts.StatusOK, Rows: []facts.Session{
+		{PID: 3, Usename: str("app"), BackendType: str("client backend"), State: str("disabled"), BackendXID: xid(99), XactAgeS: f64(9), Query: str("")},
+		{PID: 4, Usename: str("app"), BackendType: str("client backend"), State: str("active"), BackendXmin: xid(100), XactAgeS: f64(1), Query: str("select 1")},
+	}}
+	assertGolden(t, "txn_partial_prepared", Txn(c, a, facts.TxnPrepared{Status: facts.StatusSkipped, Reason: "timeout 57014"}, TxnOptions{Limit: 50, Thresholds: rule.Defaults}))
+	// a tie between a 2PC's xid and a session's xmin lists both
+	assertGolden(t, "txn_tie", Txn(c, facts.SessionActivity{Status: facts.StatusOK, Rows: a.Rows[1:]}, p, TxnOptions{Limit: 50, Thresholds: rule.Defaults}))
+}

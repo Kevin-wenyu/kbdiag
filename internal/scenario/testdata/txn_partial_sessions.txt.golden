@@ -1,0 +1,9 @@
+txn  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:48+08:00)
+
+oldest xid: 100  (2PC g; session.activity not collected, an older one may exist)
+
+open transactions: skipped  (track_activities=off)
+
+prepared: 1
+  gid  owner  database  age  xid
+  g    app    test      5s   100
