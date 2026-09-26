@@ -45,7 +45,7 @@
 
 | 命令 | 回答的问题 | probe_id | 备库上的行为 |
 |---|---|---|---|
-| `sessions`（`--active` 只看在跑的；只影响显示，判定仍按全部会话） | 有哪些会话，谁跑得久，谁 idle in txn | `session.activity` | 正常 |
+| `sessions`（`--all` 列出全部会话，含 idle 和后台进程；只影响文本，JSON 总是全部会话） | 连接是谁占的（按用户/库/应用/客户端汇总），谁在干活、干了多久，谁 idle in txn | `session.activity` | 正常 |
 | `session <pid>` | 这个会话在跑什么 SQL、在等什么、持有哪些锁、被谁挡住 | `session.activity`、`lock.list` | 正常 |
 | `locks` | 谁在等锁、直接被谁挡住（一层）、等了多久 | `lock.list` | 正常 |
 | `txn` | 长事务、idle in txn、最老的 backend_xmin、未结束的 2PC | `session.activity`、`txn.prepared` | 2PC 部分 `not_applicable`，提示去主库查 |
@@ -136,7 +136,7 @@ Report
 
 #### 示例：sessions
 
-主库上有一个 idle in transaction 会话（`idle_txn` 注入）。
+主库上有一个 idle in transaction 会话（`idle_txn` 注入）。JSON 的 `session.activity` 总是全部会话（后台进程、idle 会话都在），只受 `--limit` 影响；文本默认只给汇总和不是 idle 的客户端会话，`--all` 才列全部（2026-09-26 起）。
 
 ```json
 {
@@ -452,7 +452,7 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
       "symptom": "复制槽 repmgr_slot_2 未激活，保留 48 MB WAL，xmin 5859 压着视界",
       "evidence": [{"probe_id": "slot.list", "fields": {"slot_name": "repmgr_slot_2", "active": false, "xmin": 5859, "retained_wal_bytes": 50331648}}],
       "cause": null,
-      "next": [{"kind": "verify", "command": "kbdiag sessions", "note": "在备库上运行：连不上说明备库实例挂了；列表里没有 walreceiver 进程说明它没在接收 WAL"}]
+      "next": [{"kind": "verify", "command": "kbdiag status", "note": "在备库上运行：连不上说明备库实例挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 但 last_msg 一直在涨，说明接收进程卡住了"}]
     }
   ],
   "redacted": []

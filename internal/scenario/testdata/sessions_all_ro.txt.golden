@@ -1,0 +1,31 @@
+sessions  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-26T19:41:10+08:00)
+
+connected: 1 walsender, 12 hidden
+  count  user    database  application            client
+  3      esrep   esrep     internal_rwcmgr        ?
+  1      -       -         auto vacuum            ?
+  1      -       -         background flush       ?
+  1      -       -         check pointer          ?
+  1      -       -         wal flush              ?
+  1      system  -         logical replication    ?
+  1      system  -         sys_ksh collector      ?
+  1      system  kingbase  -                      ?
+  1      system  test      kbdiag_inj_idle_txn    ?
+  1      system  test      kbdiag_inj_long_query  ?
+
+all: 13
+  pid     user    database  application            client          type       state   xact  query  wait                    sql
+  3271    -       -         check pointer          ?               ?          ?       ?     ?      ?                       ?
+  3272    -       -         background flush       ?               ?          ?       ?     ?      ?                       ?
+  3273    -       -         wal flush              ?               ?          ?       ?     ?      ?                       ?
+  3274    -       -         auto vacuum            ?               ?          ?       ?     ?      ?                       ?
+  3279    system  kingbase  -                      ?               ?          ?       ?     ?      ?                       ?
+  3280    system  -         sys_ksh collector      ?               ?          ?       ?     ?      ?                       ?
+  3281    system  -         logical replication    ?               ?          ?       ?     ?      ?                       ?
+  3294    esrep   esrep     internal_rwcmgr        ?               ?          ?       ?     ?      ?                       ?
+  179417  esrep   esrep     internal_rwcmgr        ?               ?          ?       ?     ?      ?                       ?
+  759699  esrep   esrep     internal_rwcmgr        ?               ?          ?       ?     ?      ?                       ?
+  784848  esrep   -         node2                  192.168.105.11  walsender  active  -     -      Activity:WalSenderMain  -
+  801150  system  test      kbdiag_inj_idle_txn    ?               ?          ?       ?     ?      ?                       ?
+  801314  system  test      kbdiag_inj_long_query  ?               ?          ?       ?     ?      ?                       ?
+redacted: 12 rows of session.activity hide state, backend_type, client_addr, ages, wait, query (insufficient_privilege; grant sys_monitor)

@@ -72,7 +72,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 ### 场景验收后的补丁（2026-09-24）
 
 - **status 判连接数，分母是 `max_connections - superuser_reserved_connections`**：用满这部分时业务已经连不上、只剩超级用户能进，这就是 FAIL。按 `max_connections` 算会让"业务已经连不上"只显示 97%。（原来的 80% WARN 已在 2026-09-26 删除，见下节）
-- **slots 的下一步指向备库上的 `kbdiag sessions`，不指向 `status`**：status 没有 WAL 接收状态，回答不了"在不在接收 WAL"；sessions 在备库上能看到 walreceiver 进程。只说"没有这个进程说明没在收"，不说"有就在收"（进程被暂停时仍在列表里）。
+- **slots 的下一步指向备库上的 `kbdiag sessions`，不指向 `status`**：当时 status 没有 WAL 接收状态。status 打磨加了 `inst.upstream`、sessions 默认不再列后台进程之后，2026-09-26 改指 `kbdiag status`（见"sessions 打磨"）。
 - **README 构建用 `git describe --match 'v2*'`**：不加的话会取到 shell 版的 `shell-final` tag，版本号像 `shell-final-5-g…`。
 
 ### status 打磨（2026-09-26）
@@ -89,13 +89,22 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。
 
-### `sessions` v0.1 输出形态（用户确认 2026-09-23）
+### `sessions` 输出形态（2026-09-23 定，2026-09-26 打磨）
 
-- 默认按事务时长 `xact_age_s` 从长到短排列，空值排后，同值按 PID 升序。
-- 默认结果包含后台进程；它们可能占据输出前几行。
-- 默认最多显示 50 行。
-- 文本表格标题显示当前展示行数（例如 `3 rows`）；截断提示另报剩余行数。JSON 的 `truncated` 表示未显示的行数。
-- 命令名、列名/顺序、JSON 字段名、finding.id 和 probe_id 以 PRD §5/§5.1 为契约；本次 node1 实测未发现不符。
+- 按事务时长 `xact_age_s` 从长到短排列，空值排后，同值按 PID 升序（probe 的 SQL 排好，文本和 JSON 共用）。
+- 默认最多显示 50 行；`--limit` 只裁文本列表和 JSON 行，判定和汇总覆盖全部会话。截断提示另报剩余行数，JSON 的 `truncated` 表示未显示的行数。
+- 命令名、列名/顺序、JSON 字段名、finding.id 和 probe_id 以 PRD §5/§5.1 为契约。
+
+### sessions 打磨（2026-09-26）
+
+- **文本默认不列后台进程，只在汇总里计数**（推翻 2026-09-23 的"默认包含后台进程"，待用户在检查点确认）：node1 上它们占 11 行里的 7 行，却不回答"连接是谁占的""谁在干活"任何一个问题。`--all` 才列全部；JSON 不变，总是全部会话。
+- **删 `--active`**：默认列表已经只看不是 idle 的客户端会话；`--active` 只会再筛掉 idle in transaction，而那正是要看的。alpha 阶段直接删，不留兼容。不加 `--user`/`--app` 之类的过滤：汇总已经按它们分组，再细的筛选用 `--json` 配 jq。
+- **汇总按 用户/库/应用/客户端 分组计数**：回答 status 连接 FAIL 指过来的"连接是谁占的"，所以 status 的下一步从 `kbdiag sessions --limit 0` 改成 `kbdiag sessions`。
+- **被遮蔽的会话单独算 hidden，照样进汇总**：非监控账号看不到别人会话的类型和状态，分不出在干活、idle 还是后台进程，不能假装它们是 idle；客户端显示 `?`，和 NULL 的 `-` 区分开。
+- **`session.idle_in_txn` 保留 300 秒和参数**：idle in transaction 放 5 分钟无论应用怎么设计都是毛病（连接池泄漏、漏了 commit），和"连接数 80%"这种因应用而异的比例不同；300 秒是滤噪声的下限，不是容量线。DBA 手工开事务改数据是合理例外，所以参数留着。和 txn 的 `txn.long` 在默认阈值下必然同时报，但问题不同（"它闲着" vs "事务太长"），各自保留。
+- **文本合成一行 `redacted`**：原来每个被遮蔽的列一行（9 行），现在按原因一行，列名折成 state、backend_type、client_addr、ages、wait、query；JSON 的 `redacted[]` 不变。
+- **表格按终端列宽对齐**（`internal/report/table.go`）：`text/tabwriter` 按 rune 计宽，中文用户名、应用名会错位；改用 `golang.org/x/text/width`，东亚宽字符算 2 列。sql 仍截到 60 个字符，没按终端宽度截：输出常被管道和重定向，终端宽度拿不准。
+- **slots 的下一步改指 `kbdiag status`**：walreceiver 是后台进程，sessions 默认不再列出；status 的 `inst.upstream` 本来就回答"在不在收 WAL"。它仍然看不出被暂停的 walreceiver（状态停在 streaming），所以 note 里提示看 last_msg 是否一直在涨。
 
 ## KingbaseES 特有行为
 

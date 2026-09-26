@@ -18,6 +18,8 @@ func TestExitCodesWithoutDatabase(t *testing.T) {
 		{"unknown command", []string{"nosuch"}, 64, false},
 		{"unknown flag", []string{"sessions", "--nosuch"}, 64, false},
 		{"bad flag value", []string{"sessions", "--limit", "x"}, 64, false},
+		{"sessions --active is gone", []string{"sessions", "--active"}, 64, false},
+		{"sessions --all cannot connect", []string{"sessions", "--all", "--host", sock}, 69, false},
 		{"extra argument", []string{"sessions", "extra"}, 64, false},
 		{"zero timeout would disable statement_timeout", []string{"sessions", "--timeout", "0s"}, 64, false},
 		{"negative timeout", []string{"sessions", "--timeout", "-1s"}, 64, false},

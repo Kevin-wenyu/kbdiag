@@ -9,30 +9,22 @@ import (
 )
 
 type SessionsOptions struct {
-	ActiveOnly bool
+	All        bool // list every session, not only client sessions that are not idle
 	Limit      int
 	Thresholds rule.Thresholds
 }
 
-// Sessions builds the sessions report. The rules judge every row; --active
-// and --limit only narrow what is shown. --active keeps masked and untracked
-// rows: their state is hidden, so they may be active.
+// Sessions builds the sessions report. The rules and the text summary see
+// every row; --limit trims the text list and the JSON rows, and --all only
+// changes the text list: the JSON always carries every session.
 func Sessions(c facts.Context, a facts.SessionActivity, o SessionsOptions) *report.Report {
 	rep := report.New("sessions", c, rule.Sessions(a, o.Thresholds))
-	shown := a.Rows
-	if o.ActiveOnly {
-		shown = nil
-		for _, s := range a.Rows {
-			if s.Masked() || s.Untracked() || (s.State != nil && *s.State == "active") {
-				shown = append(shown, s)
-			}
-		}
-	}
-	rows := make([][]any, len(shown))
-	for i, s := range shown {
+	rows := make([][]any, len(a.Rows))
+	for i, s := range a.Rows {
 		rows[i] = s.Row()
 	}
 	rep.AddProbe(facts.SessionActivityID, a.Status, a.Reason, facts.SessionColumns, rows, o.Limit)
 	rep.AddRedacted(a.Redacted())
+	rep.SetSessions(a.Rows, o.All, o.Limit)
 	return rep
 }

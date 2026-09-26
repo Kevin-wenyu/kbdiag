@@ -16,6 +16,8 @@ type Report struct {
 	Data     map[string]Probe `json:"data"`
 	Findings []Finding        `json:"findings"`
 	Redacted []Redacted       `json:"redacted"`
+
+	sessions *sessionsView // text layout of sessions; not part of JSON
 }
 
 type Context struct {

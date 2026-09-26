@@ -118,7 +118,7 @@ func newSessions(g *globalFlags, stdout io.Writer) *cobra.Command {
 	o := scenario.SessionsOptions{Thresholds: rule.Defaults}
 	c := &cobra.Command{
 		Use:   "sessions",
-		Short: "List sessions; flag long idle-in-transaction ones",
+		Short: "Who holds the connections and which sessions are doing something; flag long idle-in-transaction ones",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
@@ -128,7 +128,7 @@ func newSessions(g *globalFlags, stdout io.Writer) *cobra.Command {
 		},
 	}
 	f := c.Flags()
-	f.BoolVar(&o.ActiveOnly, "active", false, "show only sessions running a query")
+	f.BoolVar(&o.All, "all", false, "list every session, including idle ones and background processes")
 	limitFlag(c, &o.Limit)
 	f.Float64Var(&o.Thresholds.IdleInTxnWarnS, "idle-in-txn-warn", rule.Defaults.IdleInTxnWarnS, "seconds idle in transaction before WARN")
 	return c

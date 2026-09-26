@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -84,27 +85,137 @@ func TestSessionsTextGolden(t *testing.T) {
 	assertGolden(t, "sessions", Sessions(c, a, defaults))
 }
 
-func TestSessionsActiveOnly(t *testing.T) {
-	c, a := prdFacts()
-	masked := facts.Session{PID: 9, Usename: str("system"), Query: str("<insufficient privilege>")}
-	untracked := facts.Session{PID: 8, Usename: str("system"), State: str("disabled"), Query: str("")}
-	a.Rows = append(a.Rows, masked, untracked)
-	rep := Sessions(c, a, SessionsOptions{ActiveOnly: true, Limit: 50, Thresholds: rule.Defaults})
-	rows := rep.Data[facts.SessionActivityID].Rows
-	var pids []int32
-	for _, r := range rows {
-		pids = append(pids, r[0].(int32))
+// sessionsCapture rebuilds a stage-0 capture as sessions facts, at the time
+// the appendix A draft was taken.
+func sessionsCapture(t *testing.T, name string, at time.Time) (facts.Context, facts.SessionActivity) {
+	t.Helper()
+	c := loadCapture(t, name)
+	ctx := c.context(t)
+	if !at.IsZero() {
+		ctx.CollectedAt = at
 	}
-	if !reflect.DeepEqual(pids, []int32{236188, 9, 8}) {
-		t.Errorf("--active rows = %v, want active + masked + untracked", pids)
+	return ctx, c.sessionActivity(t)
+}
+
+func at(h, m, s int) time.Time { return time.Date(2026, 9, 26, h, m, s, 0, cst) }
+
+// The first four goldens are the plan's appendix A drafts, copied by hand.
+// Their facts are the stage-0 captures of the same state, taken 15 minutes
+// later; the injected rows are set to the values the draft was drawn from.
+func TestSessionsText(t *testing.T) {
+	lowthr := SessionsOptions{Limit: 50, Thresholds: rule.Thresholds{IdleInTxnWarnS: 1}}
+	t.Run("primary injected", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node1_idletxn_longq_lowthr", at(19, 26, 45))
+		for i := range a.Rows {
+			switch a.Rows[i].PID {
+			case 801150:
+				a.Rows[i].PID, a.Rows[i].XactAgeS, a.Rows[i].QueryAgeS, a.Rows[i].StateAgeS = 795860, f64(3.4), f64(2.4), f64(1.4)
+			case 801314:
+				a.Rows[i].PID, a.Rows[i].XactAgeS, a.Rows[i].QueryAgeS, a.Rows[i].StateAgeS = 795975, f64(0.4), f64(0.4), f64(0.4)
+			}
+		}
+		assertGolden(t, "sessions_primary_injected", Sessions(c, a, lowthr))
+	})
+	t.Run("primary clean", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node1_clean", at(19, 26, 39))
+		assertGolden(t, "sessions_primary_clean", Sessions(c, a, defaults))
+	})
+	t.Run("standby", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node2_clean", at(19, 26, 40))
+		assertGolden(t, "sessions_standby", Sessions(c, a, defaults))
+	})
+	t.Run("kbdiag_ro", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node1_idletxn_longq_ro", at(19, 26, 46))
+		rep := Sessions(c, a, defaults)
+		if rep.Verdict != rule.VerdictUNKNOWN {
+			t.Errorf("verdict = %s", rep.Verdict)
+		}
+		assertGolden(t, "sessions_ro", rep)
+	})
+
+	// Generated from the captures, then read line by line.
+	t.Run("--all", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node1_idletxn_longq_lowthr", time.Time{})
+		assertGolden(t, "sessions_all", Sessions(c, a, SessionsOptions{All: true, Limit: 50, Thresholds: rule.Thresholds{IdleInTxnWarnS: 1}}))
+	})
+	t.Run("--all kbdiag_ro", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node1_idletxn_longq_ro", time.Time{})
+		assertGolden(t, "sessions_all_ro", Sessions(c, a, SessionsOptions{All: true, Limit: 50, Thresholds: rule.Defaults}))
+	})
+	t.Run("untracked", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node1_untracked", time.Time{})
+		assertGolden(t, "sessions_untracked", Sessions(c, a, defaults))
+	})
+	t.Run("track_activities off", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node1_trackoff", time.Time{})
+		assertGolden(t, "sessions_trackoff", Sessions(c, a, defaults))
+	})
+	t.Run("connections used up, limited", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node1_conn_all", time.Time{})
+		assertGolden(t, "sessions_conn", Sessions(c, a, SessionsOptions{All: true, Limit: 5, Thresholds: rule.Defaults}))
+	})
+	t.Run("lock injection", func(t *testing.T) {
+		c, a := sessionsCapture(t, "sessions_node1_lock", time.Time{})
+		assertGolden(t, "sessions_lock", Sessions(c, a, defaults))
+	})
+}
+
+// The list is what --limit trims; the summary and the findings see every row.
+func TestSessionsLimit(t *testing.T) {
+	c, _ := prdFacts()
+	busy := func(pid int32, xact float64) facts.Session {
+		return facts.Session{PID: pid, Usename: str("app"), Datname: str("test"), ApplicationName: str("web"),
+			BackendType: str("client backend"), State: str("active"), XactAgeS: f64(xact), QueryAgeS: f64(xact), StateAgeS: f64(xact), Query: str("select 1")}
 	}
-	// --active only filters what is shown: the hidden idle-in-txn row is still judged.
-	if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 1 || rep.Findings[0].Evidence[0].Fields["pid"] != int32(236201) {
-		t.Errorf("verdict=%s findings=%+v", rep.Verdict, rep.Findings)
+	a := facts.SessionActivity{Status: facts.StatusOK, Rows: []facts.Session{busy(1, 30), busy(2, 20), busy(3, 10)}}
+	cases := []struct {
+		limit int
+		shown int
+		more  bool
+	}{{0, 3, false}, {-1, 3, false}, {3, 3, false}, {2, 2, true}, {1, 1, true}}
+	for _, x := range cases {
+		var buf bytes.Buffer
+		rep := Sessions(c, a, SessionsOptions{Limit: x.limit, Thresholds: rule.Defaults})
+		if err := rep.WriteText(&buf); err != nil {
+			t.Fatal(err)
+		}
+		out := buf.String()
+		if !strings.Contains(out, "\n  3      app   test      web          local\n") {
+			t.Errorf("limit %d: the summary must count every session:\n%s", x.limit, out)
+		}
+		if n := strings.Count(out, "select 1"); n != x.shown {
+			t.Errorf("limit %d: %d rows listed, want %d", x.limit, n, x.shown)
+		}
+		if got := strings.Contains(out, fmt.Sprintf("... %d more rows not shown (use --limit 0 to show all)", 3-x.shown)); got != x.more {
+			t.Errorf("limit %d: truncation note = %v:\n%s", x.limit, got, out)
+		}
+		if !strings.Contains(out, "not idle: 3\n") {
+			t.Errorf("limit %d: header must count every not-idle session:\n%s", x.limit, out)
+		}
 	}
-	if len(rep.Redacted) == 0 {
-		t.Error("masked row must be listed in redacted")
-	}
+}
+
+// Edge cases a real instance produces less often than it could.
+func TestSessionsTextEdges(t *testing.T) {
+	c, _ := prdFacts()
+	long := strings.Repeat("select * from orders where customer_id in (select id from customers) ", 3)
+	a := facts.SessionActivity{Status: facts.StatusOK, Rows: []facts.Session{
+		// multi-byte and wide characters must stay aligned
+		{PID: 10, Usename: str("用户"), Datname: str("库"), ApplicationName: str("报表服务"), ClientAddr: str("10.0.0.1"),
+			BackendType: str("client backend"), State: str("active"), XactAgeS: f64(7384), QueryAgeS: f64(65), StateAgeS: f64(65),
+			WaitEventType: str("IO"), WaitEvent: str("DataFileRead"), Query: str(long)},
+		// every nullable column NULL; a negative age from a clock step
+		{PID: 11, BackendType: str("client backend"), State: str("idle in transaction (aborted)"), XactAgeS: f64(-2), Query: str("")},
+		// control characters in SQL and application name
+		{PID: 12, Usename: str("app"), ApplicationName: str("a\x1b[2Jb"), BackendType: str("client backend"), State: str("active"),
+			XactAgeS: f64(0), QueryAgeS: f64(0), StateAgeS: f64(0), Query: str("select\n\t1;\x1b[31m")},
+		{PID: 13, Usename: str("app"), BackendType: str("client backend"), State: str("idle")},
+	}}
+	assertGolden(t, "sessions_edges", Sessions(c, a, defaults))
+
+	t.Run("no sessions at all", func(t *testing.T) {
+		assertGolden(t, "sessions_empty", Sessions(c, facts.SessionActivity{Status: facts.StatusOK}, defaults))
+	})
 }
 
 // Findings are judged on every row, not only the rows the limit leaves shown.
@@ -124,7 +235,7 @@ func TestSessionsLimitDoesNotHideFindings(t *testing.T) {
 func TestSessionsSkipped(t *testing.T) {
 	c, _ := prdFacts()
 	a := facts.SessionActivity{Status: facts.StatusSkipped, Reason: "track_activities=off"}
-	rep := Sessions(c, a, SessionsOptions{ActiveOnly: true, Limit: 50, Thresholds: rule.Defaults})
+	rep := Sessions(c, a, SessionsOptions{All: true, Limit: 50, Thresholds: rule.Defaults})
 	p := rep.Data[facts.SessionActivityID]
 	if rep.Verdict != rule.VerdictUNKNOWN || p.Status != facts.StatusSkipped || *p.Reason != "track_activities=off" || len(p.Rows) != 0 {
 		t.Errorf("verdict=%s probe=%+v", rep.Verdict, p)

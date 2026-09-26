@@ -9,6 +9,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"unicode"
+
+	"github.com/Kevin-wenyu/kbdiag/internal/facts"
 )
 
 func (r *Report) WriteJSON(w io.Writer) error {
@@ -37,12 +39,21 @@ func (r *Report) WriteText(w io.Writer) error {
 			fmt.Fprintf(w, "  %s: %s  # %s\n", n.Kind, action, n.Note)
 		}
 	}
-	if r.Command == "status" {
+	switch {
+	case r.sessions != nil:
+		if err := r.sessions.write(w, r.Data[facts.SessionActivityID]); err != nil {
+			return err
+		}
+		writeSessionsRedacted(w, r.Redacted)
+		return nil
+	case r.Command == "status":
 		if err := r.writeStatus(w); err != nil {
 			return err
 		}
-	} else if err := r.writeTables(w); err != nil {
-		return err
+	default:
+		if err := r.writeTables(w); err != nil {
+			return err
+		}
 	}
 	for _, x := range r.Redacted {
 		fmt.Fprintf(w, "\nredacted: %s.%s in %d rows (%s)", x.ProbeID, x.Field, x.RowsAffected, x.Reason)
@@ -51,6 +62,15 @@ func (r *Report) WriteText(w io.Writer) error {
 		fmt.Fprintln(w)
 	}
 	return nil
+}
+
+// writeNotOK prints a probe that was not collected, with its reason.
+func writeNotOK(w io.Writer, id string, p Probe) {
+	fmt.Fprintf(w, "\n%s: %s", id, p.Status)
+	if p.Reason != nil && *p.Reason != "" {
+		fmt.Fprintf(w, "  (%s)", escapeControl(*p.Reason))
+	}
+	fmt.Fprintln(w)
 }
 
 // writeTables prints each probe as a table, in probe_id order.

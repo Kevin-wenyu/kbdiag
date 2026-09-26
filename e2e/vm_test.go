@@ -201,3 +201,21 @@ func kbdiag(t *testing.T, env []string, args ...string) (report, int) {
 	}
 	return r, code
 }
+
+// kbdiagText runs the binary without --json and returns stdout and the exit code.
+func kbdiagText(t *testing.T, env []string, args ...string) (string, int) {
+	t.Helper()
+	full := append(append([]string{"env"}, env...), remoteBin)
+	c := vm(append(full, args...)...)
+	var stdout, stderr bytes.Buffer
+	c.Stdout, c.Stderr = &stdout, &stderr
+	code := 0
+	if err := c.Run(); err != nil {
+		var ee *exec.ExitError
+		if !errors.As(err, &ee) {
+			t.Fatalf("run kbdiag: %v", err)
+		}
+		code = ee.ExitCode()
+	}
+	return stdout.String(), code
+}

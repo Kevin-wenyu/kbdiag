@@ -57,7 +57,7 @@ func connections(x facts.Info) (Finding, bool) {
 		Evidence: []Evidence{{ProbeID: facts.InstInfoID, Fields: map[string]any{
 			"connections": x.Connections, "max_connections": x.MaxConnections, "superuser_reserved_connections": x.SuperuserReserved,
 		}}},
-		Next: []Next{{Kind: "verify", Command: "kbdiag sessions --limit 0", Note: "看连接是谁占的：按 usename、application_name、client_addr 看有没有扎堆"}},
+		Next: []Next{{Kind: "verify", Command: "kbdiag sessions", Note: "看连接是谁占的：开头的汇总按用户、库、应用、客户端计数"}},
 	}, true
 }
 
@@ -128,7 +128,7 @@ func Slots(l facts.SlotList) Result {
 			Evidence: []Evidence{{ProbeID: facts.SlotListID, Fields: map[string]any{
 				"slot_name": s.Name, "active": s.Active, "xmin": s.Xmin, "retained_wal_bytes": s.RetainedWALBytes,
 			}}},
-			Next: []Next{{Kind: "verify", Command: "kbdiag sessions", Note: "在备库上运行：连不上说明备库实例挂了；列表里没有 walreceiver 进程说明它没在接收 WAL"}},
+			Next: []Next{{Kind: "verify", Command: "kbdiag status", Note: "在备库上运行：连不上说明备库实例挂了；inst.upstream 没有接收进程或不是 streaming 说明没在收 WAL；显示 streaming 但 last_msg 一直在涨，说明接收进程卡住了"}},
 		})
 	}
 	return Result{Verdict: verdictOf(fs, unknown), Findings: fs}

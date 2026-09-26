@@ -111,7 +111,7 @@ func TestStatusConnections(t *testing.T) {
 					t.Errorf("evidence missing %s", k)
 				}
 			}
-			if len(f.Next) != 1 || f.Next[0].Command != "kbdiag sessions --limit 0" {
+			if len(f.Next) != 1 || f.Next[0].Command != "kbdiag sessions" {
 				t.Errorf("next = %+v", f.Next)
 			}
 		})
@@ -211,7 +211,7 @@ func TestSlots(t *testing.T) {
 						t.Errorf("evidence missing %s", k)
 					}
 				}
-				if len(f.Next) != 1 || f.Next[0].Command != "kbdiag sessions" || !strings.Contains(f.Next[0].Note, "walreceiver") {
+				if len(f.Next) != 1 || f.Next[0].Command != "kbdiag status" || !strings.Contains(f.Next[0].Note, "inst.upstream") {
 					t.Errorf("next = %+v", f.Next)
 				}
 				got = append(got, f.Symptom)

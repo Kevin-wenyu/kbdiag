@@ -209,13 +209,43 @@ func TestSessionsIdleInTxn(t *testing.T) {
 		}
 	})
 
-	t.Run("--active hides the row but still judges it", func(t *testing.T) {
-		r, code := kbdiag(t, nil, "sessions", "--active", "--limit", "0", "--idle-in-txn-warn", "1")
-		if r.Data[sessionProbe].row("pid", fp.pid) != nil {
-			t.Errorf("idle-in-txn pid %v shown under --active", fp.pid)
+	// The text lists client sessions that are not idle; background processes
+	// are only counted. --all lists them; JSON carries every session either way.
+	t.Run("default text lists busy client sessions, --all lists everything", func(t *testing.T) {
+		r, _ := kbdiag(t, nil, "sessions", "--limit", "0")
+		var background string
+		for _, x := range r.Data[sessionProbe].rowsOf() {
+			if bt, _ := x["backend_type"].(string); bt != "" && bt != "client backend" && bt != "walsender" {
+				background = fmt.Sprint(x["pid"])
+				break
+			}
 		}
-		if got := flagged(r, fp.pid); !reflect.DeepEqual(got, []string{"WARN"}) || code != 1 {
-			t.Errorf("findings %v exit %d, want one WARN and exit 1", got, code)
+		if background == "" {
+			t.Fatal("no background process in session.activity; the JSON must carry every session")
+		}
+		line := func(out, pid string) bool {
+			for _, l := range strings.Split(out, "\n") {
+				if f := strings.Fields(l); len(f) > 0 && f[0] == pid {
+					return true
+				}
+			}
+			return false
+		}
+		out, code := kbdiagText(t, nil, "sessions", "--idle-in-txn-warn", "1")
+		idle, busy := fmt.Sprint(fp.pid), fmt.Sprint(decoy.pid)
+		if !line(out, idle) || !line(out, busy) || line(out, background) || code != 1 {
+			t.Errorf("default text (exit %d) must list %s and %s, not background %s:\n%s", code, idle, busy, background, out)
+		}
+		if !strings.Contains(out, "\nconnected: ") || !strings.Contains(out, "\nnot idle: ") {
+			t.Errorf("default text lacks the summary or the list:\n%s", out)
+		}
+		out, _ = kbdiagText(t, nil, "sessions", "--all", "--limit", "0")
+		if !line(out, background) || !line(out, idle) || !strings.Contains(out, "\nall: ") {
+			t.Errorf("--all text must list background %s and %s:\n%s", background, idle, out)
+		}
+		rAll, _ := kbdiag(t, nil, "sessions", "--all", "--limit", "0")
+		if len(rAll.Data[sessionProbe].Rows) != len(r.Data[sessionProbe].Rows) {
+			t.Errorf("--all changed the JSON rows: %d vs %d", len(rAll.Data[sessionProbe].Rows), len(r.Data[sessionProbe].Rows))
 		}
 	})
 }

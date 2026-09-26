@@ -1,0 +1,7 @@
+sessions  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:26:40+08:00)
+
+connected: 2 client sessions (not counting kbdiag), 4 background
+  count  user   database  application      client
+  2      esrep  esrep     internal_rwcmgr  192.168.105.11
+
+not idle: 0

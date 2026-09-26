@@ -1,0 +1,13 @@
+sessions  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:36+08:00)
+
+connected: 5 client sessions (not counting kbdiag), 1 walsender, 7 background
+  count  user    database  application             client
+  2      esrep   esrep     internal_rwcmgr         192.168.105.10
+  1      esrep   esrep     internal_rwcmgr         192.168.105.11
+  1      system  test      kbdiag_inj_lock_holder  local
+  1      system  test      kbdiag_inj_lock_waiter  local
+
+not idle: 2
+  pid     user    database  application             client  state                xact  query  wait           sql
+  803881  system  test      kbdiag_inj_lock_holder  local   idle in transaction  9s    9s     -              lock table kbdiag_inj_lock in access exclusive mode;
+  803890  system  test      kbdiag_inj_lock_waiter  local   active               9s    9s     Lock:relation  select count(*) from kbdiag_inj_lock;

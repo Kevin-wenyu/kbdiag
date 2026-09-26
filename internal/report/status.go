@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"sort"
 	"strings"
-	"text/tabwriter"
 	"time"
 )
 
@@ -25,11 +24,7 @@ func (r *Report) writeStatus(w io.Writer) error {
 			continue
 		}
 		if p.Status != "ok" {
-			fmt.Fprintf(w, "\n%s: %s", id, p.Status)
-			if p.Reason != nil && *p.Reason != "" {
-				fmt.Fprintf(w, "  (%s)", escapeControl(*p.Reason))
-			}
-			fmt.Fprintln(w)
+			writeNotOK(w, id, p)
 			continue
 		}
 		var err error
@@ -80,12 +75,11 @@ func writeDownstreams(w io.Writer, p Probe) error {
 	if len(p.Rows) == 0 {
 		return nil
 	}
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "  name\taddress\tstate\tsync")
+	var rows [][]string
 	for _, row := range p.rows() {
-		fmt.Fprintf(tw, "  %s\t%s\t%s\t%s\n", cell(row["application_name"]), cell(row["client_addr"]), cell(row["state"]), cell(row["sync_state"]))
+		rows = append(rows, []string{cell(row["application_name"]), cell(row["client_addr"]), cell(row["state"]), cell(row["sync_state"])})
 	}
-	return tw.Flush()
+	return writeTable(w, "  ", []string{"name", "address", "state", "sync"}, rows)
 }
 
 func writeUpstream(w io.Writer, p Probe) error {

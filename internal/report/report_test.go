@@ -178,3 +178,23 @@ func TestStatusReasonEscaped(t *testing.T) {
 		t.Errorf("text = %q", buf.String())
 	}
 }
+
+func TestDisplayWidth(t *testing.T) {
+	cases := map[string]int{"": 0, "abc": 3, "用户": 4, "报表a": 5, "ｱ": 1, "Ａ": 2, "é": 1, `\x1b`: 4}
+	for s, want := range cases {
+		if got := displayWidth(s); got != want {
+			t.Errorf("displayWidth(%q) = %d, want %d", s, got, want)
+		}
+	}
+}
+
+func TestWriteTable(t *testing.T) {
+	var buf bytes.Buffer
+	if err := writeTable(&buf, "  ", []string{"a", "名字", "c"}, [][]string{{"xyz", "库", "last"}, {"", "b", ""}}); err != nil {
+		t.Fatal(err)
+	}
+	want := "  a    名字  c\n  xyz  库    last\n       b\n"
+	if buf.String() != want {
+		t.Errorf("table =\n%q\nwant\n%q", buf.String(), want)
+	}
+}
