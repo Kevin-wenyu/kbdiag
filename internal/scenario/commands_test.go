@@ -535,6 +535,14 @@ func TestWaitsTextEdges(t *testing.T) {
 		{WaitEventType: str("Client"), WaitEvent: str("ClientRead"), State: str("idle in transaction (aborted)"), Sessions: 1, PIDs: []int32{3}},
 		{State: str("fastpath function call"), Sessions: 1, PIDs: []int32{2}},
 		{Sessions: 5, PIDs: []int32{20, 21, 22, 23, 24}, Masked: 3}, // 3 masked, 2 background without an event
+		// background processes (no state) stuck on a real wait are shown
+		{WaitEventType: str("IO"), WaitEvent: str("DataFileSync"), Sessions: 1, PIDs: []int32{40}},
+		{WaitEventType: str("BufferPin"), WaitEvent: str("BufferPin"), Sessions: 1, PIDs: []int32{41}},
+		// Activity is background whatever the state: KSH workers say idle,
+		// a walsender with nothing to send says active
+		{WaitEventType: str("Activity"), WaitEvent: str("KshMain"), State: str("idle"), Sessions: 2, PIDs: []int32{50, 51}},
+		{WaitEventType: str("Activity"), WaitEvent: str("WalSenderMain"), State: str("active"), Sessions: 1, PIDs: []int32{52}},
+		{State: str("disabled"), Sessions: 2, PIDs: []int32{60, 61}},
 		{WaitEventType: str("Client"), WaitEvent: str("ClientRead"), State: str("idle"), Sessions: 9, PIDs: []int32{30}},
 	}}
 	rep := Waits(c, w)

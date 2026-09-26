@@ -25,19 +25,27 @@ func (v *waitsView) write(w io.Writer) error {
 		return nil
 	}
 	var shown []facts.Wait
-	busy, idle, background, hidden := 0, 0, 0, 0
+	busy, idle, background, hidden, untracked := 0, 0, 0, 0, 0
 	for _, g := range v.summary.Rows {
 		hidden += g.Masked
 		rest := g.Sessions - g.Masked
 		switch {
 		case rest == 0:
+		// Activity: a process idling in its main loop (walsender with
+		// nothing to send, checkpointer between checkpoints, KSH workers),
+		// whatever its state says
+		case g.WaitEventType != nil && *g.WaitEventType == "Activity":
+			background += rest
 		case g.State != nil && *g.State == "idle":
 			idle += rest
-		// Activity: a process idling in its main loop (walsender,
-		// checkpointer, ...); no state: a background process
-		case g.State == nil || (g.WaitEventType != nil && *g.WaitEventType == "Activity"):
+		// a background process (no state) not waiting on anything
+		case g.State == nil && g.WaitEventType == nil:
 			background += rest
+		case g.State != nil && *g.State == "disabled":
+			untracked += rest // what it does is not reported
 		default:
+			// includes background processes stuck on a real wait (a
+			// checkpointer on IO, the startup process on a buffer pin)
 			busy += rest
 			shown = append(shown, g)
 		}
@@ -55,15 +63,15 @@ func (v *waitsView) write(w io.Writer) error {
 		}
 		return cell(a.State) < cell(b.State)
 	})
-	fmt.Fprintf(w, "\nnot idle: %d", busy)
-	if hidden > 0 {
-		fmt.Fprintf(w, " visible, %d hidden", hidden)
-	}
-	fmt.Fprintln(w)
+	fmt.Fprintf(w, "\nnot idle: %d\n", busy)
 	if len(shown) > 0 {
 		rows := make([][]string, len(shown))
 		for i, g := range shown {
-			rows[i] = []string{waitLabel(g), cell(g.State), fmt.Sprint(g.Sessions), pidList(g.PIDs)}
+			state := cell(g.State)
+			if g.State == nil {
+				state = "(background)"
+			}
+			rows[i] = []string{waitLabel(g), state, fmt.Sprint(g.Sessions - g.Masked), pidList(g.PIDs)}
 		}
 		if err := writeTable(w, "  ", []string{"wait", "state", "sessions", "pids"}, rows); err != nil {
 			return err
@@ -76,6 +84,13 @@ func (v *waitsView) write(w io.Writer) error {
 	if background > 0 {
 		parts = append(parts, fmt.Sprintf("%d background", background))
 	}
+	// we cannot tell whether these are idle: not "not idle" either
+	if hidden > 0 {
+		parts = append(parts, fmt.Sprintf("%d hidden (state unknown)", hidden))
+	}
+	if untracked > 0 {
+		parts = append(parts, fmt.Sprintf("%d untracked (state unknown)", untracked))
+	}
 	if len(parts) > 0 {
 		fmt.Fprintf(w, "\nnot shown: %s\n", strings.Join(parts, ", "))
 	}
@@ -84,16 +99,14 @@ func (v *waitsView) write(w io.Writer) error {
 
 func isActive(g facts.Wait) bool { return g.State != nil && *g.State == "active" }
 
-// waitLabel is "type:event"; an active session without a wait event is
-// running, and an untracked one ("disabled") does not say.
+// waitLabel is "type:event"; a session executing (active, or in a
+// fastpath function call) without a wait event is running.
 func waitLabel(g facts.Wait) string {
 	switch {
 	case g.WaitEventType != nil:
 		return cell(g.WaitEventType) + ":" + cell(g.WaitEvent)
-	case isActive(g):
+	case isActive(g) || (g.State != nil && *g.State == "fastpath function call"):
 		return "(running)"
-	case g.State != nil && *g.State == "disabled":
-		return "?"
 	}
 	return "-"
 }

@@ -5,4 +5,4 @@ not idle: 2
   Lock:relation      active               1         803890
   Client:ClientRead  idle in transaction  1         803881
 
-not shown: 5 idle, 6 background
+not shown: 3 idle, 8 background

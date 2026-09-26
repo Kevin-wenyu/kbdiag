@@ -125,7 +125,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 场景表：W1 此刻在干活的会话在等什么；W2 有没有大量会话堆在同一个等待事件上；W3 是哪些会话。不归 waits：谁挡的 → `locks`；单个会话详情 → `session <pid>`；历史等待 → KSH/KWR（v0.1 不做）。
 
-- **只列在干活的组**：idle 会话的 `Client:ClientRead` 和后台进程的 `Activity:*` 占了原来输出的大半，却不回答"卡在哪"。`Activity` 类等待按 PG/KES 的定义是进程在主循环里空闲（walsender、checkpointer 等），归后台；state 为空的也归后台。它们合成一行 `not shown: N idle, M background`。
+- **只列在干活的组**：idle 会话的 `Client:ClientRead` 和后台进程的 `Activity:*` 占了原来输出的大半，却不回答"卡在哪"。`Activity` 类等待按 PG/KES 的定义是进程在主循环里空闲（没东西可发的 walsender、两次 checkpoint 之间的 checkpointer、KES 的 KSH 进程），不管 state 写什么都归后台；state 为空且没有等待事件的也归后台。**后台进程卡在真正的等待上（checkpointer 等 `IO:DataFileSync`、备库 startup 等 `BufferPin`）照样列出**，state 写 `(background)`：这正是 waits 要回答的"卡在哪"。它们之外合成一行 `not shown: N idle, M background, K hidden (state unknown), J untracked (state unknown)`：遮蔽和 untracked 的会话不知道是不是 idle，所以不算进 not idle。walsender 追赶时等的是 `IO:WALRead` 之类，会出现在列表里，空闲的主库上时有时无，属正常。
 - **排序**：会话数多的在前（堆积最显眼），同数时 active 在前；active 却没有等待事件的写 `(running)`（在 CPU 上或这段代码没埋点）。pids 最多列 10 个，其余写 `... (+N)`，JSON 全有。
 - **没有判定，没有参数**：等待事件本身没有客观线（同样 10 个会话等 IO，对一个库是事故，对另一个库是常态）；锁等太久由 locks 报。看不全（遮蔽、untracked）照旧 UNKNOWN。
 - JSON 不变。

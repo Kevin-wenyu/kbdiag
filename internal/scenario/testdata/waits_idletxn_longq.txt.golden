@@ -5,4 +5,4 @@ not idle: 2
   Timeout:PgSleep    active               1         801314
   Client:ClientRead  idle in transaction  1         801150
 
-not shown: 5 idle, 6 background
+not shown: 3 idle, 8 background

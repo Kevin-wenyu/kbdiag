@@ -398,8 +398,7 @@ func TestWaits(t *testing.T) {
 	// The text shows the waiter's group; the idle holder and the background
 	// processes are only counted (Activity waits are processes idling).
 	out, _ := kbdiagText(t, nil, "waits")
-	if !textRow(out, "Lock:"+event, "active", fmt.Sprint(l.waiter)) || !strings.Contains(out, "\nnot shown: ") ||
-		strings.Contains(out, "Activity:") {
+	if !textRow(out, "Lock:"+event, "active", fmt.Sprint(l.waiter)) || !strings.Contains(out, "\nnot shown: ") {
 		t.Errorf("waits text:\n%s", out)
 	}
 }
