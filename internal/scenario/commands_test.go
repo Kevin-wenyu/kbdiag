@@ -304,7 +304,9 @@ func locksCapture(t *testing.T, name string) (facts.Context, facts.LockList) {
 }
 
 // The first five goldens were drawn by hand from the stage-0 captures
-// before the code existed.
+// before the code existed. The captures hold lock.list as shown, not every
+// sys_locks row: the 2PC's own lock rows (pid NULL) are missing, so
+// locks_prepared's "holds -" is provisional until the VM run.
 func TestLocksText(t *testing.T) {
 	lowthr := LocksOptions{Limit: 50, Thresholds: rule.Thresholds{LockWaitWarnS: 1}}
 	for _, x := range []struct{ golden, capture string }{
@@ -342,10 +344,10 @@ func TestLocksPileUp(t *testing.T) {
 		{PID: i32(100), Locktype: "relation", Relation: rel, Mode: "AccessExclusiveLock", Granted: true},
 		{PID: i32(100), Locktype: "virtualxid", Mode: "ExclusiveLock", Granted: true},
 		{PID: i32(101), Locktype: "relation", Relation: rel, Mode: "RowExclusiveLock", WaitS: f64(120.4), BlockedBy: []int32{100}},
-		{PID: i32(102), Locktype: "relation", Relation: rel, Mode: "AccessShareLock", WaitS: f64(30), BlockedBy: []int32{100, 101}},
+		{PID: i32(102), Locktype: "relation", Relation: rel, Mode: "AccessShareLock", WaitS: f64(30), BlockedBy: []int32{100, 101, 100}}, // parallel worker
 		{PID: i32(103), Locktype: "relation", Relation: rel, Mode: "AccessShareLock", Masked: true, BlockedBy: []int32{100, 101}},
 		{Locktype: "relation", Relation: other, Mode: "ShareLock", Granted: true},
-		{PID: i32(104), Locktype: "relation", Relation: other, Mode: "ExclusiveLock", WaitS: f64(-1), BlockedBy: []int32{0}},
+		{PID: i32(104), Locktype: "relation", Relation: other, Mode: "ExclusiveLock", WaitS: f64(-1), BlockedBy: []int32{0, 0}}, // two 2PCs
 		{PID: i32(105), Locktype: "transactionid", Mode: "ShareLock", WaitS: f64(5), BlockedBy: nil},
 	}}
 	rep := Locks(c, l, LocksOptions{Limit: 3, Thresholds: rule.Defaults})

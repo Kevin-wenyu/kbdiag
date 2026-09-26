@@ -1,5 +1,7 @@
 package facts
 
+import "slices"
+
 // LockListID is the probe_id of the sys_locks probe.
 const LockListID = "lock.list"
 
@@ -24,6 +26,19 @@ func (l Lock) Row() []any {
 		blocked = []int32{}
 	}
 	return []any{l.PID, l.Locktype, l.Relation, l.Mode, l.Granted, l.WaitS, blocked}
+}
+
+// Blockers is BlockedBy without repeats, in order. sys_blocking_pids
+// reports 0 once per prepared transaction in the way, and a pid more than
+// once when parallel workers are involved; each blocker counts once.
+func (l Lock) Blockers() []int32 {
+	var out []int32
+	for _, b := range l.BlockedBy {
+		if !slices.Contains(out, b) {
+			out = append(out, b)
+		}
+	}
+	return out
 }
 
 // PreparedBlocker is the pid sys_blocking_pids reports for a prepared

@@ -93,7 +93,9 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **waiting 按等待时长排**，最久的在前；看不到时长（遮蔽、untracked）写 `?`。`--limit` 只裁 waiting 列表。
 - **JSON 不变**：lock.list 仍是等锁的行加挡路者在同一对象上的锁。
 - **`lock.waiting` 保留 WARN、10 秒和 `--lock-wait-warn`**（待用户确认）：没有服务器端的客观线（`lock_timeout` 由各应用自己设，kbdiag 看不到；`deadlock_timeout` 是死锁检测的间隔，不是"等太久"）。等锁 10 秒对 OLTP 来说已经是事故，对批处理可能正常，所以不升 FAIL；10 秒是滤掉行锁瞬时争用的下限，不是容量线，和 idle in transaction 的 300 秒同一个道理。参数保留，因为批处理库会想调高。
-- advisory 等没有 relation 的锁只按锁类型比对象（lock.list 没带 objid），同一挡路者的几个 advisory 锁会一起列在 holds 里。
+- advisory 等没有 relation 的锁只按锁类型比对象（lock.list 没带 objid），同一挡路者的几个 advisory 锁会一起列在 holds 里。几个 2PC 同时挡路时合成一个 `2PC` 挡路者，holds 列出所有 pid 为 NULL 的持锁行。
+- **挡路者去重**：`sys_blocking_pids()` 对每个挡路的 2PC 都报一个 0，并行查询时同一个 pid 也会出现多次；文本、finding 和 evidence 的 `blocker_pids` 都按 `Lock.Blockers()` 去重，JSON 的 `blocked_by` 保留原值。
+- **blocks 数的是进程**：并行查询的 worker 有自己的 pid 和锁行，一条等锁的并行查询会被算成几个；lock.list 没有 leader pid 可以归并，已知限制。
 
 ### 三层深度（看 / 查 / 断）
 

@@ -2,6 +2,7 @@ package rule
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
@@ -134,6 +135,21 @@ func TestMerge(t *testing.T) {
 		r := Merge(c.in...)
 		if r.Verdict != c.want || len(r.Findings) != c.n {
 			t.Errorf("case %d: verdict=%s findings=%d, want %s/%d", i, r.Verdict, len(r.Findings), c.want, c.n)
+		}
+	}
+}
+
+// Two prepared transactions in the way give blocked_by {0,0}: one blocker,
+// named once, one next step.
+func TestLocksDuplicateBlockers(t *testing.T) {
+	rel := str("public.t")
+	for _, by := range [][]int32{{0, 0}, {100, 100}} {
+		l := facts.LockList{Status: facts.StatusOK, Rows: []facts.Lock{
+			{PID: i32(1), Locktype: "relation", Relation: rel, Mode: "AccessShareLock", WaitS: f64(20), BlockedBy: by},
+		}}
+		r := Locks(l, Defaults)
+		if len(r.Findings) != 1 || len(r.Findings[0].Next) != 1 || strings.Count(r.Findings[0].Symptom, "、") != 0 {
+			t.Errorf("blocked_by %v: findings %+v", by, r.Findings)
 		}
 	}
 }

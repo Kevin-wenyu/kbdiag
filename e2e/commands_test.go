@@ -183,7 +183,8 @@ func TestLocks(t *testing.T) {
 		if l.relation != nil {
 			object = fmt.Sprint(l.relation)
 		}
-		if !textRow(out, holder, holder, "1", object) || !textRow(out, waiter, waiter, object, l.mode) ||
+		if f := strings.Fields(textLine(out, holder)); len(f) < 3 || f[1] != "1" || !strings.Contains(textLine(out, holder), object) ||
+			!textRow(out, waiter, object, l.mode) ||
 			!strings.Contains(out, "\nblockers: ") || !strings.Contains(out, "\nwaiting: ") {
 			t.Errorf("text lacks blocker %s or waiter %s on %s:\n%s", holder, waiter, object, out)
 		}

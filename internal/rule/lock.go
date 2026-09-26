@@ -40,7 +40,7 @@ func lockWaiting(x facts.Lock) Finding {
 	symptom := fmt.Sprintf("会话 %d 等 %s 已 %.0f 秒", *x.PID, target, *x.WaitS)
 	var names []string
 	var next []Next
-	for _, b := range x.BlockedBy {
+	for _, b := range x.Blockers() {
 		if b == facts.PreparedBlocker {
 			names = append(names, "未提交的两阶段事务")
 			next = append(next, Next{Kind: "verify", Command: "kbdiag txn", Note: "挡路的是未提交的两阶段事务，看它的 gid 和已经挂了多久"})
@@ -52,7 +52,7 @@ func lockWaiting(x facts.Lock) Finding {
 	if len(names) > 0 {
 		symptom += "，被 " + strings.Join(names, "、") + " 挡住"
 	}
-	blockers := x.BlockedBy
+	blockers := x.Blockers()
 	if blockers == nil {
 		blockers = []int32{}
 	}

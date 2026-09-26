@@ -78,7 +78,7 @@ func (v *locksView) writeBlockers(w io.Writer, waiting []facts.Lock) error {
 	blocks := map[int32]int{}
 	wanted := map[int32]map[lockObject]bool{}
 	for _, l := range waiting {
-		for _, b := range l.BlockedBy {
+		for _, b := range l.Blockers() {
 			blocks[b]++
 			if wanted[b] == nil {
 				wanted[b] = map[lockObject]bool{}
@@ -163,7 +163,7 @@ func (v *locksView) writeWaiting(w io.Writer, waiting []facts.Lock) error {
 			waited = duration(*l.WaitS)
 		}
 		var by []string
-		for _, b := range l.BlockedBy {
+		for _, b := range l.Blockers() {
 			by = append(by, blockerName(b))
 		}
 		blockedBy := "-"
