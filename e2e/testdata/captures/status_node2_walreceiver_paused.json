@@ -1,0 +1,126 @@
+{
+  "command": "status",
+  "verdict": "OK",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "standby",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T19:44:02+08:00"
+  },
+  "data": {
+    "inst.databases": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "datname",
+        "size_bytes"
+      ],
+      "rows": [
+        [
+          "esrep",
+          15614003
+        ],
+        [
+          "kingbase",
+          15024179
+        ],
+        [
+          "mydb",
+          14877187
+        ],
+        [
+          "security",
+          14844419
+        ],
+        [
+          "test",
+          340459571
+        ]
+      ],
+      "truncated": 0
+    },
+    "inst.disk": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "total_bytes",
+        "used_bytes",
+        "avail_bytes"
+      ],
+      "rows": [
+        [
+          213452304384,
+          12501061632,
+          200951242752
+        ]
+      ],
+      "truncated": 0
+    },
+    "inst.downstreams": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "application_name",
+        "client_addr",
+        "state",
+        "sync_state"
+      ],
+      "rows": [],
+      "truncated": 0
+    },
+    "inst.info": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "version",
+        "start_time",
+        "uptime_s",
+        "connections",
+        "max_connections",
+        "superuser_reserved_connections",
+        "data_directory",
+        "port",
+        "usable_connections"
+      ],
+      "rows": [
+        [
+          "V008R006C009B0014",
+          "2026-09-23T15:44:58+08:00",
+          273543.4,
+          3,
+          100,
+          3,
+          "/home/kingbase/cluster/install/kingbase/data",
+          54321,
+          97
+        ]
+      ],
+      "truncated": 0
+    },
+    "inst.upstream": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "status",
+        "sender_host",
+        "sender_port",
+        "slot_name",
+        "last_msg_age_s"
+      ],
+      "rows": [
+        [
+          "streaming",
+          "192.168.105.10",
+          54321,
+          "repmgr_slot_2",
+          38.1
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [],
+  "redacted": []
+}
+EXIT_CODE=0

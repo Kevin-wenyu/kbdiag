@@ -1,0 +1,15 @@
+txn  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:43:16+08:00)
+
+session.activity: 1 rows
+pid     usename  datname  application_name      client_addr  backend_type    state     backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+809073  system   test     kbdiag_inj_untracked  -            client backend  disabled  -            -             1.6         1.6          -            -                -           
+
+txn.prepared: 0 rows
+gid  owner  database  prepared_at  age_s  transaction
+
+redacted: session.activity.state in 1 rows (track_activities_off)
+redacted: session.activity.state_age_s in 1 rows (track_activities_off)
+redacted: session.activity.wait_event_type in 1 rows (track_activities_off)
+redacted: session.activity.wait_event in 1 rows (track_activities_off)
+redacted: session.activity.query in 1 rows (track_activities_off)
+EXIT_CODE=3

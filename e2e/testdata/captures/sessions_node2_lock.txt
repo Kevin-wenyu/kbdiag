@@ -1,0 +1,13 @@
+sessions  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:42:38+08:00)
+
+session.activity: 8 rows
+pid     usename  datname  application_name        client_addr     backend_type       state   backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event         query
+422855  system   test     kbdiag_inj_lock_waiter  -               client backend     active  -            6174          8.2         8.2          8.2          Lock             advisory           select pg_advisory_lock(424242);
+6002    -        -        startup                 -               startup            -       -            -             -           -            -            Activity         RecoveryWalAll     
+6006    -        -        check pointer           -               checkpointer       -       -            -             -           -            -            Activity         CheckpointerMain   
+6007    -        -        background flush        -               background writer  -       -            -             -           -            -            Activity         BgWriterHibernate  
+6019    esrep    esrep    internal_rwcmgr         192.168.105.11  client backend     idle    -            -             -           0.5          0.5          Client           ClientRead         SELECT n.node_id as nodeId, n.type as nodeType, n.upstrea...
+6069    esrep    esrep    internal_rwcmgr         192.168.105.11  client backend     idle    -            -             -           2.1          2.1          Client           ClientRead         SELECT n.node_id as nodeId, n.type as nodeType, n.upstrea...
+403597  -        -        walreceiver             -               walreceiver        -       -            -             -           -            -            Activity         WalReceiverMain    
+422846  system   test     kbdiag_inj_lock_holder  -               client backend     idle    -            -             -           8.3          8.3          Client           ClientRead         select pg_advisory_lock(424242);
+EXIT_CODE=0

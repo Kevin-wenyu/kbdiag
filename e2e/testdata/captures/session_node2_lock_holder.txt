@@ -1,0 +1,14 @@
+session  WARN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:42:44+08:00)
+
+[WARN] lock.waiting  会话 422855 等 advisory 锁 已 14 秒，被 422846 挡住
+  verify: kbdiag session 422846  # 看挡路的会话在干什么
+
+lock.list: 2 rows
+pid     locktype  relation  mode           granted  wait_s  blocked_by
+422846  advisory  -         ExclusiveLock  true     -       []
+422855  advisory  -         ExclusiveLock  false    13.8    [422846]
+
+session.activity: 1 rows
+pid     usename  datname  application_name        client_addr  backend_type    state  backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+422846  system   test     kbdiag_inj_lock_holder  -            client backend  idle   -            -             -           13.8         13.8         Client           ClientRead  select pg_advisory_lock(424242);
+EXIT_CODE=1

@@ -1,0 +1,228 @@
+{
+  "command": "txn",
+  "verdict": "UNKNOWN",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "standby",
+    "location": "remote",
+    "user": "kbdiag_ro",
+    "collected_at": "2026-09-26T19:42:16+08:00"
+  },
+  "data": {
+    "session.activity": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "usename",
+        "datname",
+        "application_name",
+        "client_addr",
+        "backend_type",
+        "state",
+        "backend_xid",
+        "backend_xmin",
+        "xact_age_s",
+        "query_age_s",
+        "state_age_s",
+        "wait_event_type",
+        "wait_event",
+        "query"
+      ],
+      "rows": [
+        [
+          6002,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          6006,
+          null,
+          null,
+          "check pointer",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          6007,
+          null,
+          null,
+          "background flush",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          6019,
+          "esrep",
+          "esrep",
+          "internal_rwcmgr",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          6069,
+          "esrep",
+          "esrep",
+          "internal_rwcmgr",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          420193,
+          "system",
+          "test",
+          "kbdiag_inj_idle_txn",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          420307,
+          "system",
+          "test",
+          "kbdiag_inj_long_query",
+          null,
+          null,
+          null,
+          null,
+          6174,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ]
+      ],
+      "truncated": 0
+    },
+    "txn.prepared": {
+      "status": "not_applicable",
+      "reason": "备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn",
+      "columns": [
+        "gid",
+        "owner",
+        "database",
+        "prepared_at",
+        "age_s",
+        "transaction"
+      ],
+      "rows": [],
+      "truncated": 0
+    }
+  },
+  "findings": [],
+  "redacted": [
+    {
+      "probe_id": "session.activity",
+      "field": "client_addr",
+      "reason": "insufficient_privilege",
+      "rows_affected": 7
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "backend_type",
+      "reason": "insufficient_privilege",
+      "rows_affected": 7
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "state",
+      "reason": "insufficient_privilege",
+      "rows_affected": 7
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "xact_age_s",
+      "reason": "insufficient_privilege",
+      "rows_affected": 7
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "query_age_s",
+      "reason": "insufficient_privilege",
+      "rows_affected": 7
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "state_age_s",
+      "reason": "insufficient_privilege",
+      "rows_affected": 7
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "wait_event_type",
+      "reason": "insufficient_privilege",
+      "rows_affected": 7
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "wait_event",
+      "reason": "insufficient_privilege",
+      "rows_affected": 7
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "query",
+      "reason": "insufficient_privilege",
+      "rows_affected": 7
+    }
+  ]
+}
+EXIT_CODE=3

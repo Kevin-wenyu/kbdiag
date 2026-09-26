@@ -1,0 +1,70 @@
+{
+  "command": "slots",
+  "verdict": "FAIL",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "standby",
+    "location": "remote",
+    "user": "kbdiag_ro",
+    "collected_at": "2026-09-26T19:44:08+08:00"
+  },
+  "data": {
+    "slot.list": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "slot_name",
+        "slot_type",
+        "active",
+        "active_pid",
+        "xmin",
+        "catalog_xmin",
+        "xmin_age",
+        "restart_lsn",
+        "retained_wal_bytes"
+      ],
+      "rows": [
+        [
+          "kbdiag_inj_slot",
+          "physical",
+          false,
+          null,
+          null,
+          null,
+          null,
+          "0/A41BA518",
+          45920
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [
+    {
+      "id": "slot.inactive",
+      "level": "FAIL",
+      "symptom": "复制槽 kbdiag_inj_slot 未激活，保留 0 MB WAL",
+      "evidence": [
+        {
+          "probe_id": "slot.list",
+          "fields": {
+            "active": false,
+            "retained_wal_bytes": 45920,
+            "slot_name": "kbdiag_inj_slot",
+            "xmin": null
+          }
+        }
+      ],
+      "cause": null,
+      "next": [
+        {
+          "kind": "verify",
+          "command": "kbdiag sessions",
+          "note": "在备库上运行：连不上说明备库实例挂了；列表里没有 walreceiver 进程说明它没在接收 WAL"
+        }
+      ]
+    }
+  ],
+  "redacted": []
+}
+EXIT_CODE=2

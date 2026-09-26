@@ -1,0 +1,10 @@
+session  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:42:25+08:00)
+
+lock.list: 1 rows
+pid     locktype    relation  mode           granted  wait_s  blocked_by
+420307  virtualxid  -         ExclusiveLock  true     -       []
+
+session.activity: 1 rows
+pid     usename  datname  application_name       client_addr  backend_type    state   backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+420307  system   test     kbdiag_inj_long_query  -            client backend  active  -            6174          17.1        17.1         17.1         Timeout          PgSleep     select pg_sleep(3600);
+EXIT_CODE=0

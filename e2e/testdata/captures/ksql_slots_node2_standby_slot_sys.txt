@@ -1,0 +1,5 @@
+    slot_name    | plugin | slot_type | datoid | database | temporary | active | active_pid | xmin | catalog_xmin | restart_lsn | confirmed_flush_lsn 
+-----------------+--------+-----------+--------+----------+-----------+--------+------------+------+--------------+-------------+---------------------
+ kbdiag_inj_slot |        | physical  |        |          | f         | f      |            |      |              | 0/A41BA518  | 
+(1 row)
+

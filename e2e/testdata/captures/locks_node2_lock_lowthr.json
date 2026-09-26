@@ -1,0 +1,80 @@
+{
+  "command": "locks",
+  "verdict": "WARN",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "standby",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T19:42:43+08:00"
+  },
+  "data": {
+    "lock.list": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "locktype",
+        "relation",
+        "mode",
+        "granted",
+        "wait_s",
+        "blocked_by"
+      ],
+      "rows": [
+        [
+          422846,
+          "advisory",
+          null,
+          "ExclusiveLock",
+          true,
+          null,
+          []
+        ],
+        [
+          422855,
+          "advisory",
+          null,
+          "ExclusiveLock",
+          false,
+          13.4,
+          [
+            422846
+          ]
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [
+    {
+      "id": "lock.waiting",
+      "level": "WARN",
+      "symptom": "会话 422855 等 advisory 锁 已 13 秒，被 422846 挡住",
+      "evidence": [
+        {
+          "probe_id": "lock.list",
+          "fields": {
+            "blocker_pids": [
+              422846
+            ],
+            "lock_mode": "ExclusiveLock",
+            "relation": null,
+            "wait_s": 13.4,
+            "waiter_pid": 422855
+          }
+        }
+      ],
+      "cause": null,
+      "next": [
+        {
+          "kind": "verify",
+          "command": "kbdiag session 422846",
+          "note": "看挡路的会话在干什么"
+        }
+      ]
+    }
+  ],
+  "redacted": []
+}
+EXIT_CODE=1

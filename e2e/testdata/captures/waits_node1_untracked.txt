@@ -1,0 +1,18 @@
+waits  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:43:17+08:00)
+
+wait.summary: 9 rows
+wait_event_type  wait_event           state     sessions  pids
+Client           ClientRead           idle      3         [3294 179417 759699]
+Activity         KshMain              idle      2         [3279 3280]
+Activity         AutoVacuumMain       -         1         [3274]
+Activity         BgWriterHibernate    -         1         [3272]
+Activity         CheckpointerMain     -         1         [3271]
+Activity         LogicalLauncherMain  -         1         [3281]
+Activity         WalSenderMain        active    1         [784848]
+Activity         WalWriterMain        -         1         [3273]
+-                -                    disabled  1         [809073]
+
+redacted: wait.summary.wait_event_type in 1 rows (track_activities_off)
+redacted: wait.summary.wait_event in 1 rows (track_activities_off)
+redacted: wait.summary.state in 1 rows (track_activities_off)
+EXIT_CODE=3

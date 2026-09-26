@@ -1,0 +1,5 @@
+   slot_name   | plugin | slot_type | datoid | database | temporary | active | active_pid | xmin | catalog_xmin | restart_lsn | confirmed_flush_lsn 
+---------------+--------+-----------+--------+----------+-----------+--------+------------+------+--------------+-------------+---------------------
+ repmgr_slot_2 |        | physical  |        |          | f         | f      |            | 6178 |              | 0/A41C55C8  | 
+(1 row)
+

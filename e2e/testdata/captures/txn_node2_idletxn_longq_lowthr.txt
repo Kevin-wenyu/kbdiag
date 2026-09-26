@@ -1,0 +1,15 @@
+txn  FAIL  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:42:21+08:00)
+
+[FAIL] txn.long  会话 420193 的事务已开了 16 秒，当前 idle in transaction
+  verify: kbdiag session 420193  # 看它在跑什么、持有哪些锁、有没有挡住别人
+
+[FAIL] txn.long  会话 420307 的事务已开了 13 秒，当前 active
+  verify: kbdiag session 420307  # 看它在跑什么、持有哪些锁、有没有挡住别人
+
+session.activity: 2 rows
+pid     usename  datname  application_name       client_addr  backend_type    state                backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+420193  system   test     kbdiag_inj_idle_txn    -            client backend  idle in transaction  -            -             15.6        14.6         13.5         Client           ClientRead  select 1 as kbdiag_last, pg_sleep(1);
+420307  system   test     kbdiag_inj_long_query  -            client backend  active               -            6174          12.6        12.6         12.6         Timeout          PgSleep     select pg_sleep(3600);
+
+txn.prepared: not_applicable  备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn
+EXIT_CODE=2

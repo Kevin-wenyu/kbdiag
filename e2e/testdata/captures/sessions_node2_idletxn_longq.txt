@@ -1,0 +1,13 @@
+sessions  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:42:13+08:00)
+
+session.activity: 8 rows
+pid     usename  datname  application_name       client_addr     backend_type       state                backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event         query
+420193  system   test     kbdiag_inj_idle_txn    -               client backend     idle in transaction  -            -             7.6         6.6          5.6          Client           ClientRead         select 1 as kbdiag_last, pg_sleep(1);
+420307  system   test     kbdiag_inj_long_query  -               client backend     active               -            6174          4.6         4.6          4.6          Timeout          PgSleep            select pg_sleep(3600);
+6002    -        -        startup                -               startup            -                    -            -             -           -            -            Activity         RecoveryWalAll     
+6006    -        -        check pointer          -               checkpointer       -                    -            -             -           -            -            Activity         CheckpointerMain   
+6007    -        -        background flush       -               background writer  -                    -            -             -           -            -            Activity         BgWriterHibernate  
+6019    esrep    esrep    internal_rwcmgr        192.168.105.11  client backend     idle                 -            -             -           2            2            Client           ClientRead         SELECT n.node_id as nodeId, n.type as nodeType, n.upstrea...
+6069    esrep    esrep    internal_rwcmgr        192.168.105.11  client backend     idle                 -            -             -           0.7          0.7          Client           ClientRead         SELECT n.node_id as nodeId, n.type as nodeType, n.upstrea...
+403597  -        -        walreceiver            -               walreceiver        -                    -            -             -           -            -            Activity         WalReceiverMain    
+EXIT_CODE=0

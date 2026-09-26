@@ -1,0 +1,18 @@
+sessions  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:36+08:00)
+
+session.activity: 13 rows
+pid     usename  datname   application_name        client_addr     backend_type                  state                backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event           query
+803881  system   test      kbdiag_inj_lock_holder  -               client backend                idle in transaction  6172         -             9           9            9            Client           ClientRead           lock table kbdiag_inj_lock in access exclusive mode;
+803890  system   test      kbdiag_inj_lock_waiter  -               client backend                active               -            6172          8.9         8.9          8.9          Lock             relation             select count(*) from kbdiag_inj_lock;
+3271    -        -         check pointer           -               checkpointer                  -                    -            -             -           -            -            Activity         CheckpointerMain     
+3272    -        -         background flush        -               background writer             -                    -            -             -           -            -            Activity         BgWriterHibernate    
+3273    -        -         wal flush               -               walwriter                     -                    -            -             -           -            -            Activity         WalWriterMain        
+3274    -        -         auto vacuum             -               autovacuum launcher           -                    -            -             -           -            -            Activity         AutoVacuumMain       
+3279    system   kingbase  ksh writer              -               ksh writer                    idle                 -            -             -           1.7          0.7          Activity         KshMain              select pg_catalog.metric_update_timer();
+3280    system   -         sys_ksh collector       -               ksh collector                 idle                 -            -             -           -            0.1          Activity         KshMain              
+3281    system   -         logical replication     -               logical replication launcher  -                    -            -             -           -            -            Activity         LogicalLauncherMain  
+3294    esrep    esrep     internal_rwcmgr         192.168.105.10  client backend                idle                 -            -             -           1.1          1.1          Client           ClientRead           SELECT n.node_id as nodeId, n.type as nodeType, n.upstrea...
+179417  esrep    esrep     internal_rwcmgr         192.168.105.10  client backend                idle                 -            -             -           0.5          0.5          Client           ClientRead           SELECT pg_catalog.pg_is_in_recovery()
+759699  esrep    esrep     internal_rwcmgr         192.168.105.11  client backend                idle                 -            -             -           0.6          0.6          Client           ClientRead           SELECT state,sync_state FROM pg_stat_replication where ap...
+784848  esrep    -         node2                   192.168.105.11  walsender                     active               -            -             -           -            2610.7       Activity         WalSenderMain        
+EXIT_CODE=0

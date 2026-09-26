@@ -1,0 +1,113 @@
+{
+  "command": "session",
+  "verdict": "UNKNOWN",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "primary",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T19:43:20+08:00"
+  },
+  "data": {
+    "lock.list": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "locktype",
+        "relation",
+        "mode",
+        "granted",
+        "wait_s",
+        "blocked_by"
+      ],
+      "rows": [
+        [
+          809073,
+          "virtualxid",
+          null,
+          "ExclusiveLock",
+          true,
+          null,
+          []
+        ]
+      ],
+      "truncated": 0
+    },
+    "session.activity": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "usename",
+        "datname",
+        "application_name",
+        "client_addr",
+        "backend_type",
+        "state",
+        "backend_xid",
+        "backend_xmin",
+        "xact_age_s",
+        "query_age_s",
+        "state_age_s",
+        "wait_event_type",
+        "wait_event",
+        "query"
+      ],
+      "rows": [
+        [
+          809073,
+          "system",
+          "test",
+          "kbdiag_inj_untracked",
+          null,
+          "client backend",
+          "disabled",
+          null,
+          null,
+          4.9,
+          4.9,
+          null,
+          null,
+          null,
+          ""
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [],
+  "redacted": [
+    {
+      "probe_id": "session.activity",
+      "field": "state",
+      "reason": "track_activities_off",
+      "rows_affected": 1
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "state_age_s",
+      "reason": "track_activities_off",
+      "rows_affected": 1
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "wait_event_type",
+      "reason": "track_activities_off",
+      "rows_affected": 1
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "wait_event",
+      "reason": "track_activities_off",
+      "rows_affected": 1
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "query",
+      "reason": "track_activities_off",
+      "rows_affected": 1
+    }
+  ]
+}
+EXIT_CODE=3

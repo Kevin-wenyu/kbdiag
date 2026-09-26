@@ -1,0 +1,10 @@
+txn  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:38+08:00)
+
+session.activity: 2 rows
+pid     usename  datname  application_name        client_addr  backend_type    state                backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+803881  system   test     kbdiag_inj_lock_holder  -            client backend  idle in transaction  6172         -             11.2        11.2         11.2         Client           ClientRead  lock table kbdiag_inj_lock in access exclusive mode;
+803890  system   test     kbdiag_inj_lock_waiter  -            client backend  active               -            6172          11.2        11.2         11.2         Lock             relation    select count(*) from kbdiag_inj_lock;
+
+txn.prepared: 0 rows
+gid  owner  database  prepared_at  age_s  transaction
+EXIT_CODE=0

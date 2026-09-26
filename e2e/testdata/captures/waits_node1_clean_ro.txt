@@ -1,0 +1,11 @@
+waits  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-26T19:40:53+08:00)
+
+wait.summary: 2 rows
+wait_event_type  wait_event     state   sessions  pids
+-                -              -       10        [3271 3272 3273 3274 3279 3280 3281 3294 179417 759699]
+Activity         WalSenderMain  active  1         [784848]
+
+redacted: wait.summary.wait_event_type in 10 rows (insufficient_privilege)
+redacted: wait.summary.wait_event in 10 rows (insufficient_privilege)
+redacted: wait.summary.state in 10 rows (insufficient_privilege)
+EXIT_CODE=3

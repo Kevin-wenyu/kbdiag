@@ -1,0 +1,16 @@
+session  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:42+08:00)
+
+[WARN] lock.waiting  会话 803890 等 public.kbdiag_inj_lock 的 AccessShareLock 已 15 秒，被 803881 挡住
+  verify: kbdiag session 803881  # 看挡路的会话在干什么
+
+lock.list: 4 rows
+pid     locktype       relation                mode                 granted  wait_s  blocked_by
+803881  relation       public.kbdiag_inj_lock  AccessExclusiveLock  true     -       []
+803881  transactionid  -                       ExclusiveLock        true     -       []
+803881  virtualxid     -                       ExclusiveLock        true     -       []
+803890  relation       public.kbdiag_inj_lock  AccessShareLock      false    14.9    [803881]
+
+session.activity: 1 rows
+pid     usename  datname  application_name        client_addr  backend_type    state                backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+803881  system   test     kbdiag_inj_lock_holder  -            client backend  idle in transaction  6172         -             15          15           15           Client           ClientRead  lock table kbdiag_inj_lock in access exclusive mode;
+EXIT_CODE=1

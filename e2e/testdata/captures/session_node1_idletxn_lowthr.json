@@ -1,0 +1,116 @@
+{
+  "command": "session",
+  "verdict": "WARN",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "primary",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T19:41:19+08:00"
+  },
+  "data": {
+    "lock.list": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "locktype",
+        "relation",
+        "mode",
+        "granted",
+        "wait_s",
+        "blocked_by"
+      ],
+      "rows": [
+        [
+          801150,
+          "transactionid",
+          null,
+          "ExclusiveLock",
+          true,
+          null,
+          []
+        ],
+        [
+          801150,
+          "virtualxid",
+          null,
+          "ExclusiveLock",
+          true,
+          null,
+          []
+        ]
+      ],
+      "truncated": 0
+    },
+    "session.activity": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "usename",
+        "datname",
+        "application_name",
+        "client_addr",
+        "backend_type",
+        "state",
+        "backend_xid",
+        "backend_xmin",
+        "xact_age_s",
+        "query_age_s",
+        "state_age_s",
+        "wait_event_type",
+        "wait_event",
+        "query"
+      ],
+      "rows": [
+        [
+          801150,
+          "system",
+          "test",
+          "kbdiag_inj_idle_txn",
+          null,
+          "client backend",
+          "idle in transaction",
+          6170,
+          null,
+          18.4,
+          17.4,
+          16.4,
+          "Client",
+          "ClientRead",
+          "select txid_current() as kbdiag_last, pg_sleep(1);"
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [
+    {
+      "id": "session.idle_in_txn",
+      "level": "WARN",
+      "symptom": "会话 801150 处于 idle in transaction 已 16 秒",
+      "evidence": [
+        {
+          "probe_id": "session.activity",
+          "fields": {
+            "backend_xid": 6170,
+            "pid": 801150,
+            "state": "idle in transaction",
+            "state_age_s": 16.4
+          }
+        }
+      ],
+      "cause": null,
+      "next": [
+        {
+          "kind": "verify",
+          "command": "kbdiag session 801150",
+          "note": "看它持有哪些锁、有没有挡住别人"
+        }
+      ]
+    }
+  ],
+  "redacted": []
+}
+EXIT_CODE=1

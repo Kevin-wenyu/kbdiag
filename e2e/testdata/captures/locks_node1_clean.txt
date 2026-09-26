@@ -1,0 +1,5 @@
+locks  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:47+08:00)
+
+lock.list: 0 rows
+pid  locktype  relation  mode  granted  wait_s  blocked_by
+EXIT_CODE=0

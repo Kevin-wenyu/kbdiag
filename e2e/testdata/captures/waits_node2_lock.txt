@@ -1,0 +1,11 @@
+waits  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:42:36+08:00)
+
+wait.summary: 6 rows
+wait_event_type  wait_event         state   sessions  pids
+Client           ClientRead         idle    3         [6019 6069 422846]
+Activity         BgWriterHibernate  -       1         [6007]
+Activity         CheckpointerMain   -       1         [6006]
+Activity         RecoveryWalAll     -       1         [6002]
+Activity         WalReceiverMain    -       1         [403597]
+Lock             advisory           active  1         [422855]
+EXIT_CODE=0

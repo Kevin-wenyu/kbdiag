@@ -1,0 +1,8 @@
+locks  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-26T19:43:05+08:00)
+
+lock.list: 1 rows
+pid     locktype  relation               mode                 granted  wait_s  blocked_by
+807225  relation  public.kbdiag_inj_2pc  AccessExclusiveLock  false    -       [0]
+
+redacted: lock.list.wait_s in 1 rows (insufficient_privilege)
+EXIT_CODE=3

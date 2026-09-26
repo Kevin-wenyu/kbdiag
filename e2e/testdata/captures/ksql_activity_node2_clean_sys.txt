@@ -1,0 +1,11 @@
+  pid   | usename | datname | application_name |  client_addr   |   backend_type    | state  | wait_event_type |    wait_event    | backend_xid | backend_xmin |          xact_start           |         state_change          |                       query                        
+--------+---------+---------+------------------+----------------+-------------------+--------+-----------------+------------------+-------------+--------------+-------------------------------+-------------------------------+----------------------------------------------------
+   6002 |         |         | startup          |                | startup           |        | Activity        | RecoveryWalAll   |             |              |                               |                               | 
+   6006 |         |         | check pointer    |                | checkpointer      |        | Activity        | CheckpointerMain |             |              |                               |                               | 
+   6007 |         |         | background flush |                | background writer |        | Activity        | BgWriterMain     |             |              |                               |                               | 
+   6019 | esrep   | esrep   | internal_rwcmgr  | 192.168.105.11 | client backend    | idle   | Client          | ClientRead       |             |              |                               | 2026-09-26 19:42:00.549923+08 | SELECT n.node_id as nodeId, n.type as nodeType, n.
+   6069 | esrep   | esrep   | internal_rwcmgr  | 192.168.105.11 | client backend    | idle   | Client          | ClientRead       |             |              |                               | 2026-09-26 19:42:00.288328+08 |   SELECT n.node_id as nodeId, n.type as nodeType, 
+ 403597 |         |         | walreceiver      |                | walreceiver       |        | Activity        | WalReceiverMain  |             |              |                               |                               | 
+ 419893 | system  | test    | ksql             |                | client backend    | active |                 |                  |             |         6174 | 2026-09-26 19:42:02.281359+08 | 2026-09-26 19:42:02.281368+08 | select pid, usename, datname, application_name, cl
+(7 rows)
+

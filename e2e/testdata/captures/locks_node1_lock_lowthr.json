@@ -1,0 +1,80 @@
+{
+  "command": "locks",
+  "verdict": "WARN",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "primary",
+    "location": "local",
+    "user": "system",
+    "collected_at": "2026-09-26T19:41:41+08:00"
+  },
+  "data": {
+    "lock.list": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "locktype",
+        "relation",
+        "mode",
+        "granted",
+        "wait_s",
+        "blocked_by"
+      ],
+      "rows": [
+        [
+          803881,
+          "relation",
+          "public.kbdiag_inj_lock",
+          "AccessExclusiveLock",
+          true,
+          null,
+          []
+        ],
+        [
+          803890,
+          "relation",
+          "public.kbdiag_inj_lock",
+          "AccessShareLock",
+          false,
+          14.3,
+          [
+            803881
+          ]
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [
+    {
+      "id": "lock.waiting",
+      "level": "WARN",
+      "symptom": "会话 803890 等 public.kbdiag_inj_lock 的 AccessShareLock 已 14 秒，被 803881 挡住",
+      "evidence": [
+        {
+          "probe_id": "lock.list",
+          "fields": {
+            "blocker_pids": [
+              803881
+            ],
+            "lock_mode": "AccessShareLock",
+            "relation": "public.kbdiag_inj_lock",
+            "wait_s": 14.3,
+            "waiter_pid": 803890
+          }
+        }
+      ],
+      "cause": null,
+      "next": [
+        {
+          "kind": "verify",
+          "command": "kbdiag session 803881",
+          "note": "看挡路的会话在干什么"
+        }
+      ]
+    }
+  ],
+  "redacted": []
+}
+EXIT_CODE=1

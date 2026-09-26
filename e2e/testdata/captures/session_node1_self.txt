@@ -1,0 +1,3 @@
+kbdiag: pid must be a positive integer, got "0"
+Run 'kbdiag --help' for usage.
+EXIT_CODE=64

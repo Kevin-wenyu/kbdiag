@@ -1,0 +1,8 @@
+  locktype  | relation | virtualxid | transactionid |  pid   |     mode      | granted | fastpath 
+------------+----------+------------+---------------+--------+---------------+---------+----------
+ virtualxid |          | 1/1        |               |   6002 | ExclusiveLock | t       | t
+ advisory   |          |            |               | 422846 | ExclusiveLock | t       | f
+ virtualxid |          | 6/659      |               | 422855 | ExclusiveLock | t       | t
+ advisory   |          |            |               | 422855 | ExclusiveLock | f       | f
+(4 rows)
+

@@ -1,0 +1,9 @@
+kbdiag: no session with pid 999999 (it may have ended)
+session  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:57+08:00)
+
+lock.list: 0 rows
+pid  locktype  relation  mode  granted  wait_s  blocked_by
+
+session.activity: 0 rows
+pid  usename  datname  application_name  client_addr  backend_type  state  backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+EXIT_CODE=3

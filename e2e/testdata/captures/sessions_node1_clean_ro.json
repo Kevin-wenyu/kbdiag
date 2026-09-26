@@ -1,0 +1,282 @@
+{
+  "command": "sessions",
+  "verdict": "UNKNOWN",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "primary",
+    "location": "remote",
+    "user": "kbdiag_ro",
+    "collected_at": "2026-09-26T19:40:47+08:00"
+  },
+  "data": {
+    "session.activity": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "pid",
+        "usename",
+        "datname",
+        "application_name",
+        "client_addr",
+        "backend_type",
+        "state",
+        "backend_xid",
+        "backend_xmin",
+        "xact_age_s",
+        "query_age_s",
+        "state_age_s",
+        "wait_event_type",
+        "wait_event",
+        "query"
+      ],
+      "rows": [
+        [
+          3271,
+          null,
+          null,
+          "check pointer",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          3272,
+          null,
+          null,
+          "background flush",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          3273,
+          null,
+          null,
+          "wal flush",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          3274,
+          null,
+          null,
+          "auto vacuum",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          3279,
+          "system",
+          "kingbase",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          3280,
+          "system",
+          null,
+          "sys_ksh collector",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          3281,
+          "system",
+          null,
+          "logical replication",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          3294,
+          "esrep",
+          "esrep",
+          "internal_rwcmgr",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          179417,
+          "esrep",
+          "esrep",
+          "internal_rwcmgr",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          759699,
+          "esrep",
+          "esrep",
+          "internal_rwcmgr",
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "<insufficient privilege>"
+        ],
+        [
+          784848,
+          "esrep",
+          null,
+          "node2",
+          "192.168.105.11",
+          "walsender",
+          "active",
+          null,
+          null,
+          null,
+          null,
+          2562.3,
+          "Activity",
+          "WalSenderMain",
+          ""
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [],
+  "redacted": [
+    {
+      "probe_id": "session.activity",
+      "field": "client_addr",
+      "reason": "insufficient_privilege",
+      "rows_affected": 10
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "backend_type",
+      "reason": "insufficient_privilege",
+      "rows_affected": 10
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "state",
+      "reason": "insufficient_privilege",
+      "rows_affected": 10
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "xact_age_s",
+      "reason": "insufficient_privilege",
+      "rows_affected": 10
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "query_age_s",
+      "reason": "insufficient_privilege",
+      "rows_affected": 10
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "state_age_s",
+      "reason": "insufficient_privilege",
+      "rows_affected": 10
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "wait_event_type",
+      "reason": "insufficient_privilege",
+      "rows_affected": 10
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "wait_event",
+      "reason": "insufficient_privilege",
+      "rows_affected": 10
+    },
+    {
+      "probe_id": "session.activity",
+      "field": "query",
+      "reason": "insufficient_privilege",
+      "rows_affected": 10
+    }
+  ]
+}
+EXIT_CODE=3

@@ -1,0 +1,23 @@
+sessions  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:43:15+08:00)
+
+session.activity: 12 rows
+pid     usename  datname   application_name      client_addr     backend_type                  state     backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event           query
+809073  system   test      kbdiag_inj_untracked  -               client backend                disabled  -            -             0.5         0.5          -            -                -                    
+3271    -        -         check pointer         -               checkpointer                  -         -            -             -           -            -            Activity         CheckpointerMain     
+3272    -        -         background flush      -               background writer             -         -            -             -           -            -            Activity         BgWriterHibernate    
+3273    -        -         wal flush             -               walwriter                     -         -            -             -           -            -            Activity         WalWriterMain        
+3274    -        -         auto vacuum           -               autovacuum launcher           -         -            -             -           -            -            Activity         AutoVacuumMain       
+3279    system   kingbase  ksh writer            -               ksh writer                    idle      -            -             -           1.5          0.5          Activity         KshMain              select pg_catalog.metric_update_timer();
+3280    system   -         sys_ksh collector     -               ksh collector                 idle      -            -             -           -            0.8          Activity         KshMain              
+3281    system   -         logical replication   -               logical replication launcher  -         -            -             -           -            -            Activity         LogicalLauncherMain  
+3294    esrep    esrep     internal_rwcmgr       192.168.105.10  client backend                idle      -            -             -           0.3          0.3          Client           ClientRead           SELECT n.node_id as nodeId, n.type as nodeType, n.upstrea...
+179417  esrep    esrep     internal_rwcmgr       192.168.105.10  client backend                idle      -            -             -           1.2          1.2          Client           ClientRead           SELECT pg_catalog.pg_is_in_recovery()
+759699  esrep    esrep     internal_rwcmgr       192.168.105.11  client backend                disabled  -            -             -           6.2          -            -                -                    
+784848  esrep    -         node2                 192.168.105.11  walsender                     active    -            -             -           -            2710.4       Activity         WalSenderMain        
+
+redacted: session.activity.state in 2 rows (track_activities_off)
+redacted: session.activity.state_age_s in 2 rows (track_activities_off)
+redacted: session.activity.wait_event_type in 2 rows (track_activities_off)
+redacted: session.activity.wait_event in 2 rows (track_activities_off)
+redacted: session.activity.query in 2 rows (track_activities_off)
+EXIT_CODE=3

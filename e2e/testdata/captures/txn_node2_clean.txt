@@ -1,0 +1,7 @@
+txn  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:41:53+08:00)
+
+session.activity: 0 rows
+pid  usename  datname  application_name  client_addr  backend_type  state  backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+
+txn.prepared: not_applicable  备库看不到主库的两阶段提交事务，请在主库上运行 kbdiag txn
+EXIT_CODE=0

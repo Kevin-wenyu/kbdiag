@@ -1,0 +1,45 @@
+{
+  "command": "slots",
+  "verdict": "OK",
+  "context": {
+    "version": "KingbaseES V008R006C009B0014",
+    "role": "primary",
+    "location": "remote",
+    "user": "kbdiag_ro",
+    "collected_at": "2026-09-26T19:40:56+08:00"
+  },
+  "data": {
+    "slot.list": {
+      "status": "ok",
+      "reason": null,
+      "columns": [
+        "slot_name",
+        "slot_type",
+        "active",
+        "active_pid",
+        "xmin",
+        "catalog_xmin",
+        "xmin_age",
+        "restart_lsn",
+        "retained_wal_bytes"
+      ],
+      "rows": [
+        [
+          "repmgr_slot_2",
+          "physical",
+          true,
+          784848,
+          6170,
+          null,
+          0,
+          "0/A41AF7B8",
+          0
+        ]
+      ],
+      "truncated": 0
+    }
+  },
+  "findings": [],
+  "redacted": []
+}
+EXIT_CODE=0

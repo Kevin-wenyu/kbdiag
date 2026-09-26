@@ -1,0 +1,16 @@
+txn  FAIL  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:41:17+08:00)
+
+[FAIL] txn.long  会话 801150 的事务已开了 16 秒，当前 idle in transaction
+  verify: kbdiag session 801150  # 看它在跑什么、持有哪些锁、有没有挡住别人
+
+[FAIL] txn.long  会话 801314 的事务已开了 13 秒，当前 active
+  verify: kbdiag session 801314  # 看它在跑什么、持有哪些锁、有没有挡住别人
+
+session.activity: 2 rows
+pid     usename  datname  application_name       client_addr  backend_type    state                backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event  query
+801150  system   test     kbdiag_inj_idle_txn    -            client backend  idle in transaction  6170         -             15.9        14.9         13.9         Client           ClientRead  select txid_current() as kbdiag_last, pg_sleep(1);
+801314  system   test     kbdiag_inj_long_query  -            client backend  active               -            6170          13.2        13.2         13.2         Timeout          PgSleep     select pg_sleep(3600);
+
+txn.prepared: 0 rows
+gid  owner  database  prepared_at  age_s  transaction
+EXIT_CODE=2

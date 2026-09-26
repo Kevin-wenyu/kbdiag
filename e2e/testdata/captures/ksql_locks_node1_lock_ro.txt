@@ -1,0 +1,11 @@
+   locktype    |    relation     | virtualxid | transactionid |  pid   |        mode         | granted | fastpath 
+---------------+-----------------+------------+---------------+--------+---------------------+---------+----------
+ transactionid |                 |            |          6172 | 803881 | ExclusiveLock       | t       | f
+ virtualxid    |                 | 11/2363    |               | 803881 | ExclusiveLock       | t       | t
+ relation      | kbdiag_inj_lock |            |               | 803881 | AccessExclusiveLock | t       | f
+ virtualxid    |                 | 10/38987   |               | 803890 | ExclusiveLock       | t       | t
+ relation      | kbdiag_inj_lock |            |               | 803890 | AccessShareLock     | f       | f
+ object        |                 |            |               | 806193 | RowExclusiveLock    | t       | f
+ virtualxid    |                 | 12/748     |               | 806193 | ExclusiveLock       | t       | t
+(7 rows)
+

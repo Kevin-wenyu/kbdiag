@@ -1,0 +1,11 @@
+sessions  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-26T19:44:02+08:00)
+
+session.activity: 6 rows
+pid     usename  datname  application_name  client_addr     backend_type       state  backend_xid  backend_xmin  xact_age_s  query_age_s  state_age_s  wait_event_type  wait_event         query
+6002    -        -        startup           -               startup            -      -            -             -           -            -            Activity         RecoveryWalAll     
+6006    -        -        check pointer     -               checkpointer       -      -            -             -           -            -            Activity         CheckpointerMain   
+6007    -        -        background flush  -               background writer  -      -            -             -           -            -            Activity         BgWriterHibernate  
+6019    esrep    esrep    internal_rwcmgr   192.168.105.11  client backend     idle   -            -             -           1.4          1.4          Client           ClientRead         SELECT n.node_id as nodeId, n.type as nodeType, n.upstrea...
+6069    esrep    esrep    internal_rwcmgr   192.168.105.11  client backend     idle   -            -             -           0.2          0.2          Client           ClientRead         SELECT n.node_id as nodeId, n.type as nodeType, n.upstrea...
+403597  -        -        walreceiver       -               walreceiver        -      -            -             -           -            -            Activity         WalReceiverMain    
+EXIT_CODE=0
