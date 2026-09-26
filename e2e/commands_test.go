@@ -248,6 +248,11 @@ func TestSession(t *testing.T) {
 		if got := findings(r, "lock.waiting", "waiter_pid", l.waiter); len(got) != 1 || r.Verdict != "WARN" || code != 1 {
 			t.Errorf("findings=%v verdict=%s exit=%d", got, r.Verdict, code)
 		}
+		out, _ := kbdiagText(t, nil, "session", strconv.Itoa(int(l.waiter)), "--lock-wait-warn", "1")
+		if !strings.Contains(out, fmt.Sprintf("\nsession %d\n", int(l.waiter))) || !strings.Contains(out, "\nwaiting for: 1\n") ||
+			!strings.Contains(out, "\nblocking: 0\n") || !strings.Contains(out, fmt.Sprintf("%s  %d\n", "", int(l.holder))) {
+			t.Errorf("waiter text lacks its header, its wait or its blocker %v:\n%s", l.holder, out)
+		}
 	})
 
 	t.Run("holder shows whom it blocks", func(t *testing.T) {
@@ -270,12 +275,27 @@ func TestSession(t *testing.T) {
 		if got := findings(r, "lock.waiting", "waiter_pid", l.waiter); len(got) != 1 {
 			t.Errorf("the blocked waiter is not flagged: %v", got)
 		}
+		self := fmt.Sprintf("kbdiag session %d", int(l.holder))
+		for _, f := range r.Findings {
+			for _, n := range f.Next {
+				if n.Command == self {
+					t.Errorf("finding %s sends the reader back to %s", f.ID, self)
+				}
+			}
+		}
+		out, _ := kbdiagText(t, nil, "session", strconv.Itoa(int(l.holder)), "--lock-wait-warn", "1")
+		if !strings.Contains(out, "\nblocking: 1\n") || textLine(out, fmt.Sprint(l.waiter)) == "" {
+			t.Errorf("holder text does not list waiter %v under blocking:\n%s", l.waiter, out)
+		}
 	})
 
 	t.Run("no such pid", func(t *testing.T) {
 		r, code := kbdiag(t, nil, "session", "2147483647")
 		if r.Verdict != "UNKNOWN" || code != 3 || len(r.Data[sessionProbe].Rows) != 0 || len(r.Data["lock.list"].Rows) != 0 {
 			t.Errorf("verdict=%s exit=%d data=%v", r.Verdict, code, r.Data)
+		}
+		if out, _ := kbdiagText(t, nil, "session", "2147483647"); !strings.Contains(out, "session 2147483647: not found") {
+			t.Errorf("text does not say the pid is not found:\n%s", out)
 		}
 	})
 }

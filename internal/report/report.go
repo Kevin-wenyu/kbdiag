@@ -20,6 +20,7 @@ type Report struct {
 	// text layouts that need more than Data; not part of JSON
 	sessions *sessionsView
 	locks    *locksView
+	session  *sessionView
 }
 
 type Context struct {

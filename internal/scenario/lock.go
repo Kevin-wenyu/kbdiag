@@ -1,6 +1,7 @@
 package scenario
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
@@ -37,11 +38,24 @@ func Session(c facts.Context, a facts.SessionActivity, l facts.LockList, o Sessi
 	if !found {
 		r = rule.Merge(r, rule.Result{Verdict: rule.VerdictUNKNOWN})
 	}
+	// The reader is already looking at this session: a next step pointing
+	// back at it says nothing.
+	self := fmt.Sprintf("kbdiag session %d", o.PID)
+	for i, f := range r.Findings {
+		var next []rule.Next
+		for _, n := range f.Next {
+			if n.Command != self {
+				next = append(next, n)
+			}
+		}
+		r.Findings[i].Next = next
+	}
 	rep = report.New("session", c, r)
 	rep.AddProbe(facts.SessionActivityID, act.Status, act.Reason, facts.SessionColumns, rows(act.Rows), 0)
 	rep.AddProbe(facts.LockListID, locks.Status, locks.Reason, facts.LockColumns, rows(locks.Rows), 0)
 	rep.AddRedacted(act.Redacted())
 	rep.AddRedacted(locks.Redacted())
+	rep.SetSession(o.PID, act, locks, found)
 	return rep, found
 }
 

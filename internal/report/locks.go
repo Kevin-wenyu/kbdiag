@@ -115,7 +115,7 @@ func (v *locksView) holds(b int32, wanted map[lockObject]bool) string {
 		if !mine || !wanted[objectOf(l)] {
 			continue
 		}
-		s := fitWidth(escapeControl(objectOf(l).label()), maxName) + " " + l.Mode
+		s := objectName(l) + " " + l.Mode
 		if seen[s] {
 			continue
 		}
@@ -158,10 +158,6 @@ func (v *locksView) writeWaiting(w io.Writer, waiting []facts.Lock) error {
 	}
 	rows := make([][]string, len(shown))
 	for i, l := range shown {
-		waited := "?" // masked, or untracked: the wait is unseen
-		if l.WaitS != nil {
-			waited = duration(*l.WaitS)
-		}
 		var by []string
 		for _, b := range l.Blockers() {
 			by = append(by, blockerName(b))
@@ -170,7 +166,7 @@ func (v *locksView) writeWaiting(w io.Writer, waiting []facts.Lock) error {
 		if len(by) > 0 {
 			blockedBy = strings.Join(by, ", ")
 		}
-		rows[i] = []string{fmt.Sprint(*l.PID), fitWidth(escapeControl(objectOf(l).label()), maxName), l.Mode, waited, blockedBy}
+		rows[i] = []string{fmt.Sprint(*l.PID), objectName(l), l.Mode, waited(l), blockedBy}
 	}
 	if err := writeTable(w, "  ", []string{"pid", "object", "wants", "waited", "blocked by"}, rows); err != nil {
 		return err

@@ -97,6 +97,16 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **挡路者去重**：`sys_blocking_pids()` 对每个挡路的 2PC 都报一个 0，并行查询时同一个 pid 也会出现多次；文本、finding 和 evidence 的 `blocker_pids` 都按 `Lock.Blockers()` 去重，JSON 的 `blocked_by` 保留原值。
 - **blocks 数的是进程**：并行查询的 worker 有自己的 pid 和锁行，一条等锁的并行查询会被算成几个；lock.list 没有 leader pid 可以归并，已知限制。
 
+### session \<pid\> 打磨（2026-09-26）
+
+场景表：P1 这个会话是谁（用户、库、应用、客户端、类型）；P2 在干什么、干了多久、完整 SQL；P3 在等什么锁、被谁挡住；P4 挡住了谁；P5 持有哪些锁。不归它：压着视界多严重 → `txn`；全局谁挡得最多 → `locks`；终止会话 → 不做（只读）。
+
+- **文本是键值块加 sql 块加三段**（waiting for / blocking / holds），段标题带数量；JSON 不变。sql 不截断、保留原来的换行：这是唯一能看到完整 SQL 的命令。idle 的会话标题写 `last sql`（那条语句已经结束），state 看不到或 untracked 时仍写 `sql`。
+- **看挡路者时 WARN 保留**（阶段 0 的发现）：`session <挡路者>` 带出等待者的 `lock.waiting`，它说的正是"这个会话挡住了别人 N 秒"，是挡路者自己的问题，所以保留 WARN（待用户确认）。
+- **指向自己的 next 去掉**：finding 的 next 如果是 `kbdiag session <当前 pid>`（挡路者看到的 lock.waiting、idle in transaction），读者已经在看它了；去掉后可以没有 next。
+- **holds 不列自己的 virtualxid 和 transactionid**，除非有人在等同类型的锁：每个事务都持有这两把，列出来只是噪声；xid 在上面的键值块里。
+- 参数不变（`--lock-wait-warn`、`--idle-in-txn-warn`），判定复用 sessions 和 locks 的规则。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

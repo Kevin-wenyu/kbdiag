@@ -3,9 +3,11 @@ package scenario
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -356,4 +358,81 @@ func TestLocksPileUp(t *testing.T) {
 	}
 	assertGolden(t, "locks_pileup", rep)
 	assertGolden(t, "locks_pileup_all", Locks(c, l, LocksOptions{Limit: 0, Thresholds: rule.Defaults}))
+}
+
+// The first seven goldens were drawn by hand from the stage-0 captures
+// before the code existed.
+func TestSessionText(t *testing.T) {
+	low := rule.Thresholds{LockWaitWarnS: 1, IdleInTxnWarnS: 1}
+	for _, x := range []struct {
+		golden, capture string
+		pid             int32
+		th              rule.Thresholds
+	}{
+		{"session_waiter", "session_node1_lock_waiter_lowthr", 803890, low},
+		{"session_holder", "session_node1_lock_holder", 803881, rule.Defaults},
+		{"session_idletxn", "session_node1_idletxn_lowthr", 801150, low},
+		{"session_ro", "session_node1_lock_waiter_ro", 803890, rule.Defaults},
+		{"session_standby", "session_node2_lock_waiter", 422855, rule.Defaults},
+		{"session_notfound", "session_node1_nosuchpid", 999999, rule.Defaults},
+		{"session_prepared_waiter", "session_node1_prepared_waiter", 807225, rule.Defaults},
+		{"session_untracked", "session_node1_untracked", 809073, rule.Defaults},
+	} {
+		t.Run(x.golden, func(t *testing.T) {
+			c := loadCapture(t, x.capture)
+			rep, _ := Session(c.context(t), c.sessionActivity(t), c.lockList(t), SessionOptions{PID: x.pid, Thresholds: x.th})
+			assertGolden(t, x.golden, rep)
+		})
+	}
+}
+
+// A finding about this very session must not send the reader to
+// "kbdiag session <this pid>": they are already looking at it.
+func TestSessionNextIsNotItself(t *testing.T) {
+	for _, x := range []struct {
+		capture string
+		pid     int32
+	}{{"session_node1_lock_holder", 803881}, {"session_node1_idletxn_lowthr", 801150}} {
+		c := loadCapture(t, x.capture)
+		rep, _ := Session(c.context(t), c.sessionActivity(t), c.lockList(t),
+			SessionOptions{PID: x.pid, Thresholds: rule.Thresholds{LockWaitWarnS: 1, IdleInTxnWarnS: 1}})
+		if len(rep.Findings) == 0 {
+			t.Fatalf("%s: no findings", x.capture)
+		}
+		for _, f := range rep.Findings {
+			for _, n := range f.Next {
+				if n.Command == fmt.Sprintf("kbdiag session %d", x.pid) {
+					t.Errorf("%s: finding %s points at itself", x.capture, f.ID)
+				}
+			}
+		}
+	}
+}
+
+// Edge cases: multi-line SQL with tabs and control characters, a long wide
+// application name, NULL everything, a skipped activity probe.
+func TestSessionTextEdges(t *testing.T) {
+	c, _ := locksCapture(t, "locks_node1_clean")
+	s := facts.Session{PID: 7, Usename: str("用户"), ApplicationName: str(strings.Repeat("报表", 30)), BackendType: str("client backend"),
+		State: str("active"), XactAgeS: f64(90061), QueryAgeS: f64(0), StateAgeS: f64(0), WaitEventType: str("IO"), WaitEvent: str("DataFileRead"),
+		Query: str("select *\r\n\tfrom t\n where x = '\x1b[2J'\n")}
+	a := facts.SessionActivity{Status: facts.StatusOK, Rows: []facts.Session{s}}
+	l := facts.LockList{Status: facts.StatusOK, Rows: []facts.Lock{
+		{PID: i32(7), Locktype: "relation", Relation: str("public.t"), Mode: "AccessShareLock", Granted: true},
+		{PID: i32(7), Locktype: "transactionid", Mode: "ExclusiveLock", Granted: true},
+		{PID: i32(8), Locktype: "transactionid", Mode: "ShareLock", WaitS: f64(3), BlockedBy: []int32{7}},
+		{PID: i32(9), Locktype: "relation", Relation: str("public.t"), Mode: "AccessExclusiveLock", Masked: true, BlockedBy: []int32{7}},
+	}}
+	rep, _ := Session(c, a, l, SessionOptions{PID: 7, Thresholds: rule.Defaults})
+	assertGolden(t, "session_edges", rep)
+
+	rep, found := Session(c, facts.SessionActivity{Status: facts.StatusSkipped, Reason: "track_activities=off"}, l, SessionOptions{PID: 7, Thresholds: rule.Defaults})
+	if !found {
+		t.Error("a skipped probe must not report the pid as missing")
+	}
+	assertGolden(t, "session_skipped", rep)
+
+	bare := facts.SessionActivity{Status: facts.StatusOK, Rows: []facts.Session{{PID: 7}}}
+	rep, _ = Session(c, bare, facts.LockList{Status: facts.StatusOK}, SessionOptions{PID: 7, Thresholds: rule.Defaults})
+	assertGolden(t, "session_bare", rep)
 }

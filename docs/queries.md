@@ -15,7 +15,7 @@
 | # | 命令 | probe_id | DS | SQL 出处 | 开关 | 备库行为 | 验证状态 |
 |---|---|---|---|---|---|---|---|
 | B1+D1 | `sessions`（D1 由默认列表吸收：只列不是 idle 的客户端会话） | `session.activity` | 04, 10, 11 | 自写，列按 KES V8R6 手册"动态性能视图 4.1 sys_stat_activity"核对（2026-09-23）；SQL 在 `internal/probe/session.go` | `track_activities`、`track_activity_query_size` | 正常 | 已验证 2026-09-23（`e2e/sessions_test.go`，node1 主库 + node2 备库） |
-| B2 | `session <pid>` | `session.activity`、`lock.list` | 05, 06 | 复用 B1 和 C1 的 SQL，在 `internal/scenario/lock.go` 里按 pid 过滤 | 同上 | 正常 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
+| B2 | `session <pid>` | `session.activity`、`lock.list` | 05, 06 | 复用 B1 和 C1 的 SQL，在 `internal/scenario/lock.go` 里按 pid 过滤；2026-09-26 打磨后文本改成键值加 waiting for / blocking / holds 三段，文本断言未在 VM 上跑 | 同上 | 正常 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
 | C1 | `locks` | `lock.list` | 05, 06, 07, 09 | 自写，`sys_locks` + `sys_blocking_pids()`；SQL 在 `internal/probe/lock.go` | — | 正常 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
 | B4 | `txn` | `session.activity`、`txn.prepared` | 04, 06, 18 | 自写，`sys_prepared_xacts`；SQL 在 `internal/probe/txn.go` | — | 2PC 部分 `not_applicable` | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |
 | E1 | `waits` | `wait.summary` | 05, 13 | 自写，`sys_stat_activity` 按等待事件和状态聚合；SQL 在 `internal/probe/wait.go` | `track_activities` | 正常 | 已验证 2026-09-24（`e2e/commands_test.go`，node1 主库 + node2 备库） |

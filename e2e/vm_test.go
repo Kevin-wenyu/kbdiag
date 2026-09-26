@@ -148,6 +148,10 @@ type report struct {
 			ProbeID string         `json:"probe_id"`
 			Fields  map[string]any `json:"fields"`
 		} `json:"evidence"`
+		Next []struct {
+			Kind    string `json:"kind"`
+			Command string `json:"command"`
+		} `json:"next"`
 	} `json:"findings"`
 	Redacted []struct {
 		ProbeID      string `json:"probe_id"`

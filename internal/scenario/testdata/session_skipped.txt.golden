@@ -1,0 +1,16 @@
+session  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-26T19:40:48+08:00)
+
+session.activity: skipped  (track_activities=off)
+
+waiting for: 0
+
+blocking: 2
+  pid  object         wants                waited
+  8    transactionid  ShareLock            3s
+  9    public.t       AccessExclusiveLock  ?
+
+holds: 2
+  object         mode
+  public.t       AccessShareLock
+  transactionid  ExclusiveLock
+redacted: 1 row of lock.list hides wait (insufficient_privilege; grant sys_monitor)
