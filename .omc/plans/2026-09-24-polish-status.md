@@ -64,4 +64,6 @@ alpha.1 刚发布，还没有外部使用者，所以一次性改完：
 ## 7. 进度
 
 - 2026-09-26（云会话）：实现和 L1/L2 完成，`go vet ./... && go test ./...` 全绿；PRD §4/§5.1、queries.md、engineering.md、README、CLAUDE.md 已同步；e2e 按新契约改写，只编译过（`go vet -tags vm ./e2e/`），没在 VM 上跑。详情见 `chronicle/2026-09-26.md`"status 打磨：实现"一节。
-- 下一步：回本地跑 node1/node2 的 e2e → Codex 审查 → VM 实跑输出贴给用户看 → 写 kbdiag-docs 的 status 页 → 删除本计划。
+- 2026-09-26（本地）：node1/node2 的 e2e 全绿（`-count=1`）。第一轮 `kbdiag_ro` 的 status 子测试失败，原因是预期照 PG 写的，而 KES 对无监控角色也露出复制视图，已改成按 VM 实测断言，产品代码没动。两节点 status 实跑输出和草样一致。详情见 `chronicle/2026-09-26.md`"本地 VM e2e 和实跑输出"一节。
+- 下一步：Codex 审查 → 用户看 VM 输出 → 写 kbdiag-docs 的 status 页 → 合进 main（等用户确认）→ 删除本计划。
+- 待用户决定：暂停的 walreceiver 要不要拿 `wal_receiver_timeout` 当客观线；`inst.upstream` 的 WARN 暂时没有注入方法（只记录）。

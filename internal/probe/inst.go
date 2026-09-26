@@ -45,8 +45,8 @@ order by datname`
 // KES notes:
 //   - sync_state is kept raw: with repmgr the lab reports quorum, not sync/async
 //   - host() drops the /32 that inet::text would add
-//   - without sys_monitor only application_name is visible (PG behavior;
-//     not yet checked with kbdiag_ro on the VM)
+//   - unlike PG, a user without sys_monitor sees every column (kbdiag_ro,
+//     2026-09-26); NULL state/sync_state is still handled as masked
 const instDownstreamsSQL = `
 select application_name::text, host(client_addr), state::text, sync_state::text
 from sys_stat_replication
@@ -59,8 +59,8 @@ order by application_name, pid`
 // KES notes:
 //   - pg_is_wal_receiver_up() does not exist; the status column is the answer
 //   - the view names no repmgr node, only sender_host:sender_port
-//   - without sys_monitor the row is there but every column is NULL (PG
-//     behavior; not yet checked with kbdiag_ro on the VM)
+//   - unlike PG, a user without sys_monitor sees every column (kbdiag_ro,
+//     2026-09-26); a row of NULLs is still handled as masked
 const instUpstreamSQL = `
 select status::text, sender_host::text, sender_port, slot_name::text,
        round(extract(epoch from now() - last_msg_receipt_time)::numeric, 1)::float8

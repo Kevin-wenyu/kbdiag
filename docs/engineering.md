@@ -72,7 +72,7 @@ Go 1.27.1 + pgx v5.11.0，linux/amd64 静态二进制 14MB，在 kes-node1 以 k
 
 **权限与备库**：
 
-- `kbdiag_ro` 不授监控角色时查看别人的会话：`query` 返回 `<insufficient privilege>`；state、wait_event_type/wait_event、backend_start/xact_start/query_start、client_addr/client_port、backend_type 都返回 NULL。usename、datname、application_name、backend_xid、backend_xmin 可见（1.1 用 kbdiag_ro 复测更正：0.2 曾记成 backend_xid 也被遮蔽，1.2 的 L5 测试已断言它可见）。`sys_locks`、`sys_replication_slots`、`sys_stat_replication`、`sys_prepared_xacts`、`pg_database_size`、`current_setting('data_directory')` 都能正常读。
+- `kbdiag_ro` 不授监控角色时查看别人的会话：`query` 返回 `<insufficient privilege>`；state、wait_event_type/wait_event、backend_start/xact_start/query_start、client_addr/client_port、backend_type 都返回 NULL。usename、datname、application_name、backend_xid、backend_xmin 可见（1.1 用 kbdiag_ro 复测更正：0.2 曾记成 backend_xid 也被遮蔽，1.2 的 L5 测试已断言它可见）。`sys_locks`、`sys_replication_slots`、`sys_stat_replication`（含 state/sync_state，和 PG 不同）、`sys_stat_wal_receiver`（2026-09-26 在备库实测，全部列可见，和 PG 不同）、`sys_prepared_xacts`、`pg_database_size`、`current_setting('data_directory')` 都能正常读。
 - `sys_monitor` 存在（`pg_monitor` 也在），可以 GRANT，授予后上面这些列全部可见，`sys_blocking_pids()` 也正常。
 - 备库：`sys_replication_slots` 可查；`sys_current_wal_lsn()` **报错**（recovery is progressing），计算 WAL 保留量要按角色改用 `sys_last_wal_replay_lsn()`；主库上的 2PC 事务在备库的 `sys_prepared_xacts` 里**查不到**。
 - 可用的函数名：`sys_is_in_recovery`、`sys_postmaster_start_time`、`sys_blocking_pids`、`sys_current_wal_lsn`、`sys_wal_lsn_diff`、`sys_last_wal_replay_lsn`（对应的 `pg_` 版本同样存在）。

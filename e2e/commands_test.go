@@ -590,28 +590,40 @@ func TestNonMonitorUser(t *testing.T) {
 		}
 	})
 
-	// Expected from PG behavior, not yet seen on KES: without sys_monitor
-	// sys_stat_replication shows only application_name, sys_stat_wal_receiver
-	// a row of NULLs, and data_directory may be hidden. Only the upstream
-	// status is judged, so only the standby turns UNKNOWN.
+	// Unlike PG, KES V8R6 (V008R006C009B0014) shows a user without any
+	// monitoring role all of sys_stat_replication, sys_stat_wal_receiver and
+	// data_directory (seen 2026-09-26 on both nodes), while other sessions'
+	// SQL stays masked. So nothing in status is redacted and the verdict is
+	// the same as for system.
 	t.Run("status", func(t *testing.T) {
 		r, code := kbdiag(t, env, append([]string{"status"}, ro...)...)
-		for _, id := range []string{"inst.info", "inst.databases", "inst.downstreams"} {
+		for _, id := range []string{"inst.info", "inst.databases", "inst.downstreams", "inst.disk"} {
 			if p := r.Data[id]; p.Status != "ok" {
 				t.Errorf("%s status=%s reason=%v", id, p.Status, p.Reason)
 			}
 		}
-		if p := r.Data["inst.disk"]; p.Status != "ok" && p.Status != "skipped" {
-			t.Errorf("inst.disk status=%s reason=%v, want ok or skipped over loopback", p.Status, p.Reason)
+		up, wantUp := r.Data["inst.upstream"], "not_applicable"
+		if role == "standby" {
+			wantUp = "ok"
+		}
+		if up.Status != wantUp {
+			t.Errorf("inst.upstream status=%s reason=%v, want %s", up.Status, up.Reason, wantUp)
+		}
+		for _, x := range up.rowsOf() {
+			if x["status"] != "streaming" {
+				t.Errorf("inst.upstream status column = %v, want streaming", x["status"])
+			}
+		}
+		for _, x := range r.Data["inst.downstreams"].rowsOf() {
+			if x["state"] == nil || x["sync_state"] == nil {
+				t.Errorf("downstream %v hidden from kbdiag_ro", x)
+			}
 		}
 		var fields []string
 		for _, x := range r.Redacted {
 			fields = append(fields, x.ProbeID+"."+x.Field)
 		}
-		wantVerdict, wantCode, wantFields := "OK", 0, []string{"inst.downstreams.state", "inst.downstreams.sync_state"}
-		if role == "standby" {
-			wantVerdict, wantCode, wantFields = "UNKNOWN", 3, []string{"inst.upstream.status"}
-		}
+		wantVerdict, wantCode, wantFields := "OK", 0, []string(nil)
 		if r.Context.User != "kbdiag_ro" || r.Verdict != wantVerdict || code != wantCode || !reflect.DeepEqual(fields, wantFields) {
 			t.Errorf("context=%+v verdict=%s exit=%d redacted=%v, want %s/%d %v", r.Context, r.Verdict, code, fields, wantVerdict, wantCode, wantFields)
 		}

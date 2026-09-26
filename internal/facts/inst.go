@@ -73,8 +73,9 @@ func (d InstDatabases) Redacted() []Redaction {
 	return []Redaction{{ProbeID: InstDatabasesID, Field: "size_bytes", Reason: ReasonInsufficientPrivilege, RowsAffected: n}}
 }
 
-// Downstream is one walsender row of sys_stat_replication. Without
-// sys_monitor KES only shows the application name; the rest is NULL.
+// Downstream is one walsender row of sys_stat_replication. PG shows a user
+// without sys_monitor only the application name; KES V8R6 shows everything,
+// but the NULL case is kept.
 type Downstream struct {
 	ApplicationName *string // '' reads as NULL in Oracle mode
 	ClientAddr      *string // NULL for a Unix socket, or masked
@@ -109,8 +110,9 @@ func (d InstDownstreams) Redacted() []Redaction {
 	}
 }
 
-// Upstream is the WAL receiver row of sys_stat_wal_receiver. Without
-// sys_monitor KES shows the row but every column is NULL.
+// Upstream is the WAL receiver row of sys_stat_wal_receiver. PG shows a user
+// without sys_monitor the row with every column NULL; KES V8R6 shows
+// everything, but the NULL case is kept.
 type Upstream struct {
 	Status      *string
 	SenderHost  *string
