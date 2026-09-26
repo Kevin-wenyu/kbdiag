@@ -212,3 +212,42 @@ func TestEscapeFormatCharacters(t *testing.T) {
 		t.Errorf("finding text reaches the terminal raw: %q", out)
 	}
 }
+
+// Whatever the cells hold, the table never panics, every line has the same
+// indent, and nothing raw from a hostile cell reaches the terminal.
+func FuzzWriteTable(f *testing.F) {
+	f.Add("a", "用户", "\x1b[2J", "‮")
+	f.Add("", "", "", "")
+	f.Add(strings.Repeat("长", 100), "\t", "\n", "é")
+	f.Fuzz(func(t *testing.T, a, b, c, d string) {
+		var buf bytes.Buffer
+		cells := []string{fitWidth(escapeControl(a), maxName), escapeControl(b), escapeControl(c), escapeControl(d)}
+		if err := writeTable(&buf, "  ", []string{"h1", "h2", "h3", "h4"}, [][]string{cells, cells}); err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(strings.TrimSuffix(buf.String(), "\n"), "\n")
+		if len(lines) != 3 {
+			t.Fatalf("%d lines: %q", len(lines), buf.String())
+		}
+		for _, l := range lines {
+			// a row of empty cells is trimmed to nothing, which is fine
+			if (l != "" && !strings.HasPrefix(l, "  ")) || strings.IndexFunc(l, hostile) >= 0 {
+				t.Errorf("line %q", l)
+			}
+		}
+		if displayWidth(cells[0]) > maxName {
+			t.Errorf("name cell %q wider than %d", cells[0], maxName)
+		}
+	})
+}
+
+func FuzzEscapeControl(f *testing.F) {
+	f.Add("select 1")
+	f.Add("\x1b]0;title\x07")
+	f.Add("a b‮")
+	f.Fuzz(func(t *testing.T, s string) {
+		if out := escapeControl(s); strings.IndexFunc(out, hostile) >= 0 {
+			t.Errorf("escapeControl(%q) = %q", s, out)
+		}
+	})
+}

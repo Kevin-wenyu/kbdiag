@@ -201,3 +201,4 @@ redacted: 12 rows of session.activity hide state, backend_type, client_addr, age
   - status 的 `inst.connections` 下一步从 `kbdiag sessions --limit 0` 改成 `kbdiag sessions`：汇总已经回答了"谁占的"
   - slots 的下一步从"备库上看 sessions 里有没有 walreceiver"改成 `kbdiag status`：walreceiver 是后台进程，默认不再列出；status 的 `inst.upstream` 本来就回答这个问题
 - 要同步的文档：PRD §4 表和 §5.1 sessions 示例、queries.md（开关列）、README、CLAUDE.md 的 sessions 输出形态一节、kbdiag-docs 的 sessions 页（代码进 main 之后）
+- 2026-09-26：**阶段 1–8 完成（云会话）**，分支 `main-drp6oc`，每条命令一次实现提交加一次审查修正提交，阶段 7、8 各一次；L1/L2 全绿，e2e 只编译过。VM 核对表、需要拍板的 8 点、alpha.2 发布说明草稿都在 chronicle 同日"加固、VM 核对表、发布说明草稿"一节。下一步阶段 9（本地）

@@ -1,6 +1,9 @@
 package units
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Bytes agrees with pg_size_pretty, including where it switches units.
 func TestBytes(t *testing.T) {
@@ -34,4 +37,28 @@ func TestDuration(t *testing.T) {
 			t.Errorf("Duration(%v) = %q, want %q", c.in, got, c.want)
 		}
 	}
+}
+
+// Any input formats without panicking, and the result keeps its shape.
+func FuzzBytes(f *testing.F) {
+	for _, v := range []float64{0, -1, 10239, 10240, 1 << 60, 1e300, -1e300} {
+		f.Add(v)
+	}
+	f.Fuzz(func(t *testing.T, v float64) {
+		s := Bytes(v)
+		if s == "" || !strings.Contains(s, " ") {
+			t.Errorf("Bytes(%v) = %q", v, s)
+		}
+	})
+}
+
+func FuzzDuration(f *testing.F) {
+	for _, v := range []float64{0, -1, 0.5, 59.5, 86400, 1e12, -1e12} {
+		f.Add(v)
+	}
+	f.Fuzz(func(t *testing.T, v float64) {
+		if s := Duration(v); s == "" || strings.HasPrefix(s, "-") {
+			t.Errorf("Duration(%v) = %q", v, s)
+		}
+	})
 }
