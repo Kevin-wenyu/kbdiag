@@ -38,7 +38,7 @@ func (r *Report) writeStatus(w io.Writer) error {
 		case "inst.upstream":
 			err = writeUpstream(w, p)
 		case "inst.databases":
-			err = writeDatabases(w, p)
+			err = writeDatabases(w, p, "inst.databases")
 		case "inst.disk":
 			err = writeDisk(w, p)
 		}
@@ -107,7 +107,7 @@ func writeUpstream(w io.Writer, p Probe) error {
 }
 
 // writeDatabases lists the largest first; sizes we may not read go last.
-func writeDatabases(w io.Writer, p Probe) error {
+func writeDatabases(w io.Writer, p Probe, title string) error {
 	type db struct {
 		name string
 		size float64
@@ -135,7 +135,7 @@ func writeDatabases(w io.Writer, p Probe) error {
 		}
 		return a.name < b.name
 	})
-	fmt.Fprintf(w, "\ninst.databases: %d", len(dbs))
+	fmt.Fprintf(w, "\n%s: %d", title, len(dbs))
 	if len(dbs) > hidden {
 		fmt.Fprintf(w, ", total %s", size(total))
 	}

@@ -41,7 +41,7 @@
 
 **v0.1 用扁平命令**（2026-09-23 定）：`kbdiag <命令> [flags]`，如 `sessions`、`locks`、`txn`。v0.1 只有 7 条单次查询命令，两级分组还用不上。下面的"场景族 + 问题"两级模型是草案，v0.2 起再评估要不要改成它。
 
-**v0.1 命令清单**（条目以 `docs/queries.md` 的"版本"列为准，这里写各命令的边界）：
+**v0.1 命令清单**（v0.2 的命令接在表尾，标了（v0.2）；条目以 `docs/queries.md` 的"版本"列为准，这里写各命令的边界）：
 
 | 命令 | 回答的问题 | probe_id | 备库上的行为 |
 |---|---|---|---|
@@ -52,6 +52,7 @@
 | `waits` | 此刻在干活的会话在等什么（按等待事件和状态汇总，人多的在前）；idle 会话、空闲的后台进程（`Activity` 类等待）、在跑但没有等待事件的后台进程和看不到状态的会话只计数；后台进程卡在真正的等待上照样列出。没有判定，看不全时 UNKNOWN；JSON 不变 | `wait.summary` | 正常 |
 | `status` | 刚登上实例时的基本盘：身份（短版本号、数据目录、端口）、角色和复制（主库列出每个备库，备库看上游在不在收 WAL）、启动时间、连接数/可用数、各库大小、数据目录所在磁盘。只判两条：普通用户已经连不上（`inst.connections` FAIL），备库没在收 WAL（`inst.upstream` WARN）；没有参数 | `inst.info`、`inst.downstreams`、`inst.upstream`、`inst.databases`、`inst.disk` | 主库上 `inst.upstream` 为 `not_applicable`；远程运行时 `inst.disk` 为 `not_applicable` |
 | `slots` | 复制槽是否活跃、保留多少 WAL、xmin（逻辑槽的 catalog_xmin）是否压着视界；不活跃的排前面、保留 WAL 多的排前面；不活跃报 WARN（2026-09-26 起不再 FAIL）；JSON 除 evidence 加了 `catalog_xmin` 外不变 | `slot.list` | 正常；WAL 保留量改用 `sys_last_wal_replay_lsn()` 计算 |
+| `space`（v0.2） | 空间账：数据目录、`sys_wal`、各表空间目录所在的文件系统（同一文件系统合并成一行，本机运行才有）；WAL 目录的文件数和大小，对照 `max_wal_size` 和 `wal_keep_segments`，超出两者时指向 slots、archive；各库大小；各表空间位置和大小。只展示，不判；有 probe 没采到或大小看不到时 UNKNOWN | `space.disk`、`space.wal`、`inst.databases`、`space.tablespaces` | 正常；远程运行时 `space.disk` 为 `not_applicable` |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
 
@@ -104,7 +105,7 @@ Report
 **data（命令的主体）**
 - 列表命令的主体放在 `data` 里；findings 只放被阈值标出的行，不重复整张表。
 - 键是 probe_id，格式 `<域>.<对象>`（如 `session.activity`、`lock.list`、`txn.prepared`、`slot.list`、`inst.info`、`inst.downstreams`），和 finding.id 共用域前缀，不带命令名。每个 probe_id 登记在 `docs/queries.md` 的追溯表里。
-- 一个 probe 就是一条 SQL（唯一的例外是 `inst.disk`，它对数据目录做 statfs，只在本机运行时有）；**列名属于契约**，同一个 probe_id 在所有命令里列相同，命令只决定过滤哪些行。
+- 一个 probe 就是一条 SQL（例外是 `inst.disk` 和 v0.2 的 `space.disk`，它们对目录做 statfs，只在本机运行时有）；**列名属于契约**，同一个 probe_id 在所有命令里列相同，命令只决定过滤哪些行。
 - `rows` 是和 `columns` 对齐的数组；时长一律是秒（`*_s`），大小一律是字节（`*_bytes`），时间是带时区的 ISO 8601。
 - `truncated` 是没显示的行数（修 GAP-4），0 表示没截断。
 - `status`：
@@ -458,6 +459,19 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
   "redacted": []
 }
 ```
+
+### 5.2 v0.2 各命令的列契约
+
+v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登记 probe 的列和 finding 的 evidence 字段，是契约；golden 和 e2e 只能依赖这里登记过的字段。
+
+| probe_id | 命令 | columns |
+|---|---|---|
+| `space.disk` | space | `path_kind`（data_directory / wal / tablespace）、`path`、`total_bytes`、`used_bytes`、`avail_bytes` |
+| `space.wal` | space | `files`、`bytes`、`max_wal_size_bytes`、`wal_keep_bytes`、`wal_segment_bytes` |
+| `space.tablespaces` | space | `spcname`、`location`（默认表空间为空串）、`size_bytes`（看不到时 NULL，记 `redacted[]`） |
+
+| finding.id | 级别 | 命令 | evidence 字段 |
+|---|---|---|---|
 
 ## 6. 功能性需求（MVP 以外的按版本排）
 

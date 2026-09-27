@@ -33,3 +33,15 @@ func Slots(c facts.Context, l facts.SlotList) *report.Report {
 	rep.SetSlots(l)
 	return rep
 }
+
+func Space(c facts.Context, d facts.InstDatabases, t facts.SpaceTablespaces, w facts.SpaceWAL, disk facts.SpaceDisk) *report.Report {
+	rep := report.New("space", c, rule.Space(d, t, w, disk))
+	rep.AddProbe(facts.SpaceDiskID, disk.Status, disk.Reason, facts.SpaceDiskColumns, rows(disk.Rows), 0)
+	rep.AddProbe(facts.SpaceWALID, w.Status, w.Reason, facts.WALColumns, rows(w.Rows), 0)
+	rep.AddProbe(facts.InstDatabasesID, d.Status, d.Reason, facts.DatabaseColumns, rows(d.Rows), 0)
+	rep.AddProbe(facts.SpaceTablespacesID, t.Status, t.Reason, facts.TablespaceColumns, rows(t.Rows), 0)
+	rep.AddRedacted(d.Redacted())
+	rep.AddRedacted(t.Redacted())
+	rep.SetSpace(disk)
+	return rep
+}

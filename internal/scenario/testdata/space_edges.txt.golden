@@ -1,0 +1,18 @@
+space  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+disk: 3 filesystems
+  holds                                      used     size     free     use
+  data_directory, tablespace /ts/\x1b[2Jone  3071 GB  3072 GB  1024 MB  100%
+  wal                                        99 GB    100 GB   0 bytes  100%
+  tablespace /ts/two                         0 bytes  0 bytes  0 bytes  -
+
+wal: 1 file, 5120 MB
+  max_wal_size       1024 MB
+  wal_keep_segments  0 bytes  (0 x 16 MB)
+  more than max_wal_size plus wal_keep_segments: see kbdiag slots (replication slots), kbdiag archive (failed archiving)
+
+databases: 0
+
+tablespaces: 1
+  name  location  size
+  two   /ts/two   0 bytes

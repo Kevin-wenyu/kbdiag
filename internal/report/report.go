@@ -24,6 +24,7 @@ type Report struct {
 	txn      *txnView
 	waits    *waitsView
 	slots    *slotsView
+	space    *spaceView
 }
 
 type Context struct {

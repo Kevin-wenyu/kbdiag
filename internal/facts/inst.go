@@ -152,6 +152,7 @@ type Disk struct {
 	TotalBytes uint64
 	UsedBytes  uint64
 	AvailBytes uint64
+	FSID       string // the device (st_dev): tells filesystems apart; not in the JSON
 }
 
 func (d Disk) Row() []any { return []any{d.TotalBytes, d.UsedBytes, d.AvailBytes} }

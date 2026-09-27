@@ -94,7 +94,8 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 	pf.DurationVar(&g.cfg.QueryTimeout, "timeout", 10*time.Second, "statement timeout for each query")
 	pf.BoolVar(&g.json, "json", false, "print the report as JSON")
 	root.AddCommand(newSessions(g, stdout), newSession(g, stdout, stderr), newLocks(g, stdout),
-		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout))
+		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
+		newSpace(g, stdout))
 	return root
 }
 
@@ -239,6 +240,22 @@ func newSlots(g *globalFlags, stdout io.Writer) *cobra.Command {
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
 				return scenario.Slots(info, probe.SlotList(ctx, x))
+			})
+		},
+	}
+}
+
+func newSpace(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "space",
+		Short: "Show where the space goes: filesystems, WAL, databases, tablespaces",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				t := probe.SpaceTablespaces(ctx, x)
+				disk := probe.SpaceDisk(probe.InstInfo(ctx, x), t, g.cfg.Local(), g.cfg.Loopback())
+				return scenario.Space(info, probe.InstDatabases(ctx, x), t, probe.SpaceWAL(ctx, x), disk)
 			})
 		},
 	}

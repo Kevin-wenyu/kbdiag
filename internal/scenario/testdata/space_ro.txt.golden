@@ -1,0 +1,19 @@
+space  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-27T21:20:09+08:00)
+
+disk: not_applicable  (remote connection)
+
+wal: skipped  (insufficient_privilege 42501: permission denied for function sys_ls_waldir)
+
+databases: 5, total 382 MB
+  test      325 MB
+  esrep      15 MB
+  mydb       14 MB
+  kingbase   14 MB
+  security   14 MB
+
+tablespaces: 3
+  name         location             size
+  sys_default  (in data_directory)  411 MB
+  sys_global   (in data_directory)  ?
+  sysaudit     (in data_directory)  ?
+redacted: 2 rows of space.tablespaces hide size_bytes (insufficient_privilege; grant sys_monitor)

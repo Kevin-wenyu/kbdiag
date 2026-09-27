@@ -81,7 +81,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **只判两条，没有参数**：FAIL 只给"普通用户已经连不上"（已用 ≥ 可用），WARN 只给"备库没在收 WAL"（没有接收进程，或状态不是 `streaming`）。80% 的 WARN 和 `--conn-warn`/`--conn-fail` 删掉：多少算快满因应用而异，没有客观线；没人会调的阈值不做成参数。
 - **`last_msg_age_s` 只展示不判**：空闲的主库每 `wal_receiver_status_interval`（默认 10s）才发一条，实测 8 秒前是正常值。代价是 walreceiver 被暂停（SIGSTOP）时状态仍是 `streaming`，status 不报；要判就得定一条客观线（比如超过 `wal_receiver_timeout`），留给以后。
 - **`inst.upstream` 的 WARN 没在 KES 上验证就合并**（用户 2026-09-26 定）：能可靠造出"备库没在收 WAL"的办法都要动 sudo 或集群网络，比如改 `primary_conninfo` 要重启、会被 kbha 拉起，在主库上杀 walsender 后 5 秒就重连。判定本身只是"查询没返回行"和一次字符串比较，L1/L2 已经覆盖。等 slots 或复制延迟打磨需要复制中断注入时再补 L4。文档页如实写明这条 finding 是从源码摘的，不是实采。
-- **`inst.disk` 是"一个 probe 一条 SQL"的唯一例外**：KES 没有查磁盘剩余空间的函数，而磁盘满是库挂掉最常见的原因之一，status 又是第一个跑的命令，所以直接对 `data_directory` 做 statfs。只有确定跑在数据库主机上才读：走 socket，或者 host 是 localhost/127.0.0.1/::1 并且目录在本机能 stat（端口可能被转发到别的机器，所以只看 host 不够）；否则 `not_applicable`。它只展示、不参与 verdict，所以没读到也不会让结论变成 UNKNOWN。
+- **`inst.disk` 是"一个 probe 一条 SQL"的例外**（v0.2 起还有 `space.disk`，见 space 小节）：KES 没有查磁盘剩余空间的函数，而磁盘满是库挂掉最常见的原因之一，status 又是第一个跑的命令，所以直接对 `data_directory` 做 statfs。只有确定跑在数据库主机上才读：走 socket，或者 host 是 localhost/127.0.0.1/::1 并且目录在本机能 stat（端口可能被转发到别的机器，所以只看 host 不够）；否则 `not_applicable`。它只展示、不参与 verdict，所以没读到也不会让结论变成 UNKNOWN。
 - **`inst.upstream` 在主库上由 probe 自己报 `not_applicable`**：和备库上的 2PC 一样，是"能不能采"，不是业务判断。
 - **downstreams 的 `sync_state` 不翻译**：repmgr 下实测是 `quorum`，不是 `sync`/`async`，翻译会丢信息。
 - **status 有专用的文本排版**（`internal/report/status.go`）：单行数据用键值、大小按 1024 进位（和 `pg_size_pretty` 一致）、时长留两个最大单位、各段按问题的先后排（备库上游在前，主库下游在前）。JSON 不变形，保留字节和秒。后面 6 条命令打磨时照这个模板。
@@ -141,6 +141,24 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **逻辑槽的 catalog_xmin 写进 symptom 和 evidence**：它压着系统表的 vacuum。实验环境 wal_level=replica，建不了逻辑槽，只有 L1/L2。catalog xmin 列只在有槽带它时出现。
 - **next 说"到这个槽的下游节点上运行"**：备库上也可以有槽（级联），原来的"在备库上运行"对它不对。
 - 文本按不活跃在前、保留 WAL 多的在前排；JSON 行仍按槽名排。
+
+### v0.2 共用约定（2026-09-27）
+
+计划附录 B 的场景表是来源；下面各节只写每条命令的"为什么"。
+
+- **纯展示的命令**（没有判定的：space、top-objects、top 等）任何一个 probe 没采到、或有列看不到，verdict 就是 UNKNOWN（`rule.Display`）：OK 只表示"都采到了"，不表示数值好。有判定的命令照旧，只有判定的输入没采到才 UNKNOWN，只展示的 probe（像 `inst.disk`）不影响。
+- 新命令的列表默认 20 行；列契约登记在 PRD §5.2（不再逐条写 JSON 示例）。
+- 云会话写的部分只过了 L1/L2，VM 验证在计划的阶段 13。
+
+### space（2026-09-27）
+
+场景表见计划附录 B.1。
+
+- **只展示，不判**：剩多少算少因库而异。"可用空间不够一个 WAL 段"是候选的 FAIL 客观线，列为拍板点，没做。
+- **`space.disk` 是第二个 statfs 例外**：space 的问题就是"哪块盘在满"，而 `sys_wal` 常是指向另一块盘的符号链接，表空间也可以在别的盘上；只看数据目录（`inst.disk`）答不了。按目录的设备号（`st_dev`，跟随符号链接；statfs 的 fsid 在有些文件系统上是 0，靠不住）把同一文件系统上的目录合成一行；本机判断和 `inst.disk` 完全相同（复用它）。
+- **表空间大小按权限用 CASE 包住**：kbdiag_ro 调 `pg_tablespace_size(sys_global)` 会让整条 SQL 失败（阶段 0 实采），包住之后看不到的只是 NULL，记 `redacted[]`。
+- **WAL 只给参照，不下结论**：超过 `max_wal_size` 加 `wal_keep_segments × wal_segment_size` 时（PG12 的保留量大约是这两者加上最近检查点以来的 WAL，只超过其中一个是常态），文本提示去看 slots、archive；`max_wal_size` 是软上限，超出不等于故障。kbdiag_ro 调不了 `sys_ls_waldir`，这一块是 skipped，所以 kbdiag_ro 下 space 是 UNKNOWN。
+- 库大小复用 `inst.databases`（同一 probe、同样的列），文本和 status 共用 `writeDatabases`。
 
 ### 三层深度（看 / 查 / 断）
 
