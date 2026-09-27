@@ -1,6 +1,6 @@
 # kbdiag 2.0 工程方案
 
-状态: active | 最后核对: 2026-09-26
+状态: active | 最后核对: 2026-09-27
 
 **职责**：选型、架构、工程约定、测试分层、故障注入手段、运行命令。需求和契约看 `docs/PRD.md`，查询条目和验证状态看 `docs/queries.md`。
 
@@ -241,6 +241,8 @@ KB_TEST_NODE=kes-node1 e2e/inject/<名>.sh up|down     # 参数错误 exit 64
 | `KB_TEST_NODE=kes-node1 go test -tags vm ./e2e/...` | L3 + L4 + L5（主库视角）                   | 每个功能切片完成时 |
 | `KB_TEST_NODE=kes-node2 go test -tags vm ./e2e/...` | 同上（备库视角）                             | 同上        |
 | GitHub Actions                                      | 只跑 L1 + L2 和文档数检查（CI 里没有 KingbaseES） | push 时    |
+
+**备库视角跑要动主库的注入**（`slot.sh`，status 的 stuck walreceiver 子测试）：脚本的主库部分跑在 `KB_PRIMARY_NODE`（默认 kes-node1），本节点当备库。switchover 后 node2 是主库时，在 node1 上跑要设 `KB_PRIMARY_NODE=kes-node2`，否则主备会是同一台。
 
 **Mac 不能休眠**：Mac 一休眠 VM 就跟着挂起，醒来时 VM 时钟前跳，`wait_for` 提前超时、`now()-state_change` 失真，测试会随机失败（2026-09-24 实测）。无人值守跑时用 `caffeinate -dimsu go test ...` 包起来。
 

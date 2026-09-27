@@ -2,6 +2,7 @@ package rule
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
@@ -22,9 +23,10 @@ func Display(hidden bool, sts ...facts.Status) Result {
 
 // Space shows the space account and judges one line (user 2026-09-27): a
 // filesystem holding data_directory or the WAL directory with less free
-// space than one WAL segment is FAIL. Writes that need new space already
-// fail there (a table cannot grow), and once no old segment is left to
-// reuse, the next WAL segment cannot be created and the server stops.
+// space than one WAL segment is FAIL. On the WAL filesystem the server can
+// no longer create a segment, only reuse old ones, and stops when they run
+// out; on the data filesystem tables, SLRU files and temp files are about
+// to fail with ERROR (the server keeps running).
 // Everything else is shown only: how much is too little otherwise depends
 // on the database. A full tablespace disk stops writes to its tables, not
 // the server, so it is shown only. The segment size comes from space.wal,
@@ -65,11 +67,18 @@ func Space(d facts.InstDatabases, t facts.SpaceTablespaces, w facts.SpaceWAL, di
 		if seg <= 0 || f.d.AvailBytes >= uint64(seg) {
 			continue
 		}
+		var harm []string
+		if slices.Contains(f.kinds, "data_directory") {
+			harm = append(harm, "tables, transaction status files and temp files are about to fail to grow")
+		}
+		if slices.Contains(f.kinds, "wal") {
+			harm = append(harm, "a new WAL segment cannot be created, so the server stops once no old segment is left to reuse")
+		}
 		fs = append(fs, Finding{
 			ID:    "space.disk_full",
 			Level: LevelFAIL,
-			Symptom: fmt.Sprintf("the filesystem holding %s has %s free, less than one WAL segment (%s): writes that need new space fail (a table cannot grow), and once no old segment is left to reuse, the server stops at the next WAL segment",
-				strings.Join(f.kinds, " and "), units.Bytes(float64(f.d.AvailBytes)), units.Bytes(float64(seg))),
+			Symptom: fmt.Sprintf("the filesystem holding %s has %s free, less than one WAL segment (%s): %s",
+				strings.Join(f.kinds, " and "), units.Bytes(float64(f.d.AvailBytes)), units.Bytes(float64(seg)), strings.Join(harm, "; ")),
 			Evidence: []Evidence{{ProbeID: facts.SpaceDiskID, Fields: map[string]any{
 				"paths": f.paths, "avail_bytes": f.d.AvailBytes, "total_bytes": f.d.TotalBytes, "wal_segment_bytes": seg,
 			}}},

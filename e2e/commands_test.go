@@ -541,8 +541,9 @@ from sys_stat_replication`)
 		if age, ok := u[0]["last_msg_age_s"].(float64); !ok || age < 0 || age > 60 {
 			t.Errorf("last_msg_age_s = %v", u[0]["last_msg_age_s"])
 		}
-		// the setting, converted by its unit (30000 ms in the lab)
-		wantTimeout := ksql(t, "select extract(epoch from current_setting('wal_receiver_timeout')::interval)::int")
+		// the setting, converted by its unit (30000 ms in the lab); no row
+		// if the unit is not ms, which fails the comparison visibly
+		wantTimeout := ksql(t, "select (setting::numeric / 1000)::float8 from sys_settings where name = 'wal_receiver_timeout' and unit = 'ms'")
 		if fmt.Sprint(u[0]["wal_receiver_timeout_s"]) != wantTimeout {
 			t.Errorf("wal_receiver_timeout_s = %v, ksql says %s", u[0]["wal_receiver_timeout_s"], wantTimeout)
 		}
@@ -604,7 +605,7 @@ from sys_stat_replication`)
 			deadline := time.Now().Add(90 * time.Second)
 			for {
 				r, code = kbdiag(t, nil, "status")
-				if len(r.Findings) > 0 || time.Now().After(deadline) {
+				if len(findings(r, "inst.upstream", "status", "streaming")) > 0 || time.Now().After(deadline) {
 					break
 				}
 				time.Sleep(2 * time.Second)

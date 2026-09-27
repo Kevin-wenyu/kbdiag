@@ -76,8 +76,14 @@ func TestSpaceDiskFull(t *testing.T) {
 		})
 	}
 	r := Space(d, ts, wal, mounts(facts.Mount{Kind: "data_directory", Path: "/data", Disk: disk(12*mb, "1")}, facts.Mount{Kind: "wal", Path: "/data/sys_wal", Disk: disk(12*mb, "1")}))
-	want := "the filesystem holding data_directory and wal has 12 MB free, less than one WAL segment (16 MB): writes that need new space fail (a table cannot grow), and once no old segment is left to reuse, the server stops at the next WAL segment"
+	want := "the filesystem holding data_directory and wal has 12 MB free, less than one WAL segment (16 MB): tables, transaction status files and temp files are about to fail to grow; a new WAL segment cannot be created, so the server stops once no old segment is left to reuse"
 	if r.Findings[0].Symptom != want {
 		t.Errorf("symptom = %q", r.Findings[0].Symptom)
+	}
+	// sys_wal on another disk: the data filesystem alone does not stop the server
+	r = Space(d, ts, wal, mounts(facts.Mount{Kind: "data_directory", Path: "/data", Disk: disk(12*mb, "1")}, facts.Mount{Kind: "wal", Path: "/wal", Disk: disk(50<<30, "2")}))
+	want = "the filesystem holding data_directory has 12 MB free, less than one WAL segment (16 MB): tables, transaction status files and temp files are about to fail to grow"
+	if len(r.Findings) != 1 || r.Findings[0].Symptom != want {
+		t.Errorf("findings = %+v", r.Findings)
 	}
 }

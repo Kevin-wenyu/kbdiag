@@ -79,7 +79,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 ### status 打磨（2026-09-26）
 
 - **只判两条，没有参数**：FAIL 只给"普通用户已经连不上"（已用 ≥ 可用），WARN 只给"备库没在收 WAL"（没有接收进程，或状态不是 `streaming`）。80% 的 WARN 和 `--conn-warn`/`--conn-fail` 删掉：多少算快满因应用而异，没有客观线；没人会调的阈值不做成参数。
-- **`last_msg_age_s` 超过 `wal_receiver_timeout` 才判**（用户 2026-09-27 选 B，取代原来的"只展示不判"）：walreceiver 被暂停（SIGSTOP）或卡在内核里时状态仍是 `streaming`，只有 last_msg 在涨。线用服务器自己的：正常的接收进程在超时的一半时就向主库要回复（空闲的主库也会回），满了就断开重连，所以只有卡住的进程会越过它；实验环境是 30s，空闲时实测 8 秒前。和"没有接收进程""不是 streaming"同一个 id、同一个 WARN，evidence 多 `last_msg_age_s`、`wal_receiver_timeout_s`。`wal_receiver_timeout` 为 0（关闭）或读不到时不判。`slot.sh` 正好造出这种情况，所以这一支有 L4（未在 VM 上跑过）。
+- **`last_msg_age_s` 超过 `wal_receiver_timeout` 才判**（用户 2026-09-27 选 B，取代原来的"只展示不判"）：walreceiver 被暂停（SIGSTOP）或卡在内核里时状态仍是 `streaming`，只有 last_msg 在涨。线用服务器自己的：正常的接收进程在超时的一半时就向主库要回复（空闲的主库也会回），满了就断开重连，所以只有卡住的进程会越过它；实验环境是 30s，空闲时实测 8 秒前。和"没有接收进程""不是 streaming"同一个 id、同一个 WARN，evidence 多 `last_msg_age_s`、`wal_receiver_timeout_s`。`wal_receiver_timeout` 为 0（关闭）或读不到时不判。`slot.sh` 正好造出这种情况，所以这一支有 L4（未在 VM 上跑过）。已知的误报窗口：PG12 的接收进程在连接之前就把收到时间设成当时，空闲主库上第一条消息要等它自己在超时一半时要回复，所以连接本身慢于超时一半（多主机 conninfo 第一台不应、DNS 慢）或时间线切换后，可能短暂报一次，下一次就消失；不加余量，因为余量没有客观来源（阶段审查指出）。
 - **`inst.upstream` 的 WARN 没在 KES 上验证就合并**（用户 2026-09-26 定）：能可靠造出"备库没在收 WAL"的办法都要动 sudo 或集群网络，比如改 `primary_conninfo` 要重启、会被 kbha 拉起，在主库上杀 walsender 后 5 秒就重连。判定本身只是"查询没返回行"和一次字符串比较，L1/L2 已经覆盖。等 slots 或复制延迟打磨需要复制中断注入时再补 L4。文档页如实写明这条 finding 是从源码摘的，不是实采。
 - **`inst.disk` 是"一个 probe 一条 SQL"的例外**（v0.2 起还有 `space.disk`，见 space 小节）：KES 没有查磁盘剩余空间的函数，而磁盘满是库挂掉最常见的原因之一，status 又是第一个跑的命令，所以直接对 `data_directory` 做 statfs。只有确定跑在数据库主机上才读：走 socket，或者 host 是 localhost/127.0.0.1/::1 并且目录在本机能 stat（端口可能被转发到别的机器，所以只看 host 不够）；否则 `not_applicable`。它只展示、不参与 verdict，所以没读到也不会让结论变成 UNKNOWN。
 - **`inst.upstream` 在主库上由 probe 自己报 `not_applicable`**：和备库上的 2PC 一样，是"能不能采"，不是业务判断。
@@ -156,7 +156,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 场景表：SP1 磁盘还剩多少、是哪块盘在满；SP2 哪个库最大；SP3 表空间各多大、在哪；SP4 WAL 目录多大、有没有超出配置该有的量。不归 space：表和索引 → `top-objects`；单表 → `table`；谁保留了 WAL → `slots`、`archive`、`wal`；数据目录那块盘的一行摘要 → `status`。
 
-- **只判一条 FAIL：数据目录或 WAL 目录所在文件系统的可用空间不到一个 WAL 段**（`space.disk_full`，用户 2026-09-27 定）：那里需要新空间的写入已经失败（表长不了），旧段用完后下一个 WAL 段建不出来，实例就停了，所以是"业务已经受影响"。剩多少算少的其余情况因库而异，只展示。只看数据目录和 WAL：表空间所在盘满了只影响那些表，不让实例停，只展示。段大小来自 `space.wal`，kbdiag_ro 采不到，这时不判（本来就是 UNKNOWN）。每个文件系统一条，和文本一样按 `st_dev` 合并；avail 是非 root 可用的量，kingbase 用户就只能用这么多。L6 造不出来（要真把数据盘填满），只有 L1/L2。status 的 `inst.disk` 仍只展示，没改。
+- **只判一条 FAIL：数据目录或 WAL 目录所在文件系统的可用空间不到一个 WAL 段**（`space.disk_full`，用户 2026-09-27 定）：WAL 所在盘上建不出新段，只能复用旧段，旧段用完实例就停；数据目录所在盘上表、事务状态文件、临时文件马上长不了（报 ERROR，实例不停）。symptom 按这个盘上有什么分别写（阶段审查指出原来一律说"实例会停"不对）。严格说是"马上就会受影响"，按用户定报 FAIL：离失败只差一个段，没有余地再观察。剩多少算少的其余情况因库而异，只展示。只看数据目录和 WAL：表空间所在盘满了只影响那些表，不让实例停，只展示。段大小来自 `space.wal`，kbdiag_ro 采不到，这时不判（本来就是 UNKNOWN）。每个文件系统一条，和文本一样按 `st_dev` 合并；avail 是非 root 可用的量，kingbase 用户就只能用这么多。L6 造不出来（要真把数据盘填满），只有 L1/L2。status 的 `inst.disk` 仍只展示，没改。
 - **`space.disk` 是第二个 statfs 例外**：space 的问题就是"哪块盘在满"，而 `sys_wal` 常是指向另一块盘的符号链接，表空间也可以在别的盘上；只看数据目录（`inst.disk`）答不了。按目录的设备号（`st_dev`，跟随符号链接；statfs 的 fsid 在有些文件系统上是 0，靠不住）把同一文件系统上的目录合成一行；本机判断和 `inst.disk` 完全相同（复用它）。
 - **表空间大小按权限用 CASE 包住**：kbdiag_ro 调 `pg_tablespace_size(sys_global)` 会让整条 SQL 失败（阶段 0 实采），包住之后看不到的只是 NULL，记 `redacted[]`。
 - **WAL 只给参照，不下结论**：超过 `max_wal_size` 加 `wal_keep_segments × wal_segment_size` 时（PG12 的保留量大约是这两者加上最近检查点以来的 WAL，只超过其中一个是常态），文本提示去看 slots、archive；`max_wal_size` 是软上限，超出不等于故障。kbdiag_ro 调不了 `sys_ls_waldir`，这一块是 skipped，所以 kbdiag_ro 下 space 是 UNKNOWN。
@@ -210,7 +210,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### repl（2026-09-27）
 
-场景表：RP1（主库）各备库连着吗、落后多少；RP2（主库）同步复制够不够数；RP3（备库）在不在收 WAL（复用 `inst.upstream`）；RP4（备库）回放落后多少、是不是被暂停了；RP5（备库）walreceiver 是不是卡住了 → 只展示 last_msg。不归 repl：槽保留的 WAL → `slots`；repmgr 眼里的集群 → `cluster`；"在不在复制"的一句话 → `status`。
+场景表：RP1（主库）各备库连着吗、落后多少；RP2（主库）同步复制够不够数；RP3（备库）在不在收 WAL（复用 `inst.upstream`）；RP4（备库）回放落后多少、是不是被暂停了；RP5（备库）walreceiver 是不是卡住了 → `inst.upstream`（last_msg 超过 `wal_receiver_timeout`）。不归 repl：槽保留的 WAL → `slots`；repmgr 眼里的集群 → `cluster`；"在不在复制"的一句话 → `status`。
 
 - **三条 WARN，没有 FAIL**：备库没在收 WAL（复用 status 的 `inst.upstream` 规则）、回放被暂停（`repl.replay_paused`）、同步备库不够数（`repl.sync_short`）。最后一条本想报 FAIL（提交会卡住），但阶段 0 实采看到备库断开后同步提交照样过去了（怀疑 KES 或 repmgr 自动降级，未验证），所以 symptom 只说"要么在等，要么已经不等了，同步副本没有保证"。
 - **延迟只展示**：没有服务器端的客观线；digoal 的 1 分钟/5 分钟是经验值。落后字节按本节点当前位置算，备库上按回放位置（同 slots）。
