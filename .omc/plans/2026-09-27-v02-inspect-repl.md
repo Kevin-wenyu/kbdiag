@@ -1,0 +1,117 @@
+# v0.2：巡检五条 + 复制两条（云会话长跑 + 本地 VM 收口）
+
+**状态**：active（用户 2026-09-27 定："都做了吧，主要是考虑场景"；云会话额度快到期，按上一轮的方式交给云会话长跑）
+
+**范围**：7 条新命令，都在 `docs/queries.md` 标为 v0.2：
+
+| 组 | 命令 | queries.md | 一句话 |
+|---|---|---|---|
+| 巡检 | `space` | F1 | 库、表空间、WAL 目录多大，磁盘还剩多少 |
+| 巡检 | `freeze` | G2 | 离事务号回卷还有多远 |
+| 巡检 | `vacuum` | G1 | 哪些表死元组多、多久没 vacuum、现在有没有 autovacuum 在跑 |
+| 巡检 | `archive` | H2 | 归档是不是在正常工作 |
+| 巡检 | `params` | A2 | 哪些参数不是默认值、哪些改了还没生效 |
+| 复制 | `repl` | I1+I4 | 主库上看各备库的延迟；备库上看接收和回放 |
+| 复制 | `cluster` | I3 | repmgr 眼里的集群：节点、角色、上游、状态 |
+
+**不在范围**：`conn`（B3，sessions 的汇总已经回答了"连接是谁占的"，先不做）、`top`、`top-objects`、`table`、`kill`、`--dump-facts`，以及 queries.md 里"待排"和"以后"的条目。
+
+## 0. 云会话必读（开工前）
+
+1. 先读 `CLAUDE.md`（全部，特别是各"打磨"小节：新命令的排版和判定照它们来），再读本计划、`chronicle/` 最新两天、`docs/PRD.md` §4/§5/§10、`docs/queries.md`（追溯表、F/G/H/I/A 节、"SQL 引入规则"、"默认阈值参考"）。代码模板看 `internal/report/status.go`、`internal/report/slots.go` 和对应 golden。
+2. **云容器连不到 Lima VM**。能做的只有 L1/L2（`go vet`、`go test`、`-race`、交叉编译、`go vet -tags vm ./e2e/` 只编译）。所有 VM 相关的结论写成"未验证"，列进该阶段的"VM 待验清单"，**不许写成已验证**。
+3. **KES 行为只认三处证据**：`CLAUDE.md` 的"KingbaseES 特有行为"、`e2e/testdata/captures/v02/`（本地阶段 0 的实采，见 §3）、KES V8R6 官方文档（help.kingbase.com.cn/v8，引用时写明章节）。实采里没有的行为不许按 PG 猜着写进断言；拿不准的写进 VM 待验清单，e2e 断言写宽或先不写。
+4. **阶段 0 的实采可能比你开工晚**：阶段 1 不需要它。开始阶段 2 前 `git fetch` 并把 `origin/main` 合进你的分支，确认 `e2e/testdata/captures/v02/` 已经在了；还没有就先做不依赖实采的部分，别编数据。
+5. **只推云会话指定的分支**，不推 main、不打 tag、不碰 kbdiag-docs。
+6. `TYPESAFE_API_KEY` 没有就跳过 Jev，在 chronicle 里注明，回本地再补。
+7. 不起多 agent 工作流（ralplan/team/autopilot/ultragoal）。单 agent 主线加上每阶段一个 code-reviewer 审查。
+8. 输出全部英文（help、文本、finding、reason），没有 `--lang`。
+
+## 1. 场景先行（用户 2026-09-27 强调："主要是考虑场景"）
+
+**阶段 1 只写场景，不写代码**，7 条命令的场景表一次写完，写进本计划的附录 B（每条命令一节），提交推送后再往下做。每节包含：
+
+1. **场景表（MECE）**：DBA 在什么情况下会跑这条命令、想问什么（编号，如 SP1、FZ1、VA1、AR1、PA1、RP1、CL1）。每个问题写：现在 kbdiag 能不能回答（哪条命令）、这条命令怎么回答。
+2. **不归它管的问题**：指向哪条已有或新命令。重点写清和已有命令的边界：
+   - `space` ↔ `status` 的 `inst.disk`（status 只看数据目录所在磁盘，一行；space 是完整的空间账）
+   - `freeze` ↔ `txn` 的 oldest xid（txn 回答"谁压着视界"，freeze 回答"离回卷还有多远"；freeze 的 finding 可以指向 txn、slots 找压着的人）
+   - `vacuum` ↔ `txn`/`slots`（vacuum 清不动的原因常是长事务或槽的 xmin，指过去，不自己查）
+   - `repl` ↔ `status` 的 `inst.upstream`/`inst.downstreams` ↔ `slots`（status 回答"在不在复制"，repl 回答"落后多少"，slots 回答"保留了多少 WAL"）
+   - `cluster` ↔ `repl`（cluster 是 repmgr 的看法，repl 是数据库自己的看法；两者不一致本身就是线索）
+3. **参数**：从场景推，没有场景对应的不加。不加过滤参数，要筛用 `--json` 配 jq。
+4. **判定**：FAIL = 业务已经受影响；WARN = 还没受影响，但不处理会出事。只用客观线（服务器参数、硬上限）；没人会调的阈值不做成参数。每条 finding 写：id、级别、客观线是什么、为什么是这个级别、next 指向哪。没有客观线的就只展示不判（像 waits）。候选判定（都要论证，不是定论）：
+   - `freeze`：库或表的年龄逼近 `autovacuum_freeze_max_age`（autovacuum 已经该强制冻结了）、逼近 20 亿（服务器会拒绝分配 xid）
+   - `vacuum`：死元组超过 autovacuum 的触发线却很久没 vacuum 过（触发线由 `autovacuum_vacuum_threshold` + `scale_factor` × 行数算，表级 reloptions 可以覆盖）
+   - `archive`：`archive_mode` 开着但最后一次失败晚于最后一次成功（实验环境正是这样，见 §3）
+   - `params`：`pending_restart = true`
+   - `repl`：`synchronous_standby_names` 要求的同步备库数不够（主库提交会卡住：FAIL？）；延迟怎么判（有没有客观线）
+   - `cluster`：repmgr 说的角色和数据库自己的 `sys_is_in_recovery()` 不一致；节点不在 running
+   - `space`：没有客观线（剩多少算少因库而异），倾向只展示
+5. **DS 场景**：新场景补进 `docs/PRD.md` 的 DS 场景表（接着现有编号），并说明 L6 验收怎么在 VM 上造出来；造不出来的写明。
+6. **需要用户拍板的点**：列在每节末尾。
+
+**两件用户还没定的事，本计划不替用户定**：
+- 暂停的 walreceiver 要不要用 `wal_receiver_timeout` 判：`repl` 的场景表里一定会碰到。写出选项和你的建议，列进"需要用户拍板"，**实现时只展示 `last_msg` 年龄，不加这条判定**，等用户定。
+- `inst.upstream` WARN 的注入：已定为已知限制，不写注入脚本。
+
+## 2. 阶段
+
+| 阶段 | 在哪 | 内容 | 检查点（用户异步审核的东西） |
+|---|---|---|---|
+| 0 | 本地 | 在 node1/node2 上用 ksql 实采 7 条命令要用的视图原始行，存进 `e2e/testdata/captures/v02/`（见 §3），推 main | 采集清单齐全 |
+| 1 | 云 | **7 条命令的场景表**（§1），写进附录 B，补 PRD DS 场景表 | 附录 B：场景、边界、判定、需要拍板的点 |
+| 2 | 云 | **space** | 草样、判定 |
+| 3 | 云 | **freeze** | 同上 |
+| 4 | 云 | **vacuum** | 同上 |
+| 5 | 云 | **archive** | 同上 |
+| 6 | 云 | **params** | 同上 |
+| 7 | 云 | **repl** | 同上；walreceiver 暂停那条只列选项 |
+| 8 | 云 | **cluster** | 同上；repmgr 元数据的读法和权限 |
+| 9 | 云 | **跨命令收口和加固**：所有 `verify:` 指向的命令和参数都存在（扩展已有的 Next.Command 扫描测试）；各命令 next 互相一致；README（中英）和 PRD 命令表一致；新 report 格式化的边界测试；汇总 7 条命令的 VM 待验清单成一份核对表写进 chronicle；起草 `v2.0.0-alpha.3` 发布说明写进 chronicle，不打 tag | 核对表、发布说明草稿 |
+| 10 | 本地 | fetch 云分支 → 两节点 e2e（`-count=1`）→ 修 → 把 VM 实跑文本贴给用户 → Codex 审查 → Jev 分诊 → 修 → queries.md 验证状态 → kbdiag-docs 7 个新命令页（VM 实跑输出，注明 commit）→ 用户说了才合 main、打 tag、合 kbdiag-docs main | 每条命令的 VM 输出；Codex 意见处理表 |
+
+阶段 2–8 按顺序做（后面的命令会引用前面命令的 next），不停下来等审核；用户对前一阶段提了意见，先处理意见再继续。
+
+### 阶段 2–8 每条命令的固定流程
+
+1. 取附录 B 的场景表；用户已经在上面留了意见就先按意见改。
+2. **SQL**：按 queries.md"SQL 引入规则"过第 1、2、4 关（改写成 KES 语义、核对 KES 文档、probe 注释写出处）；第 3 关（VM 实跑）留给阶段 10，列进 VM 待验清单。一个 probe 一条 SQL；列名以实采为准。权限：kbdiag_ro 看不到的列按 `redacted[]` 的规矩处理，实采里有 kbdiag_ro 的结果。
+3. **草样**：用 `captures/v02/` 的实采数据手排文本输出，至少覆盖：主库、备库、kbdiag_ro；有 finding 的命令再手造一个触发的例子（从实采改数值，注明是改的）。排版沿用 status/slots（时长两个最大单位，大小按 1024 进位用 `internal/units`，表格用 `internal/report/table.go`，JSON 保留原始值）。
+4. **契约**：命令名、参数、列、JSON 字段、probe_id、finding.id、next 写进 PRD §4/§5 和 queries.md 追溯表（验证状态写"未验证"）。
+5. **先写失败测试**：golden 手抄草样，确认先失败；facts 尽量从 `captures/v02/` 还原。rule 单测按"暴力测试"补边界：空结果、NULL、0 和负数、极大值（xid 年龄接近 2^31、字节数上 TB）、xid 回绕（按 2^32 取模）、多字节表名。
+6. **实现**：`internal/probe/<域>.go`、`internal/rule`（纯函数）、`internal/scenario`、`internal/report/<命令>.go`、`cmd/kbdiag` 注册命令。
+7. **e2e**：`e2e/` 里加这条命令的测试，只编译不跑；每条断言在 VM 待验清单里点名。需要故障注入的场景，**可以写新注入脚本但标明未在 VM 上跑过**，阶段 10 本地验证；动 sudo、重启实例、改集群网络的注入不写。
+8. **文档**：README（中英两段）、PRD、queries.md；CLAUDE.md 加一节"<命令>（2026-09-xx）"写**为什么**。不新建文档；跑防僵尸检查。
+9. **审查**：起一个 code-reviewer 审这一阶段的 diff，处理意见。
+10. **检查点提交**：提交信息 `v02(<命令>): ...`；chronicle 当日文件追加"<命令>（云会话）"一节：改动、实际跑过的命令和结果、VM 待验清单、需要用户拍板的点、下一步。推分支，直接进下一阶段。
+
+## 3. 阶段 0：本地实采清单
+
+存到 `e2e/testdata/captures/v02/`，文件名 `<命令>_<节点>_<用户>[_<场景>].txt`（用户是 `sys` 或 `ro`），第一行是 SQL，末尾记退出码。每个视图用 `select *` 采全列，外加计划里要用的函数调用；node1、node2 都采，system 和 kbdiag_ro 各一遍。
+
+| 命令 | 采什么 | 注入/场景 |
+|---|---|---|
+| space | 各库 `pg_database_size`；`sys_tablespace` 加 `pg_tablespace_location`/`pg_tablespace_size`；`sys_ls_waldir()` 的个数和总大小；`data_directory`；主机上 `df -k` | 干净 |
+| freeze | `sys_database` 的 `age(datfrozenxid)`、`mxid_age(datminmxid)`；`sys_class` 按 `age(relfrozenxid)` 排的前几十行；freeze 相关参数 | 干净（实验库的年龄只有几千，触发的例子只能手造） |
+| vacuum | `sys_stat_user_tables` 全列；`sys_stat_progress_vacuum`；`sys_stat_activity` 里的 autovacuum worker；autovacuum 相关参数；表级 reloptions | 干净 + 一张关了 autovacuum、删过一半行的测试表（采完删表） |
+| archive | `sys_stat_archiver`；`archive_mode`/`archive_command`/`archive_timeout`；`sys_wal/archive_status` 下 `.ready` 的个数 | **实验环境归档本来就在失败**（2026-09-27 实测 failed_count 17952，最后成功 2026-09-16），照实采 |
+| params | `sys_settings` 全列（全部行 + `source <> 'default'` 的行）；`pending_restart` 为 true 的行 | 干净 |
+| repl | 主库 `sys_stat_replication` 全列；备库 `sys_stat_wal_receiver` 全列、`sys_last_wal_receive_lsn()`、`sys_last_wal_replay_lsn()`、`sys_last_xact_replay_timestamp()`、`sys_is_wal_replay_paused()`；`synchronous_standby_names`、`synchronous_commit` | 干净 + slot 注入（暂停 node2 的 walreceiver）期间主备各采一次 |
+| cluster | `repmgr cluster show`（文本和 `--csv`）；`esrep` 库 `repmgr` schema 下的表和视图（`nodes`、`events` 最近几十行、`monitoring_history` 等）全列；kbdiag_ro 对它们的权限 | 干净 |
+
+采完删掉测试表、撤掉注入，在 chronicle 里记采集时间、KES 版本和发现。
+
+**这些文件的寿命**：计划 done 时，被 golden 或 e2e 引用的留下，其余删掉。
+
+## 4. 审批门槛（压缩、交接、云会话都不能自己跨过）
+
+- 合进 main、推 main、打 tag、推 kbdiag-docs：只有用户明确说了才做（阶段 0 的实采推 main 是本计划批准的）。
+- 附录 B 和各阶段"需要用户拍板"的点：云会话先按建议实现，用户否了就改；不能因为已经实现了就当成用户同意。
+- 暂停的 walreceiver 的判定：用户没定，只展示不判。
+- 任何写操作（`kill`、`CHECKPOINT`、`pg_switch_wal`、重载参数）都不进诊断路径：kbdiag 默认只读。
+
+## 5. 进度
+
+- 2026-09-27：用户定范围（巡检五条 + 复制两条）和做法；计划写成，状态 active
+
+## 附录 B：场景表（阶段 1 写）
