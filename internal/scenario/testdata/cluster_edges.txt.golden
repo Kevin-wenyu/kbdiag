@@ -1,0 +1,18 @@
+cluster  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] cluster.primaries  repmgr lists 2 active primaries (node1, node2): its metadata says split brain; whether both accept writes shows only on each node
+  verify: kbdiag status  # run on each of them: which one is out of recovery
+
+[WARN] cluster.inactive  repmgr marks standby node node\x1b[2J3 inactive: it counts it as failed or removed, so the cluster has one node less to fail over to
+  verify: kbdiag status  # run on node\x1b[2J3: is it up, and in which role
+
+nodes: 3  (repmgr metadata in database esrep)
+  id  name          type     upstream  active  priority  location  slot
+  1   node1         primary  -         yes     -         -         repmgr_slot_1
+  2   node2         primary  -         yes     -         -         repmgr_slot_2
+  3   node\x1b[2J3  standby  node1     no      -         -         -
+  this node: not identified (no repmgr node's slot is this instance's primary_slot_name)
+
+events: 1  (the latest, at most 20)
+  time                 node  event            ok  details
+  2026-09-27 21:18:39  9     standby_promote  no  promotion failed: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...

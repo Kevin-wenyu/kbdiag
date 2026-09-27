@@ -219,6 +219,16 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - 备库上落后字节按收到和回放中较远的那个算：级联 walsender 发到那里。
 - `sys_stat_wal_receiver.conninfo` 不采：可能带密码。
 
+### cluster（2026-09-27）
+
+场景表见计划附录 B.7。
+
+- **repmgr 的看法对照数据库自己的看法，四条都是 WARN**：两个 active 的 primary、inactive 节点、本节点类型和恢复角色不一致、主库上该挂上来的备库没挂上来。repmgr 按元数据做切换，不一致是隐患，业务此刻还没受影响；是不是真脑裂要到各节点上跑 status，所以不给 FAIL。
+- **本节点先问 repmgr 的 `get_local_node_id()`，再按 `primary_slot_name` 认**：repmgr 给节点 N 的槽叫 `repmgr_slot_N`，在克隆或 rejoin 时写进节点 N 的 `primary_slot_name`（阶段 0 两节点都是；node1 的是当备库时留下的），从没当过备库的主库可能没有，所以先问函数（repmgrd 设的，可能没有，未实采）。认不出来就不做角色对照，verdict 不说 OK。
+- **没给 `-d` 时连 `esrep`**：元数据在那个库，而 kbdiag 只占一个连接（N-02），不同时开两个连接。没有 `esrep` 库（3D000）时退回默认库，不给 69（69 只表示连不上实例）；当前库没有 repmgr schema 时 `not_applicable`（不是 repmgr 集群，或者元数据在别的库）。
+- **不调 repmgr 二进制**（和不调 ksql 同一个理由），所以 `repmgr cluster show` 的 Status 列（逐个连节点）做不了，文本和 next 指到各节点跑 `kbdiag status`。
+- conninfo 不采：可能带密码。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

@@ -183,6 +183,7 @@
 - 2026-09-27：阶段 5 archive 完成（云会话，`v02(archive)`）。下一步：阶段 6 params
 - 2026-09-27：阶段 6 params 完成（云会话，`v02(params)`）。下一步：阶段 7 repl
 - 2026-09-27：阶段 7 repl 完成（云会话，`v02(repl)`）。下一步：阶段 8 cluster
+- 2026-09-27：阶段 8 cluster 完成（云会话，`v02(cluster)`）。下一步：阶段 9 top-objects
 - 2026-09-27：用户追加范围（top-objects、table、top，阶段 9–11），收口改为阶段 12、本地 VM 收尾改为阶段 13；补采这三条；明确云会话一口气做到阶段 12
 
 ## 附录 B：场景表（阶段 1 写）
@@ -397,7 +398,7 @@ DS：20（复制延迟）、21（备库断连，复用 inst.upstream）；新增
 - `cluster.primaries` **WARN**：active 的 primary 超过一个（元数据层面的脑裂）。是不是真脑裂要到两边各跑 `kbdiag status`，所以不给 FAIL。
 - next：verify `kbdiag status`（到对应节点上跑）、`kbdiag repl`。
 
-**本节点怎么认**：repmgr 给节点 N 建的槽叫 `repmgr_slot_N`，并写进节点 N 的 `primary_slot_name`（实采 node1 是 `repmgr_slot_1`、node2 是 `repmgr_slot_2`，和 `repmgr.nodes.slot_name` 一一对应）。所以本节点 = `slot_name = primary_slot_name` 的那一行。认不出来（没设 `primary_slot_name` 或对不上）时，CL2 的本节点检查做不了，文本写明，verdict 不能说 OK（UNKNOWN）。这是 repmgr 的惯例，不是 KES 文档的结论，列进 VM 待验点（切换后是否仍成立）。
+**本节点怎么认**（阶段 8 审查后：先问 repmgr 扩展的 `get_local_node_id()`，再按下面的槽名）：repmgr 给节点 N 建的槽叫 `repmgr_slot_N`，并写进节点 N 的 `primary_slot_name`（实采 node1 是 `repmgr_slot_1`、node2 是 `repmgr_slot_2`，和 `repmgr.nodes.slot_name` 一一对应）。所以本节点 = `slot_name = primary_slot_name` 的那一行。认不出来（没设 `primary_slot_name` 或对不上）时，CL2 的本节点检查做不了，文本写明，verdict 不能说 OK（UNKNOWN）。这是 repmgr 的惯例，不是 KES 文档的结论，列进 VM 待验点（切换后是否仍成立）。
 
 **连哪个库**：repmgr 元数据在 `esrep` 库（阶段 0），kbdiag 默认连 `test`，而 N-02 规定只占一个连接。做法：`cluster` 在用户没显式给 `-d` 时连 `esrep`；给了就用给的。当前库没有 `repmgr.nodes` 时 probe 是 `not_applicable`，reason 写"no repmgr metadata in database X; use -d"。
 

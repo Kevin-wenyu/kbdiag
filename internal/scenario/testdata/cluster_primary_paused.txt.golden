@@ -1,0 +1,35 @@
+cluster  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] cluster.detached  repmgr lists node2 as an active standby of this node (node1), but no walsender here has that application_name: it is not attached (repmgr cluster show would report it so), unless its conninfo sets another application_name
+  verify: kbdiag status  # run on node2: is it up, is it receiving WAL
+  verify: kbdiag slots  # whether its slot here is inactive
+
+nodes: 2  (repmgr metadata in database esrep)
+  id  name   type     upstream  active  priority  location  slot
+  1   node1  primary  -         yes     100       default   repmgr_slot_1
+  2   node2  standby  node1     yes     100       default   repmgr_slot_2
+  this node is node1: repmgr says primary, the database is a primary
+  not attached here: node2
+
+events: 20  (the latest, at most 20)
+  time                 node   event                  ok   details
+  2026-09-27 13:51:14  node1  child_node_reconnect   yes  standby node "node2" (ID: 2) has reconnected after 6 seconds
+  2026-09-27 13:51:07  node1  child_node_disconnect  yes  standby node "node2" (ID: 2) has disconnected
+  2026-09-27 13:38:16  node1  child_node_reconnect   yes  standby node "node2" (ID: 2) has reconnected after 19 seconds
+  2026-09-27 13:37:56  node1  child_node_disconnect  yes  standby node "node2" (ID: 2) has disconnected
+  2026-09-26 23:24:40  node2  standby_recovery       yes  reconnected to local node "node2" (ID: 2), marking active
+  2026-09-26 23:24:39  node1  child_node_reconnect   yes  standby node "node2" (ID: 2) has reconnected after 43 seconds
+  2026-09-26 23:24:36  node1  node_recovery_success  yes  node "node2" (ID: 2) auto-recovery success
+  2026-09-26 23:23:57  node1  child_node_disconnect  yes  standby node "node2" (ID: 2) has disconnected
+  2026-09-26 22:02:48  node1  child_node_reconnect   yes  standby node "node2" (ID: 2) has reconnected after 56 seconds
+  2026-09-26 22:02:48  node2  standby_recovery       yes  reconnected to local node "node2" (ID: 2), marking active
+  2026-09-26 22:02:36  node1  node_recovery_success  yes  node "node2" (ID: 2) auto-recovery success
+  2026-09-26 22:01:53  node1  child_node_disconnect  yes  standby node "node2" (ID: 2) has disconnected
+  2026-09-26 19:44:08  node1  child_node_reconnect   yes  standby node "node2" (ID: 2) has reconnected after 6 seconds
+  2026-09-26 19:44:02  node1  child_node_disconnect  yes  standby node "node2" (ID: 2) has disconnected
+  2026-09-26 18:52:42  node1  child_node_reconnect   yes  standby node "node2" (ID: 2) has reconnected after 6 seconds
+  2026-09-26 18:52:36  node1  child_node_disconnect  yes  standby node "node2" (ID: 2) has disconnected
+  2026-09-26 04:14:49  node1  child_node_reconnect   yes  standby node "node2" (ID: 2) has reconnected after 6 seconds
+  2026-09-26 03:54:41  node1  child_node_disconnect  yes  standby node "node2" (ID: 2) has disconnected
+  2026-09-25 23:40:18  node1  child_node_reconnect   yes  standby node "node2" (ID: 2) has reconnected after 26 seconds
+  2026-09-25 23:06:14  node1  child_node_disconnect  yes  standby node "node2" (ID: 2) has disconnected

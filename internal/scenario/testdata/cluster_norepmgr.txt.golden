@@ -1,0 +1,5 @@
+cluster  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+nodes: not_applicable  (no repmgr schema in database test: not a repmgr cluster, or its metadata is in another database (use -d))
+
+events: not_applicable  (no repmgr schema in database test: not a repmgr cluster, or its metadata is in another database (use -d))

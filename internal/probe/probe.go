@@ -17,7 +17,12 @@ import (
 // collect runs one probe SQL and scans every row; a failure becomes the
 // probe status, never an empty ok.
 func collect[T any](ctx context.Context, x *pgx.Conn, sql string, scan pgx.RowToFunc[T]) (facts.Status, string, []T) {
-	rows, err := x.Query(ctx, sql)
+	return collectArgs(ctx, x, sql, nil, scan)
+}
+
+// collectArgs is collect with query parameters.
+func collectArgs[T any](ctx context.Context, x *pgx.Conn, sql string, args []any, scan pgx.RowToFunc[T]) (facts.Status, string, []T) {
+	rows, err := x.Query(ctx, sql, args...)
 	if err != nil {
 		st, reason := classify(err)
 		return st, reason, nil

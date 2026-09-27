@@ -96,7 +96,8 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 	root.AddCommand(newSessions(g, stdout), newSession(g, stdout, stderr), newLocks(g, stdout),
 		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
 		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
-		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout))
+		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout),
+		newCluster(g, stdout))
 	return root
 }
 
@@ -334,6 +335,37 @@ func newRepl(g *globalFlags, stdout io.Writer) *cobra.Command {
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
 				return scenario.Repl(info, probe.ReplDownstreams(ctx, x), probe.ReplSync(ctx, x, info), probe.InstUpstream(ctx, x, info), probe.ReplReplay(ctx, x, info))
 			})
+		},
+	}
+}
+
+// repmgrDB is where KES keeps repmgr's metadata (stage 0 of plan
+// 2026-09-27); cluster connects there unless -d is given.
+const repmgrDB = "esrep"
+
+func newCluster(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "cluster",
+		Short: "repmgr's view of the cluster (nodes, roles, upstreams, latest events), checked against this node; connects to database esrep unless -d is given",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			build := func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Cluster(info, probe.ClusterNodes(ctx, x, info), probe.ClusterEvents(ctx, x, info), probe.InstDownstreams(ctx, x))
+			}
+			if f := cmd.Flag("dbname"); f != nil && f.Changed {
+				return diagnose(ctx, g, stdout, build)
+			}
+			// no esrep database: not a KES repmgr cluster; the default
+			// database then says so (no repmgr schema: not_applicable)
+			cg := *g
+			cg.cfg.DBName = repmgrDB
+			if x, err := conn.Open(ctx, cg.cfg); err == nil {
+				x.Close(ctx)
+			} else if conn.MissingDatabase(err) {
+				return diagnose(ctx, g, stdout, build)
+			}
+			return diagnose(ctx, &cg, stdout, build)
 		},
 	}
 }

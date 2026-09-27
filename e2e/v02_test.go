@@ -302,3 +302,67 @@ func TestRepl(t *testing.T) {
 		}
 	})
 }
+
+var (
+	clusterNodeColumns  = []string{"node_id", "node_name", "type", "upstream_node_id", "active", "priority", "location", "slot_name", "is_local"}
+	clusterEventColumns = []string{"node_id", "event", "successful", "event_time", "event_age_s", "details"}
+)
+
+func TestCluster(t *testing.T) {
+	r, code := kbdiag(t, nil, "cluster")
+	if r.Context.Database != "esrep" {
+		t.Errorf("cluster without -d connected to %q, want esrep", r.Context.Database)
+	}
+	nodes := okProbe(t, r, "cluster.nodes", clusterNodeColumns)
+	okProbe(t, r, "cluster.events", clusterEventColumns)
+	if n := ksqlDB(t, "esrep", "select count(*) from repmgr.nodes"); strconv.Itoa(len(nodes.Rows)) != n {
+		t.Errorf("nodes = %d, ksql %s", len(nodes.Rows), n)
+	}
+	local := 0
+	for _, row := range nodes.rowsOf() {
+		if row["is_local"] == true {
+			local++
+			wantType := map[string]string{"primary": "primary", "standby": "standby"}[role]
+			if row["type"] != wantType {
+				t.Errorf("this node %v has type %v, the database is a %s", row["node_name"], row["type"], role)
+			}
+		}
+	}
+	if local != 1 || r.Verdict != "OK" || code != 0 {
+		t.Errorf("local=%d verdict=%s exit=%d findings=%+v", local, r.Verdict, code, r.Findings)
+	}
+
+	t.Run("-d test has no repmgr schema", func(t *testing.T) {
+		r, code := kbdiag(t, nil, "cluster", "-d", "test")
+		if p := r.Data["cluster.nodes"]; p.Status != "not_applicable" || r.Verdict != "OK" || code != 0 {
+			t.Errorf("nodes=%+v verdict=%s exit=%d", p, r.Verdict, code)
+		}
+	})
+	t.Run("kbdiag_ro", func(t *testing.T) {
+		r, code := kbdiag(t, roEnv, append([]string{"cluster"}, roArgs...)...)
+		if p := r.Data["cluster.nodes"]; p.Status != "skipped" || r.Verdict != "UNKNOWN" || code != 3 {
+			t.Errorf("nodes=%+v verdict=%s exit=%d", p, r.Verdict, code)
+		}
+	})
+	if role == "primary" {
+		t.Run("standby walreceiver paused", func(t *testing.T) {
+			inject(t, "slot")
+			r, code := kbdiag(t, nil, "cluster")
+			if len(r.Findings) != 1 || r.Findings[0].ID != "cluster.detached" || code != 1 {
+				t.Errorf("findings=%+v exit=%d", r.Findings, code)
+			}
+		})
+	}
+}
+
+// ksqlDB is ksql against another database.
+func ksqlDB(t *testing.T, db, sql string) string {
+	t.Helper()
+	c := vm("ksql", "-d", db, "-U", "system", "-p", "54321", "-v", "ON_ERROR_STOP=1", "-Atq", "-f", "-")
+	c.Stdin = strings.NewReader(sql)
+	out, err := c.Output()
+	if err != nil {
+		t.Fatalf("ksql -d %s %q: %v", db, sql, err)
+	}
+	return strings.TrimSpace(string(out))
+}

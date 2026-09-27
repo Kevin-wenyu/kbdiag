@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
 )
@@ -67,9 +68,26 @@ func Open(ctx context.Context, c Config) (*pgx.Conn, error) {
 	}
 	x, err := pgx.ConnectConfig(ctx, cc)
 	if err != nil {
-		return nil, errors.New(kingbaseSocket(err.Error()))
+		return nil, &openError{msg: kingbaseSocket(err.Error()), err: err}
 	}
 	return x, nil
+}
+
+// openError shows the socket as .s.KINGBASE and keeps the server's error
+// underneath, so callers can still tell what failed.
+type openError struct {
+	msg string
+	err error
+}
+
+func (e *openError) Error() string { return e.msg }
+func (e *openError) Unwrap() error { return e.err }
+
+// MissingDatabase reports a connection refused because the database does
+// not exist (SQLSTATE 3D000).
+func MissingDatabase(err error) bool {
+	var pe *pgconn.PgError
+	return errors.As(err, &pe) && pe.Code == "3D000"
 }
 
 func connConfig(c Config) (*pgx.ConnConfig, error) {
