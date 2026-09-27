@@ -95,7 +95,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 	pf.BoolVar(&g.json, "json", false, "print the report as JSON")
 	root.AddCommand(newSessions(g, stdout), newSession(g, stdout, stderr), newLocks(g, stdout),
 		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
-		newSpace(g, stdout))
+		newSpace(g, stdout), newFreeze(g, stdout))
 	return root
 }
 
@@ -261,8 +261,27 @@ func newSpace(g *globalFlags, stdout io.Writer) *cobra.Command {
 	}
 }
 
-func limitFlag(c *cobra.Command, limit *int) {
-	c.Flags().IntVar(limit, "limit", 50, "max rows to show, 0 for all (findings still cover every row)")
+func newFreeze(g *globalFlags, stdout io.Writer) *cobra.Command {
+	var o scenario.FreezeOptions
+	c := &cobra.Command{
+		Use:   "freeze",
+		Short: "How far each database is from transaction ID wraparound; the oldest tables of this one",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Freeze(info, probe.FreezeDatabases(ctx, x), probe.FreezeTables(ctx, x), probe.FreezeLimits(ctx, x), o)
+			})
+		},
+	}
+	limitFlagN(c, &o.Limit, 20)
+	return c
+}
+
+func limitFlag(c *cobra.Command, limit *int) { limitFlagN(c, limit, 50) }
+
+func limitFlagN(c *cobra.Command, limit *int, n int) {
+	c.Flags().IntVar(limit, "limit", n, "max rows to show, 0 for all (findings still cover every row)")
 }
 
 func write(rep *report.Report, asJSON bool, stdout io.Writer) error {

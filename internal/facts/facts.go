@@ -20,6 +20,7 @@ type Context struct {
 	Role        string // primary | standby
 	Location    string // local | remote
 	User        string
+	Database    string // current_database(): the scope of per-database probes
 	CollectedAt time.Time
 }
 

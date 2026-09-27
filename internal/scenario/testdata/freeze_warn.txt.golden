@@ -1,0 +1,20 @@
+freeze  WARN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] freeze.database_age  database test is 210000000 xids old, past autovacuum_freeze_max_age 200000000 (1936483647 xids left before new transaction IDs are refused): the anti-wraparound autovacuum is due or cannot finish
+  verify: kbdiag txn  # the oldest transaction or 2PC holding back freezing
+  verify: kbdiag -d test freeze  # its oldest tables
+  fix: VACUUM (FREEZE, VERBOSE) <table>  # on the primary, connected to database test, oldest tables first
+
+limits
+  autovacuum_freeze_max_age            200000000
+  autovacuum_multixact_freeze_max_age  400000000
+  xid stop limit                       2146483647  (new transaction IDs are refused)
+
+databases: 2
+  name   xid age    of freeze max  mxid age  xids left
+  test   210000000  105%           0         1936483647
+  esrep  5364       0%             0         2146478283
+
+tables in test: 1, oldest first
+  relation       kind   xid age    mxid age  heap (est.)
+  public.orders  table  210000000  0         62 MB

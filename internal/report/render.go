@@ -78,6 +78,12 @@ func (r *Report) WriteText(w io.Writer) error {
 		}
 		writeRedacted(w, r.Redacted)
 		return nil
+	case r.layout != nil:
+		if err := r.layout(r, w); err != nil {
+			return err
+		}
+		writeRedacted(w, r.Redacted)
+		return nil
 	case r.space != nil:
 		if err := r.writeSpace(w); err != nil {
 			return err

@@ -82,3 +82,15 @@ func kF64(t *testing.T, s *string) *float64 {
 
 // kBool reads ksql's t/f.
 func kBool(s *string) bool { return s != nil && (*s == "t" || *s == "true") }
+
+// kI64OrNil is kI64 for cells that may not be numbers (settings like "on").
+func kI64OrNil(s *string) *int64 {
+	if s == nil {
+		return nil
+	}
+	n, err := strconv.ParseInt(*s, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &n
+}

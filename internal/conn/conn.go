@@ -99,13 +99,13 @@ func kingbaseSocket(s string) string {
 
 // Identify reads the report context. role is only the recovery role.
 func Identify(ctx context.Context, x *pgx.Conn, c Config) (facts.Context, error) {
-	var version, user string
+	var version, user, db string
 	var standby bool
-	err := x.QueryRow(ctx, "select version(), sys_is_in_recovery(), current_user::text").Scan(&version, &standby, &user)
+	err := x.QueryRow(ctx, "select version(), sys_is_in_recovery(), current_user::text, current_database()::text").Scan(&version, &standby, &user, &db)
 	if err != nil {
 		return facts.Context{}, err
 	}
-	out := facts.Context{Version: shortVersion(version), Role: "primary", Location: "remote", User: user, CollectedAt: time.Now()}
+	out := facts.Context{Version: shortVersion(version), Role: "primary", Location: "remote", User: user, Database: db, CollectedAt: time.Now()}
 	if standby {
 		out.Role = "standby"
 	}

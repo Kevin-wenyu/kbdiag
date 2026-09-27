@@ -3,6 +3,7 @@
 package report
 
 import (
+	"io"
 	"time"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
@@ -25,6 +26,7 @@ type Report struct {
 	waits    *waitsView
 	slots    *slotsView
 	space    *spaceView
+	layout   func(*Report, io.Writer) error // the v0.2 commands' text layouts
 }
 
 type Context struct {
@@ -32,6 +34,7 @@ type Context struct {
 	Role        string `json:"role"`
 	Location    string `json:"location"`
 	User        string `json:"user"`
+	Database    string `json:"database,omitempty"`
 	CollectedAt string `json:"collected_at"`
 }
 
@@ -80,6 +83,7 @@ func New(command string, c facts.Context, r rule.Result) *Report {
 			Role:        c.Role,
 			Location:    c.Location,
 			User:        c.User,
+			Database:    c.Database,
 			CollectedAt: c.CollectedAt.Truncate(time.Second).Format(time.RFC3339),
 		},
 		Data:     map[string]Probe{},

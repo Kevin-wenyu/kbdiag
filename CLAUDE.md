@@ -160,6 +160,19 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **WAL 只给参照，不下结论**：超过 `max_wal_size` 加 `wal_keep_segments × wal_segment_size` 时（PG12 的保留量大约是这两者加上最近检查点以来的 WAL，只超过其中一个是常态），文本提示去看 slots、archive；`max_wal_size` 是软上限，超出不等于故障。kbdiag_ro 调不了 `sys_ls_waldir`，这一块是 skipped，所以 kbdiag_ro 下 space 是 UNKNOWN。
 - 库大小复用 `inst.databases`（同一 probe、同样的列），文本和 status 共用 `writeDatabases`。
 
+### freeze（2026-09-27）
+
+场景表见计划附录 B.2。
+
+- **两条线都来自服务器，不设 kbdiag 自己的阈值**（修 GAP-6"冻结阈值两处来源不同"）：WARN 是 `autovacuum_freeze_max_age`（到这里 autovacuum 就该强制冻结，平时年龄会被压在线下，超过说明它正在跑或推不动）；FAIL 是停止线（PG12：xid 在回卷线 2^31 − 1 之前 100 万，multixact 之前 100；服务器拒绝分配，写事务失败）。停止线是 PG12 内核的常数（PG14 才改成 300 万，起草时写错过，审查纠正），KES 是否相同没核实，写在 `facts` 一处。
+- **只按库判，表只展示**：库的年龄就是它最老的表；逐表出 finding 会把同一个问题报几十遍。当前库的表按年龄列出，别的库用 next 的 `kbdiag -d <库> freeze`。
+- **表大小是估算**（`relpages × block_size`）：`pg_total_relation_size` 对每个表加 AccessShareLock，救回卷时常有的 VACUUM FULL、TRUNCATE 会让整条 probe 卡到 lock_timeout 失败。
+- tables 只展示，没采到不影响 verdict；库名要转义或加引号时 next 的 `-d` 同 txn 对 gid 的做法处理。
+- **排除 `relfrozenxid = 0`**：阶段 0 实采 `_kingbase_loginfo` 就是 0，`age(0)` 读成 2147483647，不排除会误报 FAIL。
+- **备库照常报**：年龄是复制过来的，和主库相同；VACUUM 要到主库上跑，next 写明。
+- limits 没采到时仍能判 FAIL（常数不依赖参数），年龄在停止线以下则 UNKNOWN。
+- **报告上下文加了 `database`**（JSON `context.database`，`omitempty`，只增不改）：freeze、vacuum、top-objects 这类按库查询的命令要说清楚是哪个库，next 也要用它拼 `-d`。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

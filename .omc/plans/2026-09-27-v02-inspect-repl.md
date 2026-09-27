@@ -178,6 +178,7 @@
 - 2026-09-27：加后备队列阶段 14–18（progress、checkpoint、wal、seq、加固），补采；云会话做完阶段 12 接着做
 - 2026-09-27：阶段 1 完成（云会话）：附录 B 写完 10 条命令的场景表，PRD §11 补 DS-25~30。下一步：阶段 2 space
 - 2026-09-27：阶段 2 space 完成（云会话，提交见 git log `v02(space)`）。下一步：阶段 3 freeze
+- 2026-09-27：阶段 3 freeze 完成（云会话，`v02(freeze)`）。下一步：阶段 4 vacuum
 - 2026-09-27：用户追加范围（top-objects、table、top，阶段 9–11），收口改为阶段 12、本地 VM 收尾改为阶段 13；补采这三条；明确云会话一口气做到阶段 12
 
 ## 附录 B：场景表（阶段 1 写）
@@ -234,7 +235,7 @@ VM 待验点：表空间大小的权限 CASE；`sys_wal` 是符号链接时 stat
 
 判定（按库，年龄取 xid 和 multixact 两种）：
 - `freeze.database_age` **WARN**：`age(datfrozenxid) ≥ autovacuum_freeze_max_age`（或 `mxid_age ≥ autovacuum_multixact_freeze_max_age`）。客观线是服务器参数：到了这条线 autovacuum 就该强制冻结，平时年龄会被它压在线下；在线上说明防回卷的 vacuum 正在跑或者推不动。业务还没受影响，所以 WARN。
-- 同一 id **FAIL**：`age(datfrozenxid) ≥ 2^31 − 3,000,000`。这是 PG12 内核的 xidStopLimit：到这里服务器拒绝分配新 xid，写事务全部失败，业务已经受影响。**这个常数来自 PG 源码，KES V8R6（PG12 内核）是否相同未验证**，列进 VM 待验点，实验环境造不出这个年龄（实采年龄只有 5364）。
+- 同一 id **FAIL**：`age(datfrozenxid) ≥ 2^31 − 1 − 1,000,000`（阶段 3 审查纠正：起草时写的 300 万是 PG14 的值）。这是 PG12 内核的 xidStopLimit：到这里服务器拒绝分配新 xid，写事务全部失败，业务已经受影响。**这个常数来自 PG 源码，KES V8R6（PG12 内核）是否相同未验证**，列进 VM 待验点，实验环境造不出这个年龄（实采年龄只有 5364）。
 - next：verify `kbdiag txn`（最老 xid 是谁压的）、`kbdiag slots`；fix `VACUUM (FREEZE, VERBOSE)` 在该库里对最老的表跑（`kbdiag -d <库> freeze` 列出它们）。
 - 表级不另出 finding（表的年龄决定库的年龄，库级已经报了）。
 
@@ -247,9 +248,9 @@ probe：
 DS：19（冻结年龄风险；阈值来源统一，修 GAP-6：只用服务器参数，没有 kbdiag 自己的阈值）。L6：实验环境造不出高年龄，只能 L1/L2 手造 facts；VM 上只验证阴性（年龄几千、OK）和 `relfrozenxid = 0` 的表不出现。
 
 需要用户拍板：
-1. WARN 线用 `autovacuum_freeze_max_age`（建议）还是更晚的 xidWarnLimit（2^31 − 4000 万，服务器开始在日志里告警的线）。
+1. WARN 线用 `autovacuum_freeze_max_age`（建议）还是更晚的 xidWarnLimit（PG12 是停止线前 1000 万，服务器开始在日志里告警的线）。
 2. FAIL 用 PG12 的 xidStopLimit 常数（建议，VM 阶段查 KES 文档核实）。
-3. multixact 只报 WARN、不报 FAIL（建议：multixact 的停止线在 PG 里算法不同，没有把握）。
+3. multixact 也报 FAIL（阶段 3 改：PG12 的 multiStopLimit 是回卷线前 100，写入同样会失败；原建议只报 WARN）。
 
 ### B.3 vacuum（G1）
 

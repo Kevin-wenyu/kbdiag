@@ -87,3 +87,42 @@ func TestSpace(t *testing.T) {
 		}
 	})
 }
+
+var (
+	freezeDBColumns    = []string{"datname", "datfrozenxid", "xid_age", "datminmxid", "mxid_age", "datallowconn"}
+	freezeTableColumns = []string{"relation", "relkind", "relfrozenxid", "xid_age", "relminmxid", "mxid_age", "heap_bytes_est"}
+	freezeLimitColumns = []string{"autovacuum_freeze_max_age", "autovacuum_multixact_freeze_max_age", "vacuum_freeze_table_age"}
+)
+
+// The lab's ages are a few thousand: only the negative case and the values
+// can be checked; WARN and FAIL are L1/L2 only.
+func TestFreeze(t *testing.T) {
+	r, code := kbdiag(t, nil, "freeze", "--limit", "0")
+	if r.Verdict != "OK" || code != 0 || len(r.Findings) != 0 {
+		t.Errorf("verdict=%s exit=%d findings=%v", r.Verdict, code, r.Findings)
+	}
+	okProbe(t, r, "freeze.limits", freezeLimitColumns)
+	dbs := okProbe(t, r, "freeze.databases", freezeDBColumns)
+	want := ksql(t, "select string_agg(datname || ':' || age(datfrozenxid), ',' order by datname) from sys_database")
+	// ages move while the test runs: compare the count only
+	if len(dbs.Rows) != len(strings.Split(want, ",")) {
+		t.Errorf("databases %v, ksql %q", dbs.Rows, want)
+	}
+	tables := okProbe(t, r, "freeze.tables", freezeTableColumns)
+	// independent of the probe's filter: relfrozenxid 0 reads as age 2147483647
+	n := ksql(t, "select count(*) from sys_class where relkind in ('r','m','t') and age(relfrozenxid) < 2147483647")
+	if strconv.Itoa(len(tables.Rows)) != n {
+		t.Errorf("tables = %d, ksql %s", len(tables.Rows), n)
+	}
+	for _, row := range tables.rowsOf() {
+		if num(t, row["xid_age"]) >= 1<<31-1 {
+			t.Errorf("relfrozenxid 0 leaked in: %v", row)
+		}
+		if !strings.Contains(str(row["relation"]), ".") {
+			t.Errorf("relation not qualified: %v", row["relation"])
+		}
+	}
+	if r.Context.Database != "test" {
+		t.Errorf("context.database = %q", r.Context.Database)
+	}
+}

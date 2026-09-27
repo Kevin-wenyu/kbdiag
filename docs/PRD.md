@@ -53,6 +53,7 @@
 | `status` | 刚登上实例时的基本盘：身份（短版本号、数据目录、端口）、角色和复制（主库列出每个备库，备库看上游在不在收 WAL）、启动时间、连接数/可用数、各库大小、数据目录所在磁盘。只判两条：普通用户已经连不上（`inst.connections` FAIL），备库没在收 WAL（`inst.upstream` WARN）；没有参数 | `inst.info`、`inst.downstreams`、`inst.upstream`、`inst.databases`、`inst.disk` | 主库上 `inst.upstream` 为 `not_applicable`；远程运行时 `inst.disk` 为 `not_applicable` |
 | `slots` | 复制槽是否活跃、保留多少 WAL、xmin（逻辑槽的 catalog_xmin）是否压着视界；不活跃的排前面、保留 WAL 多的排前面；不活跃报 WARN（2026-09-26 起不再 FAIL）；JSON 除 evidence 加了 `catalog_xmin` 外不变 | `slot.list` | 正常；WAL 保留量改用 `sys_last_wal_replay_lsn()` 计算 |
 | `space`（v0.2） | 空间账：数据目录、`sys_wal`、各表空间目录所在的文件系统（同一文件系统合并成一行，本机运行才有）；WAL 目录的文件数和大小，对照 `max_wal_size` 和 `wal_keep_segments`，超出两者时指向 slots、archive；各库大小；各表空间位置和大小。只展示，不判；有 probe 没采到或大小看不到时 UNKNOWN | `space.disk`、`space.wal`、`inst.databases`、`space.tablespaces` | 正常；远程运行时 `space.disk` 为 `not_applicable` |
+| `freeze`（v0.2） | 离事务号回卷还有多远：每个库的 xid/multixact 年龄对照 `autovacuum_freeze_max_age`（WARN）和回卷停止线（FAIL，服务器拒绝分配新 xid 或 multixact；PG12 内核的 xid 停止线是回卷线前 100 万，multixact 前 100），当前库最老的表（`relfrozenxid = 0` 的不算，大小按 relpages 估算）；next 指向 `txn`、`-d <库> freeze` 和 `VACUUM (FREEZE)`。`--limit` 只裁表 | `freeze.databases`、`freeze.tables`、`freeze.limits` | 正常（年龄和主库相同）；VACUUM 要到主库上跑 |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
 
@@ -90,7 +91,7 @@
 Report
 ├── command
 ├── verdict: OK | WARN | FAIL | UNKNOWN
-├── context: version、role(primary|standby)、location(local|remote)、user、collected_at
+├── context: version、role(primary|standby)、location(local|remote)、user、database（v0.2 起，当前库，按库查询的命令以它为范围）、collected_at
 ├── data: {<probe_id>: {status, reason, columns[], rows[][], truncated}}
 ├── findings[]
 │   ├── id           稳定标识，如 lock.waiting（测试和文档靠它引用）
@@ -469,9 +470,13 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | `space.disk` | space | `path_kind`（data_directory / wal / tablespace）、`path`、`total_bytes`、`used_bytes`、`avail_bytes` |
 | `space.wal` | space | `files`、`bytes`、`max_wal_size_bytes`、`wal_keep_bytes`、`wal_segment_bytes` |
 | `space.tablespaces` | space | `spcname`、`location`（默认表空间为空串）、`size_bytes`（看不到时 NULL，记 `redacted[]`） |
+| `freeze.databases` | freeze | `datname`、`datfrozenxid`、`xid_age`、`datminmxid`、`mxid_age`、`datallowconn` |
+| `freeze.tables` | freeze | `relation`（schema 限定）、`relkind`、`relfrozenxid`、`xid_age`、`relminmxid`、`mxid_age`、`heap_bytes_est`（relpages × block_size） |
+| `freeze.limits` | freeze | `autovacuum_freeze_max_age`、`autovacuum_multixact_freeze_max_age`、`vacuum_freeze_table_age` |
 
 | finding.id | 级别 | 命令 | evidence 字段 |
 |---|---|---|---|
+| `freeze.database_age` | WARN（≥ `autovacuum_freeze_max_age` 或 multixact ≥ `autovacuum_multixact_freeze_max_age`）/ FAIL（xid 年龄 ≥ 2^31−1−100 万，或 multixact 年龄 ≥ 2^31−1−100） | freeze | `datname`、`xid_age`、`mxid_age`、`autovacuum_freeze_max_age`、`autovacuum_multixact_freeze_max_age`（没采到时为 null） |
 
 ## 6. 功能性需求（MVP 以外的按版本排）
 

@@ -140,6 +140,7 @@ type report struct {
 		Role     string `json:"role"`
 		Location string `json:"location"`
 		User     string `json:"user"`
+		Database string `json:"database"`
 	} `json:"context"`
 	Data     map[string]probeData `json:"data"`
 	Findings []struct {

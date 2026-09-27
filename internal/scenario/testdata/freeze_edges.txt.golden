@@ -1,0 +1,18 @@
+freeze  FAIL  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+[FAIL] freeze.database_age  database template0 is 2146483652 xids old, at or past the stop limit 2146483647: the server refuses new transaction IDs or multixacts, so writes fail
+  verify: kbdiag txn  # the oldest transaction or 2PC holding back freezing
+
+[FAIL] freeze.database_age  database bad\x1b[31m is 2147483647 xids old, at or past the stop limit 2146483647 and 2147483647 multixacts old, at or past the stop limit 2147483547: the server refuses new transaction IDs or multixacts, so writes fail
+  verify: kbdiag txn  # the oldest transaction or 2PC holding back freezing
+  verify: kbdiag freeze --json  # the database name has control characters and the text shows it escaped: take the raw name from the JSON, then run kbdiag -d <name> freeze
+  fix: VACUUM (FREEZE, VERBOSE) <table>  # connected to that database, oldest tables first; past the stop limit a PG12 kernel only runs it in single-user mode: follow the KES manual on transaction ID wraparound
+
+limits: error  (XX000: boom)
+
+databases: 2
+  name         xid age     of freeze max  mxid age    xids left
+  bad\x1b[31m  2147483647  -              2147483647  0
+  template0    2146483652  -              0           0
+
+tables: skipped  (timeout 57014: canceling statement due to statement timeout)

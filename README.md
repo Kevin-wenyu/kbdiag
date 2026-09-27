@@ -43,6 +43,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `waits` | What the sessions doing something wait on, grouped by wait event and state, biggest pile first; idle sessions and background processes only counted | |
 | `slots` | Replication slots, inactive ones and the ones keeping the most WAL first; WARN on inactive ones | |
 | `space` | Where the space goes: the filesystems holding the data directory, WAL and tablespaces (local runs only), WAL size against `max_wal_size` and `wal_keep_segments`, database and tablespace sizes. Shows only, no verdict of its own | |
+| `freeze` | How far each database is from transaction ID wraparound, and the oldest tables of this one; WARN past `autovacuum_freeze_max_age`, FAIL at the stop limit where new transaction IDs are refused | `--limit N` |
 
 Defaults: idle in transaction 300 s, lock wait 10 s, transaction 300 s, prepared transaction 900 s, all WARN. `--limit` only trims what is shown; findings always cover every row.
 
@@ -142,6 +143,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `waits` | 在干活的会话在等什么，按等待事件和状态汇总，人多的在前；idle 会话和后台进程只计数 | |
 | `slots` | 复制槽，未激活的和保留 WAL 最多的排前面；未激活报 WARN | |
 | `space` | 空间账：数据目录、WAL、表空间所在的文件系统（只在本机运行时有），WAL 大小对照 `max_wal_size` 和 `wal_keep_segments`，各库和表空间大小。只展示，不判 | |
+| `freeze` | 各库离事务号回卷还有多远，当前库最老的表；超过 `autovacuum_freeze_max_age` 报 WARN，到了拒绝分配新事务号的停止线报 FAIL | `--limit N` |
 
 默认阈值：idle in transaction 300 秒，等锁 10 秒，事务 300 秒，两阶段事务 900 秒，都报 WARN。`--limit` 只影响显示，判定始终覆盖全部行。
 

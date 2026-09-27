@@ -1,0 +1,40 @@
+freeze  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+limits
+  autovacuum_freeze_max_age            200000000
+  autovacuum_multixact_freeze_max_age  400000000
+  xid stop limit                       2146483647  (new transaction IDs are refused)
+
+databases: 7
+  name       xid age  of freeze max  mxid age  xids left
+  esrep      5364     0%             0         2146478283
+  kingbase   5364     0%             0         2146478283
+  mydb       5364     0%             0         2146478283
+  security   5364     0%             0         2146478283
+  template0  5364     0%             0         2146478283
+  template1  5364     0%             0         2146478283
+  test       5364     0%             0         2146478283
+
+tables in test: 28, oldest first
+  relation                    kind   xid age  mxid age  heap (est.)
+  pg_catalog._agg             table  5364     0         80 kB
+  pg_catalog._am              table  5364     0         72 kB
+  pg_catalog._amop            table  5364     0         288 kB
+  pg_catalog._amproc          table  5364     0         160 kB
+  pg_catalog._anonpolicy      table  5364     0         32 kB
+  pg_catalog._att             table  5364     0         3560 kB
+  pg_catalog._attdef          table  5364     0         96 kB
+  pg_catalog._audit_blocklog  table  5364     0         0 bytes
+  pg_catalog._audit_userlog   table  5364     0         0 bytes
+  pg_catalog._authid          table  5364     0         80 kB
+  pg_catalog._authmem         table  5364     0         72 kB
+  pg_catalog._cast            table  5364     0         88 kB
+  pg_catalog._ce_col          table  5364     0         16 kB
+  pg_catalog._ce_col_key      table  5364     0         24 kB
+  pg_catalog._ce_col_key_arg  table  5364     0         8192 bytes
+  pg_catalog._ce_mst_key      table  5364     0         16 kB
+  pg_catalog._ce_mst_key_arg  table  5364     0         8192 bytes
+  pg_catalog._ce_proc         table  5364     0         16 kB
+  pg_catalog._coll            table  5364     0         88 kB
+  pg_catalog._con             table  5364     0         184 kB
+  ... 8 more not shown (--limit 0 shows all)
