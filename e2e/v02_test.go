@@ -393,3 +393,48 @@ func TestTopObjects(t *testing.T) {
 		t.Errorf("text:\n%s", out)
 	}
 }
+
+var (
+	tableInfoColumns = []string{"oid", "schemaname", "relname", "relkind", "relpersistence", "reltuples", "relpages", "total_bytes", "table_bytes", "index_bytes", "toast_bytes",
+		"reloptions", "xid_age", "mxid_age"}
+	tableIndexColumns = []string{"indexrelname", "definition", "bytes", "is_unique", "is_primary", "is_valid", "idx_scan"}
+)
+
+func TestTable(t *testing.T) {
+	t.Run("missing table", func(t *testing.T) {
+		r, code := kbdiag(t, nil, "table", "no_such_tbl")
+		if p := r.Data["table.info"]; p.Status != "ok" || len(p.Rows) != 0 || r.Verdict != "UNKNOWN" || code != 3 {
+			t.Errorf("info=%+v verdict=%s exit=%d", p, r.Verdict, code)
+		}
+	})
+	t.Run("empty name is a usage error", func(t *testing.T) {
+		if _, code := kbdiagText(t, nil, "table", "''"); code != 64 {
+			t.Errorf("exit=%d", code)
+		}
+	})
+	if role != "primary" {
+		return // the test table is created on the primary
+	}
+	inject(t, "table")
+	for _, name := range []string{"kbdiag_inj_tbl", "KBDIAG_INJ_TBL", "public.kbdiag_inj_tbl"} {
+		r, code := kbdiag(t, nil, "table", name)
+		info := okProbe(t, r, "table.info", tableInfoColumns)
+		if len(info.Rows) != 1 || info.rowsOf()[0]["relname"] != "kbdiag_inj_tbl" || r.Verdict != "OK" || code != 0 {
+			t.Errorf("%s: info=%v verdict=%s exit=%d", name, info.Rows, r.Verdict, code)
+		}
+	}
+	r, _ := kbdiag(t, nil, "table", "kbdiag_inj_tbl")
+	if ix := okProbe(t, r, "table.indexes", tableIndexColumns); len(ix.Rows) != 2 {
+		t.Errorf("indexes = %v", ix.Rows)
+	}
+	if n := num(t, r.Data["table.stats"].rowsOf()[0]["n_dead_tup"]); n < 5000 {
+		t.Errorf("n_dead_tup = %v", n)
+	}
+	if r, code := kbdiag(t, nil, "table", `public."KBDIAG_INJ_TBL"`); len(r.Data["table.info"].Rows) != 0 || code != 3 {
+		t.Errorf("a quoted upper-case name must not resolve: exit=%d", code)
+	}
+	out, _ := kbdiagText(t, nil, "table", "kbdiag_inj_tbl")
+	if !strings.Contains(out, "\npublic.kbdiag_inj_tbl  (table)\n") || !strings.Contains(out, "autovacuum threshold") {
+		t.Errorf("text:\n%s", out)
+	}
+}

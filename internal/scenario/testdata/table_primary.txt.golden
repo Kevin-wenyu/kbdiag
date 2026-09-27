@@ -1,0 +1,28 @@
+table  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T22:42:52+08:00)
+
+public.kbdiag_inj_tbl  (table)
+  size        3472 kB  (heap 2464 kB, indexes 976 kB, TOAST 8192 bytes)
+  rows        15000 estimated; 10000 live, 5000 dead
+  xid age     5  (autovacuum_freeze_max_age 200000000)
+  mxid age    0
+  reloptions  -
+
+vacuum and analyze
+  dead tuples             5000, autovacuum threshold 3050: due
+  last vacuum             never  (0 times)
+  last autovacuum         never  (0 times)
+  last analyze            59s ago  (1 time)
+  last autoanalyze        never  (0 times)
+  modified since analyze  5000
+
+access since the statistics reset
+  seq scans     3  (20000 rows read)
+  index scans   1  (200 rows fetched)
+  rows written  20000 inserted, 0 updated (0 HOT), 5000 deleted
+  heap blocks   310 read, 26427 hit (98.8% hit)
+  index blocks  122 read, 79376 hit (99.8% hit)
+
+indexes: 2
+  name                 size    scans  kind         definition
+  kbdiag_inj_tbl_n     520 kB  1      -            CREATE INDEX kbdiag_inj_tbl_n ON public.kbdiag_inj_tbl USING btree (n)
+  kbdiag_inj_tbl_pkey  456 kB  0      primary key  CREATE UNIQUE INDEX kbdiag_inj_tbl_pkey ON public.kbdiag_inj_tbl USING btree (id)

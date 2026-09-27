@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -97,7 +98,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
 		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
 		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout),
-		newCluster(g, stdout), newTopObjects(g, stdout))
+		newCluster(g, stdout), newTopObjects(g, stdout), newTable(g, stdout, stderr))
 	return root
 }
 
@@ -385,6 +386,35 @@ func newTopObjects(g *globalFlags, stdout io.Writer) *cobra.Command {
 	}
 	limitFlagN(c, &o.Limit, 20)
 	return c
+}
+
+func newTable(g *globalFlags, stdout, stderr io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "table <name>",
+		Short: "One table: size, rows, vacuum and analyze, freeze age, access, indexes (the name follows SQL rules: unquoted folds to lower case)",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			if strings.TrimSpace(name) == "" {
+				return fmt.Errorf("table name must not be empty")
+			}
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				i := probe.TableInfo(ctx, x, name)
+				s := facts.TableStats{Status: facts.StatusNotApplicable, Reason: "no table"}
+				ix := facts.TableIndexes{Status: facts.StatusNotApplicable, Reason: "no table"}
+				if i.Status == facts.StatusOK && len(i.Rows) == 1 && scenario.TableKinds[i.Rows[0].Relkind] {
+					s = probe.TableStats(ctx, x, info, i.Rows[0].OID)
+					ix = probe.TableIndexes(ctx, x, i.Rows[0].OID)
+				}
+				rep, found := scenario.Table(info, i, s, ix, probe.FreezeLimits(ctx, x), probe.VacuumSettings(ctx, x))
+				if !found && len(i.Rows) == 0 {
+					fmt.Fprintf(stderr, "kbdiag: no table %q in database %s (unquoted names fold to lower case; quote them as in SQL: '\"Name\"'; use -d for another database)\n", name, info.Database)
+				}
+				return rep
+			})
+		},
+	}
 }
 
 func limitFlag(c *cobra.Command, limit *int) { limitFlagN(c, limit, 50) }

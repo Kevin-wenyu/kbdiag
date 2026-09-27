@@ -60,6 +60,7 @@
 | `repl`（v0.2） | 从本节点看复制。主库：`synchronous_standby_names` 要几个、服务器现在算几个同步候选（`sync_state` 为 sync/quorum），每个下游的状态、同步状态、sent/flushed/replayed 落后本节点多少字节、replay_lag、上次回复多久前；备库：上游（复用 `inst.upstream`）、收到和回放的 LSN、差多少、最近回放的事务多久前、回放是否暂停，以及级联的下游。WARN 三条：同步候选不够数（`repl.sync_short`，KES 此时提交会不会卡住未验证，所以不报 FAIL；OK 不代表提交在流动，候选不确认时只看得到 replay_lag 在涨）、回放暂停（`repl.replay_paused`）、备库没在收 WAL（`inst.upstream`）；延迟只展示（没有客观线）；暂停的 walreceiver 只展示 last_msg，不判（用户未定） | `repl.downstreams`、`repl.sync`、`repl.replay`、`inst.upstream` | 备库上 `repl.sync` 为 `not_applicable`；主库上 `repl.replay`、`inst.upstream` 为 `not_applicable` |
 | `cluster`（v0.2） | repmgr 眼里的集群：节点、类型、上游、active、优先级、槽，标出本节点（repmgr 的 `get_local_node_id()` 给的节点，或槽名等于本实例的 `primary_slot_name`），最近 20 条 repmgr 事件；和数据库自己的看法对照。WARN 四条：多于一个 active 的 primary（`cluster.primaries`）、repmgr 标了 inactive 的节点（`cluster.inactive`）、本节点的类型和恢复角色不一致（`cluster.role_mismatch`）、主库上 repmgr 说跟着本节点的 active 备库没挂上来（`cluster.detached`）。节点能不能连上看不到（只连一个库）。没给 `-d` 时连 `esrep` 库（没有这个库就连默认库）；当前库没有 repmgr schema 时 `not_applicable`；认不出本节点时 UNKNOWN | `cluster.nodes`、`cluster.events`、`inst.downstreams` | 正常（备库的元数据是复制过来的；witness 的由 repmgrd 拷过去）；`cluster.detached` 只在主库上判 |
 | `top-objects`（v0.2） | 当前库最大的表（含分区表、物化视图；总大小 = 堆 + 索引 + TOAST，三部分分列，给估算行数）和最大的索引（TOAST 的索引算在 TOAST 里，不单列）。只展示，不判；有 probe 没采到时 UNKNOWN（有表被 AccessExclusiveLock 锁着时大小函数会等到 lock_timeout）。`--limit` 两个列表各自裁 | `object.tables`、`object.indexes` | 正常（大小是本地文件；unlogged 表在备库上只有 init 分支，读成 0） |
+| `table <name>`（v0.2） | 一张表的全貌：大小（堆、索引、TOAST）、估算和实际的活/死元组、xid/multixact 年龄、reloptions；vacuum 和 analyze（触发线、最近手工/自动各多久前、次数、自上次 analyze 的修改数）；自统计重置以来的访问（顺序/索引扫描、写入、块的读和命中）；索引（大小、扫描次数、主键/唯一/无效、定义）。判定复用 freeze（`freeze.table_age`）和 vacuum（`vacuum.table_disabled`）的规则，不另立。名字按 SQL 规则解析（`to_regclass`，不带引号的折成小写，按 search_path 找）；找不到或不是表时 UNKNOWN（退出码 3），stderr 写明；空名字是用法错误（64） | `table.info`、`table.stats`、`table.indexes`、`freeze.limits`、`vacuum.settings` | `table.stats` 为 `not_applicable`（统计是节点本地的），索引扫描次数为 NULL；年龄照判 |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
 
@@ -492,12 +493,16 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | `cluster.events` | cluster | `node_id`、`event`、`successful`、`event_time`、`event_age_s`、`details`（最近 20 条，这是 probe 的定义，不算截断） |
 | `object.tables` | top-objects | `schemaname`、`relname`、`relkind`、`total_bytes`、`table_bytes`（堆，含 FSM/VM：`pg_table_size` 减 TOAST，三部分加起来等于总大小）、`index_bytes`、`toast_bytes`（没有 TOAST 表时 NULL）、`reltuples`（估算） |
 | `object.indexes` | top-objects | `schemaname`、`relname`、`table_name`、`bytes` |
+| `table.info` | table | `oid`、`schemaname`、`relname`、`relkind`、`relpersistence`、`reltuples`、`relpages`、`total_bytes`、`table_bytes`、`index_bytes`、`toast_bytes`、`reloptions`、`xid_age`、`mxid_age`（没有 frozen xid 时 NULL）；找不到时 0 行 |
+| `table.stats` | table | `n_live_tup`、`n_dead_tup`、`n_mod_since_analyze`、`last_vacuum_age_s`、`last_autovacuum_age_s`、`last_analyze_age_s`、`last_autoanalyze_age_s`、`vacuum_count`、`autovacuum_count`、`analyze_count`、`autoanalyze_count`、`seq_scan`、`seq_tup_read`、`idx_scan`、`idx_tup_fetch`、`n_tup_ins`、`n_tup_upd`、`n_tup_del`、`n_tup_hot_upd`、`heap_blks_read`、`heap_blks_hit`、`idx_blks_read`、`idx_blks_hit` |
+| `table.indexes` | table | `indexrelname`、`definition`、`bytes`、`is_unique`、`is_primary`、`is_valid`、`idx_scan`（备库上 NULL） |
 
 | finding.id | 级别 | 命令 | evidence 字段 |
 |---|---|---|---|
 | `freeze.database_age` | WARN（≥ `autovacuum_freeze_max_age` 或 multixact ≥ `autovacuum_multixact_freeze_max_age`）/ FAIL（xid 年龄 ≥ 2^31−1−100 万，或 multixact 年龄 ≥ 2^31−1−100） | freeze | `datname`、`xid_age`、`mxid_age`、`autovacuum_freeze_max_age`、`autovacuum_multixact_freeze_max_age`（没采到时为 null） |
+| `freeze.table_age` | 同 `freeze.database_age` | table | `schemaname`、`relname`、`xid_age`、`mxid_age` |
 | `vacuum.disabled` | WARN | vacuum | `autovacuum`、`track_counts` |
-| `vacuum.table_disabled` | WARN | vacuum | `schemaname`、`relname`、`n_dead_tup`、`reltuples`、`threshold` |
+| `vacuum.table_disabled` | WARN | vacuum、table | `schemaname`、`relname`、`n_dead_tup`、`reltuples`、`threshold` |
 | `archive.failing` | WARN | archive | `archive_mode`、`failed_count`、`last_failed_wal`、`last_failed_time`、`archived_count`、`last_archived_wal`、`last_archived_time` |
 | `params.pending_restart` | WARN | params | `name`、`setting`、`sourcefile`、`sourceline`、`context` |
 | `repl.sync_short` | WARN | repl | `synchronous_standby_names`、`synchronous_commit`、`required`、`candidates`（服务器算作同步候选的应用名） |
