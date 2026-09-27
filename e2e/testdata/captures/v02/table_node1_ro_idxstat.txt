@@ -1,0 +1,6 @@
+-- kbdiag_ro@test on kes-node1: select * from sys_stat_user_indexes where relid='public.kbdiag_inj_tbl'::regclass
+relid|indexrelid|schemaname|relname|indexrelname|idx_scan|idx_tup_read|idx_tup_fetch
+117580|117586|public|kbdiag_inj_tbl|kbdiag_inj_tbl_pkey|0|0|0
+117580|117588|public|kbdiag_inj_tbl|kbdiag_inj_tbl_n|1|200|0
+(2 rows)
+EXIT_CODE=0

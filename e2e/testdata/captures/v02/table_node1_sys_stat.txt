@@ -1,0 +1,5 @@
+-- system@test on kes-node1: select * from sys_stat_user_tables where relid='public.kbdiag_inj_tbl'::regclass
+relid|schemaname|relname|seq_scan|seq_tup_read|idx_scan|idx_tup_fetch|n_tup_ins|n_tup_upd|n_tup_del|n_tup_hot_upd|n_live_tup|n_dead_tup|n_mod_since_analyze|last_vacuum|last_autovacuum|last_analyze|last_autoanalyze|vacuum_count|autovacuum_count|analyze_count|autoanalyze_count
+117580|public|kbdiag_inj_tbl|3|20000|1|200|20000|0|5000|0|10000|5000|5000|<NULL>|<NULL>|2026-09-27 22:41:52.757310+08|<NULL>|0|0|1|0
+(1 row)
+EXIT_CODE=0

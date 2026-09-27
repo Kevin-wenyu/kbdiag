@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node2: select to_regclass('kbdiag_inj_tbl'), to_regclass('KBDIAG_INJ_TBL'), to_regclass('public."KBDIAG_INJ_TBL"')
+to_regclass|to_regclass|to_regclass
+kbdiag_inj_tbl|kbdiag_inj_tbl|<NULL>
+(1 row)
+EXIT_CODE=0

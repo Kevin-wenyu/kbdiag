@@ -1,0 +1,34 @@
+-- system@test on kes-node2: select n.nspname, c.relname, c.relkind, c.oid, c.reltoastrelid, pg_total_relation_size(c.oid) total, pg_relation_size(c.oid) main, pg_indexes_size(c.oid) idx, case when c.reltoastrelid<>0 then pg_total_relation_size(c.reltoastrelid) end toast, c.reltuples from sys_class c join sys_namespace n on n.oid=c.relnamespace where c.relkind in ('r','p','m') order by total desc limit 30
+nspname|relname|relkind|oid|reltoastrelid|total|main|idx|toast|reltuples
+public|orders|r|100772|0|119037952|64684032|54321152|<NULL>|1e+06
+public|flight_psg_new_info|r|100741|0|112549888|67289088|45219840|<NULL>|1e+06
+public|kbdiag_test|r|49690|49695|74252288|44613632|29589504|8192|645750
+public|t_perf_test|r|24683|0|9183232|6889472|2269184|<NULL>|100000
+pg_catalog|_proc|r|1255|2836|4734976|1482752|729088|2490368|4650
+pg_catalog|_dep|r|2608|0|3907584|1155072|2719744|<NULL>|18518
+pg_catalog|_att|r|1249|0|3645440|2072576|1540096|<NULL>|11678
+public|kbdiag_inj_tbl|r|117580|117583|3555328|2523136|999424|8192|15000
+pg_catalog|_rewrite|r|2618|2838|2375680|647168|90112|1605632|576
+pg_catalog|_desc|r|2609|2834|1654784|1294336|319488|8192|4923
+pg_catalog|_stat|r|2619|2840|729088|499712|49152|147456|633
+pg_catalog|_rel|r|1259|0|647168|327680|286720|<NULL>|1244
+pg_catalog|_typ|r|1247|4171|475136|245760|188416|8192|1304
+pg_catalog|_op|r|2617|0|335872|188416|114688|<NULL>|1062
+pg_catalog|_amop|r|2602|0|294912|81920|180224|<NULL>|1266
+pg_catalog|_pkg|r|8045|8052|253952|32768|32768|155648|6
+pg_catalog|_con|r|2606|2832|188416|49152|98304|8192|136
+pg_catalog|_ind|r|2610|0|172032|73728|65536|<NULL>|353
+pg_catalog|_initprivs|r|3394|4155|172032|81920|49152|8192|777
+pg_catalog|_amproc|r|2603|0|163840|40960|90112|<NULL>|641
+pg_catalog|_trigger|r|2620|2336|147456|40960|73728|8192|192
+perf|kwr_snap_settings|r|76134|76137|131072|57344|40960|8192|508
+pg_catalog|_opclass|r|2616|0|122880|32768|57344|<NULL>|227
+pg_catalog|_conv|r|2607|0|106496|24576|49152|<NULL>|160
+information_schema|sql_features|r|12189|12190|98304|57344|0|8192|716
+perf|kwr_snap_shmem|r|76243|76246|98304|24576|40960|8192|286
+pg_catalog|_attdef|r|2604|2830|98304|24576|32768|8192|55
+pg_catalog|_opfamily|r|2753|0|90112|24576|32768|<NULL>|159
+pg_catalog|_cast|r|2605|0|90112|24576|32768|<NULL>|368
+pg_catalog|pg_type_nmap|r|12242|0|90112|57344|0|<NULL>|138
+(30 rows)
+EXIT_CODE=0

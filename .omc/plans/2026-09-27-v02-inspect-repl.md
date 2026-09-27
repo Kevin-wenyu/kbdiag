@@ -1,8 +1,8 @@
-# v0.2：巡检五条 + 复制两条（云会话长跑 + 本地 VM 收口）
+# v0.2：巡检五条 + 复制两条 + 对象和 SQL 三条（云会话长跑 + 本地 VM 收口）
 
-**状态**：active（用户 2026-09-27 定："都做了吧，主要是考虑场景"；云会话额度快到期，按上一轮的方式交给云会话长跑）
+**状态**：active（用户 2026-09-27 定："都做了吧，主要是考虑场景"；云会话额度快到期，按上一轮的方式交给云会话长跑；同日用户追加"我要的继续是开发，任务量可以更多"，把 v0.2 剩下的 top-objects、table、top 也加进来）
 
-**范围**：7 条新命令，都在 `docs/queries.md` 标为 v0.2：
+**范围**：10 条新命令，都在 `docs/queries.md` 标为 v0.2：
 
 | 组 | 命令 | queries.md | 一句话 |
 |---|---|---|---|
@@ -13,8 +13,11 @@
 | 巡检 | `params` | A2 | 哪些参数不是默认值、哪些改了还没生效 |
 | 复制 | `repl` | I1+I4 | 主库上看各备库的延迟；备库上看接收和回放 |
 | 复制 | `cluster` | I3 | repmgr 眼里的集群：节点、角色、上游、状态 |
+| 对象 | `top-objects` | F2 | 最大的表和索引（含 TOAST） |
+| 对象 | `table <t>` | F3 | 单表概况：大小、行数、死元组、最近 vacuum/analyze、索引、年龄 |
+| SQL | `top` | D2 | 累计 Top SQL（标明是累计值；统计没开时明说） |
 
-**不在范围**：`conn`（B3，sessions 的汇总已经回答了"连接是谁占的"，先不做）、`top`、`top-objects`、`table`、`kill`、`--dump-facts`，以及 queries.md 里"待排"和"以后"的条目。
+**不在范围**：`conn`（B3，sessions 的汇总已经回答了"连接是谁占的"，先不做）、`top --interval`（D2b，待排）、`kill`、`--dump-facts`，以及 queries.md 里"待排"和"以后"的条目。
 
 ## 0. 云会话必读（开工前）
 
@@ -29,7 +32,7 @@
 
 ## 1. 场景先行（用户 2026-09-27 强调："主要是考虑场景"）
 
-**阶段 1 只写场景，不写代码**，7 条命令的场景表一次写完，写进本计划的附录 B（每条命令一节），提交推送后再往下做。每节包含：
+**阶段 1 只写场景，不写代码**，10 条命令的场景表一次写完，写进本计划的附录 B（每条命令一节），提交推送后再往下做。每节包含：
 
 1. **场景表（MECE）**：DBA 在什么情况下会跑这条命令、想问什么（编号，如 SP1、FZ1、VA1、AR1、PA1、RP1、CL1）。每个问题写：现在 kbdiag 能不能回答（哪条命令）、这条命令怎么回答。
 2. **不归它管的问题**：指向哪条已有或新命令。重点写清和已有命令的边界：
@@ -38,6 +41,9 @@
    - `vacuum` ↔ `txn`/`slots`（vacuum 清不动的原因常是长事务或槽的 xmin，指过去，不自己查）
    - `repl` ↔ `status` 的 `inst.upstream`/`inst.downstreams` ↔ `slots`（status 回答"在不在复制"，repl 回答"落后多少"，slots 回答"保留了多少 WAL"）
    - `cluster` ↔ `repl`（cluster 是 repmgr 的看法，repl 是数据库自己的看法；两者不一致本身就是线索）
+   - `top-objects` ↔ `space`（space 是库、表空间、WAL 这一级的账，top-objects 往下一层到表和索引）
+   - `table <t>` ↔ `vacuum`/`freeze`/`locks`/`top-objects`（table 是单表的全貌；判定复用 vacuum、freeze 的规则，只对这张表，不另立规则；表上的锁指向 `locks`）
+   - `top` ↔ `sessions`/`waits`（sessions、waits 是此刻，top 是从统计起点到现在的累计；`top --interval` 不做）
 3. **参数**：从场景推，没有场景对应的不加。不加过滤参数，要筛用 `--json` 配 jq。
 4. **判定**：FAIL = 业务已经受影响；WARN = 还没受影响，但不处理会出事。只用客观线（服务器参数、硬上限）；没人会调的阈值不做成参数。每条 finding 写：id、级别、客观线是什么、为什么是这个级别、next 指向哪。没有客观线的就只展示不判（像 waits）。候选判定（都要论证，不是定论）：
    - `freeze`：库或表的年龄逼近 `autovacuum_freeze_max_age`（autovacuum 已经该强制冻结了）、逼近 20 亿（服务器会拒绝分配 xid）
@@ -47,6 +53,9 @@
    - `repl`：`synchronous_standby_names` 要求的同步备库数不够（主库提交会卡住：FAIL？）；延迟怎么判（有没有客观线）
    - `cluster`：repmgr 说的角色和数据库自己的 `sys_is_in_recovery()` 不一致；节点不在 running
    - `space`：没有客观线（剩多少算少因库而异），倾向只展示
+   - `top-objects`：只展示
+   - `table <t>`：复用 vacuum、freeze 的判定；表不存在给用法错误还是 UNKNOWN，要论证
+   - `top`：`sys_stat_statements.track=none`（实验环境就是这样）或扩展没装时不能报 OK 加空表，要明说没在收集（`skipped` 加原因，还是 UNKNOWN，要论证）
 5. **DS 场景**：新场景补进 `docs/PRD.md` 的 DS 场景表（接着现有编号），并说明 L6 验收怎么在 VM 上造出来；造不出来的写明。
 6. **需要用户拍板的点**：列在每节末尾。
 
@@ -59,7 +68,7 @@
 | 阶段 | 在哪 | 内容 | 检查点（用户异步审核的东西） |
 |---|---|---|---|
 | 0 | 本地 | 在 node1/node2 上用 ksql 实采 7 条命令要用的视图原始行，存进 `e2e/testdata/captures/v02/`（见 §3），推 main | 采集清单齐全 |
-| 1 | 云 | **7 条命令的场景表**（§1），写进附录 B，补 PRD DS 场景表 | 附录 B：场景、边界、判定、需要拍板的点 |
+| 1 | 云 | **10 条命令的场景表**（§1），写进附录 B，补 PRD DS 场景表 | 附录 B：场景、边界、判定、需要拍板的点 |
 | 2 | 云 | **space** | 草样、判定 |
 | 3 | 云 | **freeze** | 同上 |
 | 4 | 云 | **vacuum** | 同上 |
@@ -67,20 +76,25 @@
 | 6 | 云 | **params** | 同上 |
 | 7 | 云 | **repl** | 同上；walreceiver 暂停那条只列选项 |
 | 8 | 云 | **cluster** | 同上；repmgr 元数据的读法和权限 |
-| 9 | 云 | **跨命令收口和加固**：所有 `verify:` 指向的命令和参数都存在（扩展已有的 Next.Command 扫描测试）；各命令 next 互相一致；README（中英）和 PRD 命令表一致；新 report 格式化的边界测试；汇总 7 条命令的 VM 待验清单成一份核对表写进 chronicle；起草 `v2.0.0-alpha.3` 发布说明写进 chronicle，不打 tag | 核对表、发布说明草稿 |
-| 10 | 本地 | fetch 云分支 → 两节点 e2e（`-count=1`）→ 修 → 把 VM 实跑文本贴给用户 → Codex 审查 → Jev 分诊 → 修 → queries.md 验证状态 → kbdiag-docs 7 个新命令页（VM 实跑输出，注明 commit）→ 用户说了才合 main、打 tag、合 kbdiag-docs main | 每条命令的 VM 输出；Codex 意见处理表 |
+| 9 | 云 | **top-objects** | 同上 |
+| 10 | 云 | **table** | 同上；表名解析（大小写、schema、不存在） |
+| 11 | 云 | **top** | 同上；统计没开、kbdiag_ro 看不到 query |
+| 12 | 云 | **跨命令收口和加固**：所有 `verify:` 指向的命令和参数都存在（扩展已有的 Next.Command 扫描测试）；各命令 next 互相一致；README（中英）和 PRD 命令表一致；新 report 格式化的边界测试；汇总 10 条命令的 VM 待验清单成一份核对表写进 chronicle；起草 `v2.0.0-alpha.3` 发布说明写进 chronicle，不打 tag | 核对表、发布说明草稿 |
+| 13 | 本地 | fetch 云分支 → 两节点 e2e（`-count=1`）→ 修 → 把 VM 实跑文本贴给用户 → Codex 审查 → Jev 分诊 → 修 → queries.md 验证状态 → kbdiag-docs 10 个新命令页（VM 实跑输出，注明 commit）→ 用户说了才合 main、打 tag、合 kbdiag-docs main | 每条命令的 VM 输出；Codex 意见处理表 |
 
-阶段 2–8 按顺序做（后面的命令会引用前面命令的 next），不停下来等审核；用户对前一阶段提了意见，先处理意见再继续。
+阶段 2–11 按顺序做（后面的命令会引用前面命令的 next），不停下来等审核；用户对前一阶段提了意见，先处理意见再继续。
 
-### 阶段 2–8 每条命令的固定流程
+**一口气做下去**（用户 2026-09-27："我要的继续是开发，任务量可以更多"）：阶段 1 提交推送后直接进阶段 2，一直做到阶段 12。只有这几种情况停：碰到 §4 的门槛；分类器拦了；证据不够、只能靠猜 KES 行为（先跳过这一小块，列进 VM 待验清单，接着做别的）。额度快用完时，先把当前阶段做到能提交的状态，写 chronicle（做到哪、下一步是什么），再推送。
+
+### 阶段 2–11 每条命令的固定流程
 
 1. 取附录 B 的场景表；用户已经在上面留了意见就先按意见改。
-2. **SQL**：按 queries.md"SQL 引入规则"过第 1、2、4 关（改写成 KES 语义、核对 KES 文档、probe 注释写出处）；第 3 关（VM 实跑）留给阶段 10，列进 VM 待验清单。一个 probe 一条 SQL；列名以实采为准。权限：kbdiag_ro 看不到的列按 `redacted[]` 的规矩处理，实采里有 kbdiag_ro 的结果。
+2. **SQL**：按 queries.md"SQL 引入规则"过第 1、2、4 关（改写成 KES 语义、核对 KES 文档、probe 注释写出处）；第 3 关（VM 实跑）留给阶段 13，列进 VM 待验清单。一个 probe 一条 SQL；列名以实采为准。权限：kbdiag_ro 看不到的列按 `redacted[]` 的规矩处理，实采里有 kbdiag_ro 的结果。
 3. **草样**：用 `captures/v02/` 的实采数据手排文本输出，至少覆盖：主库、备库、kbdiag_ro；有 finding 的命令再手造一个触发的例子（从实采改数值，注明是改的）。排版沿用 status/slots（时长两个最大单位，大小按 1024 进位用 `internal/units`，表格用 `internal/report/table.go`，JSON 保留原始值）。
 4. **契约**：命令名、参数、列、JSON 字段、probe_id、finding.id、next 写进 PRD §4/§5 和 queries.md 追溯表（验证状态写"未验证"）。
 5. **先写失败测试**：golden 手抄草样，确认先失败；facts 尽量从 `captures/v02/` 还原。rule 单测按"暴力测试"补边界：空结果、NULL、0 和负数、极大值（xid 年龄接近 2^31、字节数上 TB）、xid 回绕（按 2^32 取模）、多字节表名。
 6. **实现**：`internal/probe/<域>.go`、`internal/rule`（纯函数）、`internal/scenario`、`internal/report/<命令>.go`、`cmd/kbdiag` 注册命令。
-7. **e2e**：`e2e/` 里加这条命令的测试，只编译不跑；每条断言在 VM 待验清单里点名。需要故障注入的场景，**可以写新注入脚本但标明未在 VM 上跑过**，阶段 10 本地验证；动 sudo、重启实例、改集群网络的注入不写。
+7. **e2e**：`e2e/` 里加这条命令的测试，只编译不跑；每条断言在 VM 待验清单里点名。需要故障注入的场景，**可以写新注入脚本但标明未在 VM 上跑过**，阶段 13 本地验证；动 sudo、重启实例、改集群网络的注入不写。
 8. **文档**：README（中英两段）、PRD、queries.md；CLAUDE.md 加一节"<命令>（2026-09-xx）"写**为什么**。不新建文档；跑防僵尸检查。
 9. **审查**：起一个 code-reviewer 审这一阶段的 diff，处理意见。
 10. **检查点提交**：提交信息 `v02(<命令>): ...`；chronicle 当日文件追加"<命令>（云会话）"一节：改动、实际跑过的命令和结果、VM 待验清单、需要用户拍板的点、下一步。推分支，直接进下一阶段。
@@ -105,7 +119,7 @@
 
 ### 阶段 0 结果（2026-09-27 21:20–21:30，UTC+08，V008R006C009B0014）
 
-`e2e/testdata/captures/v02/` 共 153 个文件。命名 `<命令>_<节点>_<sys|ro>_<名字>[_<场景>].txt`，sys 是 `system`，ro 是 `kbdiag_ro`（不带监控角色）。首行 `-- 用户@库 on 节点: SQL`，末行 `EXIT_CODE=n`；输出格式 `ksql -X -A -F'|' -P null='<NULL>'`。`shell_node{1,2}.txt` 是主机侧的数据：data_directory、`df -k`、`du sys_wal`、archive_status 计数、`repmgr cluster show`（文本和 `--csv`）、`repmgr node status`。场景后缀：`_dead` 是死元组测试表，`_paused` 是 slot 注入。
+`e2e/testdata/captures/v02/` 共 213 个文件（含补采的 top-objects、table、top）。命名 `<命令>_<节点>_<sys|ro>_<名字>[_<场景>].txt`，sys 是 `system`，ro 是 `kbdiag_ro`（不带监控角色）。首行 `-- 用户@库 on 节点: SQL`，末行 `EXIT_CODE=n`；输出格式 `ksql -X -A -F'|' -P null='<NULL>'`。`shell_node{1,2}.txt` 是主机侧的数据：data_directory、`df -k`、`du sys_wal`、archive_status 计数、`repmgr cluster show`（文本和 `--csv`）、`repmgr node status`。场景后缀：`_dead` 是死元组测试表，`_paused` 是 slot 注入。
 
 采集时发现的事实（云会话写场景表时要用；**都是这一次实采，不是文档结论**）：
 
@@ -114,9 +128,12 @@
 - **vacuum**：`sys_stat_user_tables` 是节点本地的统计。主库上 `kbdiag_inj_dead` 有 5000 死元组，备库上同一张表全是 0。所以备库上判不了死元组，应当报 `not_applicable`，或者明说只是本节点的统计。
 - **archive**：归档确实在失败。`archive_mode=always`，`archive_command` 是 `sys_rman archive-push`。`sys_stat_archiver` 是 archived 35、failed 17952，最后一次成功在 2026-09-16。`repmgr node status` 报 1 个 pending。node2 的 archive_status 下有 175 个 `.done`。
 - **params**：`sys_settings` 有 509 行，其中有 `pending_restart` 列。`params_*_all` 里 grep 到的 "ERROR" 是描述文字（"error messages"），不是报错。
-- **repl**：参数是 `synchronous_standby_names='ANY 1( node2)'`、`synchronous_commit=remote_apply`、`wal_keep_segments=512`、`max_wal_size=1024`；repmgr.conf 里是 `synchronous='quorum'`。**意外发现**：slot 注入暂停 node2 的 walreceiver、过了 `wal_sender_timeout` 之后，主库 `sys_stat_replication` 是 0 行，在主库上 `select txid_current()` 的提交**没有卡住**（立即返回，也没有 SyncRep 等待，见 `repl_*_paused`）。`sys_settings` 里没有名字带 degrad/async 的参数。怀疑 KES 或 repmgr 有同步自动降级为异步的机制，**没有验证**。repl 的场景表里"同步备库断开时提交会不会卡住"只能标成未验证，由阶段 10 查 KES 文档和 VM。
+- **repl**：参数是 `synchronous_standby_names='ANY 1( node2)'`、`synchronous_commit=remote_apply`、`wal_keep_segments=512`、`max_wal_size=1024`；repmgr.conf 里是 `synchronous='quorum'`。**意外发现**：slot 注入暂停 node2 的 walreceiver、过了 `wal_sender_timeout` 之后，主库 `sys_stat_replication` 是 0 行，在主库上 `select txid_current()` 的提交**没有卡住**（立即返回，也没有 SyncRep 等待，见 `repl_*_paused`）。`sys_settings` 里没有名字带 degrad/async 的参数。怀疑 KES 或 repmgr 有同步自动降级为异步的机制，**没有验证**。repl 的场景表里"同步备库断开时提交会不会卡住"只能标成未验证，由阶段 13 查 KES 文档和 VM。
 - **cluster**：暂停期间 `repmgr cluster show` 退出码是 25，警告 `node "node2" not found in sys_stat_replication` 和 `not attached to its upstream`，Upstream 列显示 `! node1`，LSN_Lag 在 node1 上是 320 bytes、node2 上是 272 bytes。干净时退出码 0。repmgr 二进制在 `/home/kingbase/cluster/install/kingbase/bin/repmgr`，元数据在 `esrep` 库。
 - **space**：数据盘 `/dev/vda4` 208 GB，用了 6%；`sys_wal` 约 2.6 GB（du 2605092 kB）。
+- **top-objects**（`topobj_*_rels`、`topobj_*_idx`）：`reltuples` 是 float4，ksql 显示成 `1e+06`，SQL 里要 cast 成 bigint。kbdiag_ro 也能看到大小，结果和 system 一样（`pg_total_relation_size` 没有被拒）。
+- **table**（`table_*`，21:40 左右补采）：测试表 `public.kbdiag_inj_tbl`，2 万行删掉四分之一、带主键、一个普通索引和 TOAST，采完已删。采了 `sys_class` 全列加 `age(relfrozenxid)`、`sys_stat_user_tables`、`sys_statio_user_tables`、`sys_index` 加 `pg_get_indexdef`、`sys_stat_user_indexes`、各项大小。备库的 `sys_stat_user_tables` 同样全是 0。表不存在时 `'x'::regclass` 报 `relation "public.no_such_tbl" does not exist`（`table_*_missing`）；`to_regclass` 按标识符规则折叠大小写：`kbdiag_inj_tbl` 和 `KBDIAG_INJ_TBL` 都能解析到，`public."KBDIAG_INJ_TBL"` 是 NULL（`table_*_ambiguous`）。
+- **top**（`top_*`）：`sys_stat_statements` 1.11 装在 test 库里，也在 `shared_preload_libraries` 中；但 **`sys_stat_statements.track=none`**（配置文件里设的），实验库里一行都没有。`sys_stat_statements_info` 不存在，所以拿不到统计起点。列名用 `total_exec_time`、`mean_exec_time`（PG13 以后的命名），另有 `parses`、`total_parse_time` 等 KES 自己加的列。有数据的样本 `top_node1_*_stmts_tracked` 是在一个会话里 `SET sys_stat_statements.track='top'` 后跑几条 SQL 采的，采完已 `sys_stat_statements_reset()`、删测试表。kbdiag_ro 看别人的语句：`queryid` 为 NULL，`query` 是 `<insufficient privilege>`，数值列都能看到。
 - 采完已撤注入、删测试表；两节点 `kbdiag_inj%` 会话 0、2PC 0，`repmgr_slot_2` active，node2 walreceiver streaming。
 
 ## 4. 审批门槛（压缩、交接、云会话都不能自己跨过）
@@ -129,6 +146,7 @@
 ## 5. 进度
 
 - 2026-09-27：用户定范围（巡检五条 + 复制两条）和做法；计划写成，状态 active
-- 2026-09-27：阶段 0 完成（实采 153 个文件，发现见 §3"阶段 0 结果"）。下一步：云会话从阶段 1 开始
+- 2026-09-27：阶段 0 完成（实采 213 个文件，发现见 §3"阶段 0 结果"）。下一步：云会话从阶段 1 开始
+- 2026-09-27：用户追加范围（top-objects、table、top，阶段 9–11），收口改为阶段 12、本地 VM 收尾改为阶段 13；补采这三条；明确云会话一口气做到阶段 12
 
 ## 附录 B：场景表（阶段 1 写）

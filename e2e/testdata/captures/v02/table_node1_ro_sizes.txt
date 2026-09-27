@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select pg_total_relation_size(c.oid), pg_relation_size(c.oid), pg_indexes_size(c.oid), pg_total_relation_size(c.reltoastrelid) from sys_class c where c.oid='public.kbdiag_inj_tbl'::regclass
+pg_total_relation_size|pg_relation_size|pg_indexes_size|pg_total_relation_size
+3555328|2523136|999424|8192
+(1 row)
+EXIT_CODE=0

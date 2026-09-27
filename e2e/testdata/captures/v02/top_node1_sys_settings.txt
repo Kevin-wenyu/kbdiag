@@ -1,0 +1,12 @@
+-- system@test on kes-node1: select name, setting, unit, source from sys_settings where name like 'sys_stat_statements%' or name in ('track_io_timing','shared_preload_libraries','compute_query_id')
+name|setting|unit|source
+shared_preload_libraries|repmgr, synonym, plsql, force_view, kdb_flashback,plugin_debugger, plsql_plugin_debugger, plsql_plprofiler, kdb_ora_expr, sepapower, dblink, sys_kwr, sys_spacequota, sys_stat_statements, backtrace, kdb_utils_function, auto_bmr, sys_squeeze, src_restrict|<NULL>|configuration file
+sys_stat_statements.max|5000|<NULL>|default
+sys_stat_statements.save|on|<NULL>|default
+sys_stat_statements.track|none|<NULL>|configuration file
+sys_stat_statements.track_parse|on|<NULL>|default
+sys_stat_statements.track_plan|on|<NULL>|default
+sys_stat_statements.track_utility|on|<NULL>|default
+track_io_timing|off|<NULL>|default
+(8 rows)
+EXIT_CODE=0

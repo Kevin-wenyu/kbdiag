@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select c.*, age(c.relfrozenxid) frozen_age from sys_class c where c.oid='public.kbdiag_inj_tbl'::regclass
+oid|relname|relnamespace|reltype|reloftype|relowner|relam|relfilenode|reltablespace|relpages|reltuples|relallvisible|reltoastrelid|relhasindex|relisshared|relpersistence|relkind|relnatts|relchecks|relhasrules|relhastriggers|relhassubclass|relrowsecurity|relforcerowsecurity|relispopulated|relreplident|relispartition|relrewrite|relfrozenxid|relminmxid|relacl|reloptions|relpartbound|frozen_age
+117580|kbdiag_inj_tbl|2200|117582|0|10|2|117580|0|308|15000|0|117583|t|f|p|r|3|0|f|f|f|f|f|t|d|f|0|6451|1|<NULL>|<NULL>|<NULL>|5
+(1 row)
+EXIT_CODE=0

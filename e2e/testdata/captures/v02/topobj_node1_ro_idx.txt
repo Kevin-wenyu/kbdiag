@@ -1,0 +1,24 @@
+-- kbdiag_ro@test on kes-node1: select n.nspname, c.relname, c.relkind, i.indrelid::regclass tbl, pg_relation_size(c.oid) from sys_class c join sys_namespace n on n.oid=c.relnamespace join sys_index i on i.indexrelid=c.oid order by 5 desc limit 20
+nspname|relname|relkind|tbl|pg_relation_size
+public|idx_orders_user_status|i|orders|31711232
+public|kbdiag_test_pkey|i|kbdiag_test|29589504
+public|idx_homs_flight_psg_new_info_tm|i|flight_psg_new_info|22609920
+public|orders_pkey|i|orders|22609920
+public|flight_psg_new_info_pkey|i|flight_psg_new_info|22609920
+public|t_perf_test_pkey|i|t_perf_test|2269184
+pg_catalog|_dep_depender_index|i|_dep|1417216
+pg_catalog|_dep_reference_index|i|_dep|1253376
+pg_catalog|_att_relid_attnam_index|i|_att|909312
+pg_catalog|_proc_proname_args_nsp_index|i|_proc|589824
+pg_catalog|_att_relid_attnum_index|i|_att|581632
+public|kbdiag_inj_tbl_n|i|kbdiag_inj_tbl|532480
+public|kbdiag_inj_tbl_pkey|i|kbdiag_inj_tbl|466944
+pg_catalog|_desc_o_c_o_index|i|_desc|294912
+pg_catalog|_proc_oid_index|i|_proc|139264
+pg_catalog|_rel_relname_nsp_index|i|_rel|98304
+pg_catalog|_rel_tblspc_relfilenode_index|i|_rel|90112
+pg_catalog|_typ_typname_nsp_index|i|_typ|90112
+pg_catalog|_op_oprname_l_r_n_index|i|_op|73728
+pg_catalog|_amop_fam_strat_index|i|_amop|73728
+(20 rows)
+EXIT_CODE=0

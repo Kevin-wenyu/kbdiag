@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node2: select 'public.no_such_tbl'::regclass
+ERROR:  relation "public.no_such_tbl" does not exist
+LINE 1: select 'public.no_such_tbl'::regclass
+               ^
+EXIT_CODE=1

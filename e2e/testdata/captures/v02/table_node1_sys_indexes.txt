@@ -1,0 +1,6 @@
+-- system@test on kes-node1: select i.*, pg_get_indexdef(i.indexrelid) def, pg_relation_size(i.indexrelid) size from sys_index i where i.indrelid='public.kbdiag_inj_tbl'::regclass
+indexrelid|indrelid|indnatts|indnkeyatts|indisunique|indisprimary|indisexclusion|indimmediate|indisclustered|indisvalid|indcheckxmin|indisready|indislive|indisreplident|indkey|indcollation|indclass|indoption|indexprs|indpred|def|size
+117586|117580|1|1|t|t|f|t|f|t|f|t|t|f|1|0|1978|0|<NULL>|<NULL>|CREATE UNIQUE INDEX kbdiag_inj_tbl_pkey ON public.kbdiag_inj_tbl USING btree (id)|466944
+117588|117580|1|1|f|f|f|t|f|t|f|t|t|f|3|0|3125|0|<NULL>|<NULL>|CREATE INDEX kbdiag_inj_tbl_n ON public.kbdiag_inj_tbl USING btree (n)|532480
+(2 rows)
+EXIT_CODE=0

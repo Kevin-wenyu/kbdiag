@@ -1,0 +1,11 @@
+-- kbdiag_ro@test on kes-node2: select name, setting, unit, source from sys_settings where name like 'sys_stat_statements%' or name in ('track_io_timing','shared_preload_libraries','compute_query_id')
+name|setting|unit|source
+sys_stat_statements.max|5000|<NULL>|default
+sys_stat_statements.save|on|<NULL>|default
+sys_stat_statements.track|none|<NULL>|configuration file
+sys_stat_statements.track_parse|on|<NULL>|default
+sys_stat_statements.track_plan|on|<NULL>|default
+sys_stat_statements.track_utility|on|<NULL>|default
+track_io_timing|off|<NULL>|default
+(7 rows)
+EXIT_CODE=0

@@ -1,0 +1,5 @@
+-- kbdiag_ro@esrep on kes-node1: select extname, extversion from sys_extension where extname='sys_stat_statements'
+extname|extversion
+sys_stat_statements|1.11
+(1 row)
+EXIT_CODE=0

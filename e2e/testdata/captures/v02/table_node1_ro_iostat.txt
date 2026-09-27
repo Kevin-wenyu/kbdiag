@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select * from sys_statio_user_tables where relid='public.kbdiag_inj_tbl'::regclass
+relid|schemaname|relname|heap_blks_read|heap_blks_hit|idx_blks_read|idx_blks_hit|toast_blks_read|toast_blks_hit|tidx_blks_read|tidx_blks_hit
+117580|public|kbdiag_inj_tbl|310|26427|122|79376|0|0|0|0
+(1 row)
+EXIT_CODE=0

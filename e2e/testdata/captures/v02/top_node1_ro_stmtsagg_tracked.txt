@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select count(*), sum(calls), min(queryid), max(length(query)) from sys_stat_statements
+count|sum|min|max
+7|8|<NULL>|24
+(1 row)
+EXIT_CODE=0

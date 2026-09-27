@@ -1,0 +1,11 @@
+-- system@test on kes-node1: select * from sys_stat_statements order by total_exec_time desc limit 15
+userid|dbid|queryid|query|parses|total_parse_time|min_parse_time|max_parse_time|mean_parse_time|stddev_parse_time|plans|total_plan_time|min_plan_time|max_plan_time|mean_plan_time|stddev_plan_time|calls|total_exec_time|min_exec_time|max_exec_time|mean_exec_time|stddev_exec_time|rows|shared_blks_hit|shared_blks_read|shared_blks_dirtied|shared_blks_written|local_blks_hit|local_blks_read|local_blks_dirtied|local_blks_written|temp_blks_read|temp_blks_written|blk_read_time|blk_write_time
+10|13778|1480111386685905898|insert into public.kbdiag_inj_top select g, md5(g::text) from generate_series($1,$2) g|1|3.389147|0.088781|0.088781|0.088781|0|1|0.465582|0.465582|0.465582|0.465582|0|1|1752.36171|1752.36171|1752.36171|1752.36171|0|200000|203413|2|1682|1681|0|0|0|0|342|342|0|0
+10|13778|2032348613423320804|select pg_sleep($1)|1|1.699219|0.008259|0.008259|0.008259|0|1|0.447|0.447|0.447|0.447|0|1|502.56291|502.56291|502.56291|502.56291|0|1|33|0|0|0|0|0|0|0|0|0|0|0
+10|13778|5152014867410234633|select count(*) from public.kbdiag_inj_top a join public.kbdiag_inj_top b using(id) where a.id<$1|1|1.703347|0.025808|0.025808|0.025808|0|1|2.623156|2.623156|2.623156|2.623156|0|1|394.92063|394.92063|394.92063|394.92063|0|1|5089|0|0|0|0|0|0|0|345|347|0|0
+10|13778|544787194889430085|select count(*) from public.kbdiag_inj_top where v like $1|2|2.0275|0.022711|0.709212|0.20001424999999998|0.3762850004860843|2|2.612832|0.469711|2.143121|1.306416|0.8367049999999999|2|217.819964|97.428386|120.391578|108.909982|11.481595999999996|2|3397|0|0|0|0|0|0|0|0|0|0|0
+10|13778|226523537386975777|create table public.kbdiag_inj_top(id int, v text)|1|0.399513|0.002065|0.002065|0.002065|0|0|0|0|0|0|0|1|73.672366|73.672366|73.672366|73.672366|0|0|514|1|30|0|0|0|0|0|0|0|0|0
+10|13778|-7940872052162490440|drop table public.kbdiag_inj_top|1|0.113556|0.005161|0.005161|0.005161|0|0|0|0|0|0|0|1|6.562534|6.562534|6.562534|6.562534|0|0|344|0|0|0|0|0|0|0|0|0|0|0
+10|13778|3583899559451442283|show sys_stat_statements.track|1|0.23846900000000001|0.033035|0.033035|0.033035|0|0|0|0|0|0|0|1|0.089813|0.089813|0.089813|0.089813|0|0|0|0|0|0|0|0|0|0|0|0|0|0
+(7 rows)
+EXIT_CODE=0
