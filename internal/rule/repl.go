@@ -12,8 +12,8 @@ import (
 // (inst.upstream, the status rule), a standby whose replay is paused, and a
 // primary with fewer synchronous standbys streaming than
 // synchronous_standby_names asks for. Lag is shown, never judged: there is
-// no server-side line for it. A paused walreceiver (last_msg growing) is
-// shown only, until the user decides (plan §1).
+// no server-side line for it. A stuck walreceiver (last_msg past
+// wal_receiver_timeout) is part of inst.upstream.
 func Repl(d facts.ReplDownstreams, s facts.ReplSync, u facts.InstUpstream, r facts.ReplReplay) Result {
 	var fs []Finding
 	unknown := false

@@ -64,8 +64,10 @@ func connections(x facts.Info) (Finding, bool) {
 
 // upstream warns when a standby receives no WAL: today's queries still run,
 // but if the primary fails now there is no up-to-date standby to take over.
-// last_msg is not judged: a quiet primary sends one every
-// wal_receiver_status_interval (8s ago was normal in the lab).
+// A receiver that says streaming is stuck when nothing has come for longer
+// than wal_receiver_timeout (user 2026-09-27, option B): a working receiver
+// asks the sender for a reply at half of it, even from a quiet primary, and
+// reconnects after all of it, so only a stopped or blocked one gets past it.
 func upstream(u facts.InstUpstream) (f Finding, found, unknown bool) {
 	judge, unknown := collected(u.Status)
 	if !judge {
@@ -86,7 +88,20 @@ func upstream(u facts.InstUpstream) (f Finding, found, unknown bool) {
 			return Finding{}, false, true
 		}
 		if *x.Status == "streaming" {
-			continue
+			if x.LastMsgAgeS == nil || x.WALReceiverTimeoutS == nil || *x.WALReceiverTimeoutS <= 0 || *x.LastMsgAgeS <= *x.WALReceiverTimeoutS {
+				continue
+			}
+			return Finding{
+				ID:    "inst.upstream",
+				Level: LevelWARN,
+				Symptom: fmt.Sprintf("the standby's WAL receiver shows streaming, but nothing has come from the primary for %s, longer than wal_receiver_timeout (%s), after which a working receiver reconnects: it is stuck (stopped or blocked), so it is not receiving WAL: if the primary fails now, no standby can take over",
+					units.Duration(*x.LastMsgAgeS), units.Duration(*x.WALReceiverTimeoutS)),
+				Evidence: []Evidence{{ProbeID: facts.InstUpstreamID, Fields: map[string]any{
+					"status": *x.Status, "sender_host": x.SenderHost, "sender_port": x.SenderPort, "slot_name": x.SlotName,
+					"last_msg_age_s": *x.LastMsgAgeS, "wal_receiver_timeout_s": *x.WALReceiverTimeoutS,
+				}}},
+				Next: next,
+			}, true, false
 		}
 		return Finding{
 			ID:      "inst.upstream",
@@ -134,7 +149,7 @@ func Slots(l facts.SlotList) Result {
 			Evidence: []Evidence{{ProbeID: facts.SlotListID, Fields: map[string]any{
 				"slot_name": s.Name, "active": s.Active, "xmin": s.Xmin, "catalog_xmin": s.CatalogXmin, "retained_wal_bytes": s.RetainedWALBytes,
 			}}},
-			Next: []Next{{Kind: "verify", Command: "kbdiag status", Note: "run on this slot's downstream node (usually a standby): if it cannot connect, the node is down; inst.upstream with no receiver or not streaming means it is not receiving WAL; if it shows streaming, run it again after 10-20s: a last_msg that keeps growing means the receiver is stuck"}},
+			Next: []Next{{Kind: "verify", Command: "kbdiag status", Note: "run on this slot's downstream node (usually a standby): if it cannot connect, the node is down; inst.upstream warns when it has no receiver, the receiver is not streaming, or nothing has come for longer than wal_receiver_timeout"}},
 		})
 	}
 	return Result{Verdict: verdictOf(fs, unknown), Findings: fs}

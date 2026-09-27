@@ -122,9 +122,12 @@ func TestStatusUpstream(t *testing.T) {
 	info := facts.InstInfo{Status: facts.StatusOK}
 	d := facts.InstDatabases{Status: facts.StatusOK}
 	n := facts.InstDownstreams{Status: facts.StatusOK}
-	up := func(status *string) facts.InstUpstream {
-		return facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{Status: status, SenderHost: str("192.168.105.10"), SenderPort: i32(54321), SlotName: str("repmgr_slot_2"), LastMsgAgeS: f64(8)}}}
+	upAt := func(status *string, age, timeout *float64) facts.InstUpstream {
+		return facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{Status: status, SenderHost: str("192.168.105.10"), SenderPort: i32(54321), SlotName: str("repmgr_slot_2"),
+			LastMsgAgeS: age, WALReceiverTimeoutS: timeout}}}
 	}
+	up := func(status *string) facts.InstUpstream { return upAt(status, f64(8), f64(30)) }
+	stuck := "the standby's WAL receiver shows streaming, but nothing has come from the primary for 1m 35s, longer than wal_receiver_timeout (30s), after which a working receiver reconnects: it is stuck (stopped or blocked), so it is not receiving WAL: if the primary fails now, no standby can take over"
 	cases := []struct {
 		name    string
 		u       facts.InstUpstream
@@ -139,6 +142,13 @@ func TestStatusUpstream(t *testing.T) {
 			"the standby's WAL receiver is stopping, not streaming, so it is not receiving WAL from the primary: if the primary fails now, no standby can take over", "stopping"},
 		{"starting", up(str("starting")), VerdictWARN,
 			"the standby's WAL receiver is starting, not streaming, so it is not receiving WAL from the primary: if the primary fails now, no standby can take over", "starting"},
+		{"stuck receiver", upAt(str("streaming"), f64(95), f64(30)), VerdictWARN, stuck, "streaming"},
+		// a quiet primary: the receiver asks for a reply at half the timeout
+		{"quiet primary", upAt(str("streaming"), f64(16), f64(30)), VerdictOK, "", nil},
+		{"at the line", upAt(str("streaming"), f64(30), f64(30)), VerdictOK, "", nil},
+		{"timeout disabled", upAt(str("streaming"), f64(95), f64(0)), VerdictOK, "", nil},
+		{"timeout unread", upAt(str("streaming"), f64(95), nil), VerdictOK, "", nil},
+		{"no message yet", upAt(str("streaming"), nil, f64(30)), VerdictOK, "", nil},
 		{"status hidden", up(nil), VerdictUNKNOWN, "", nil},
 		{"primary", facts.InstUpstream{Status: facts.StatusNotApplicable, Reason: "primary"}, VerdictOK, "", nil},
 		{"error", facts.InstUpstream{Status: facts.StatusError}, VerdictUNKNOWN, "", nil},

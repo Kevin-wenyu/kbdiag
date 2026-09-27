@@ -168,7 +168,7 @@
 
 - 合进 main、推 main、打 tag、推 kbdiag-docs：只有用户明确说了才做（阶段 0 的实采推 main 是本计划批准的）。
 - 附录 B 和各阶段"需要用户拍板"的点：云会话先按建议实现，用户否了就改；不能因为已经实现了就当成用户同意。
-- 暂停的 walreceiver 的判定：用户没定，只展示不判。
+- 暂停的 walreceiver 的判定：用户 2026-09-27 选 B（last_msg 超过 `wal_receiver_timeout` 报 WARN），已实现，见附录 B.17。
 - 任何写操作（`kill`、`CHECKPOINT`、`pg_switch_wal`、重载参数）都不进诊断路径：kbdiag 默认只读。
 
 ## 5. 进度
@@ -193,6 +193,7 @@
 - 2026-09-27：阶段 16 wal 完成（云会话，`v02(wal)`）。下一步：阶段 17 seq
 - 2026-09-27：阶段 17 seq 完成（云会话，`v02(seq)`）。下一步：处理 checkpoint 审查意见，然后阶段 18 加固
 - 2026-09-27：阶段 18 加固完成（云会话，`v02: stage 18 ...`）：fuzz、PRD §5.2 契约测试、race、deslop 自查、CLAUDE.md 各节统一结构；合并版 VM 核对表（26 条，按命令排）在 chronicle 2026-09-27。云阶段全部做完。下一步：阶段 13（本地 VM）
+- 2026-09-27：用户拍板（"A1 选 B，A2 加，其余按建议"，见附录 B.17）：卡住的 walreceiver 报 WARN、`space.disk_full` FAIL 已实现（云会话，`v02: decisions ...`）。下一步：阶段 13（本地 VM）
 - 2026-09-27：用户追加范围（top-objects、table、top，阶段 9–11），收口改为阶段 12、本地 VM 收尾改为阶段 13；补采这三条；明确云会话一口气做到阶段 12
 
 ## 附录 B：场景表（阶段 1 写）
@@ -612,3 +613,20 @@ DS：新增 DS-33（序列耗尽）。L6：建一个 `maxvalue 10` 的序列取�
 | 31 | 长操作进度 | progress | 在大表上 CREATE INDEX |
 | 32 | checkpoint 过频 | checkpoint | 造不出来（要大量写入）；只看阴性 |
 | 33 | 序列耗尽 | seq | 建 `maxvalue 10` 的测试序列取到头 |
+
+### B.17 拍板结果（用户 2026-09-27："A1 选 B，A2 加，其余按建议"）
+
+拍板点在对话里按两组列出：A 组 11 条（答案会改变行为），B 组 18 条（已按建议实现，请确认）。
+
+- **A1 暂停的 walreceiver（B.6 第 1 点）**：选 B。`inst.upstream` 在状态是 streaming 而 `last_msg_age_s` 超过 `wal_receiver_timeout_s` 时 WARN；status 和 repl 共用。`inst.upstream` 加列 `wal_receiver_timeout_s`（v0.1 契约只增不改）。
+- **A2 space 满盘 FAIL（B.1 第 1 点）**：加。`space.disk_full` FAIL：数据目录或 WAL 目录所在文件系统的可用空间 < 一个 WAL 段。
+- **其余按建议，都不改代码**：
+  - vacuum"过线很久没清"不判（B.3 第 1 点）；
+  - `archive_command` 为空先只在文本标出，VM 核实 KES 行为后再定（B.4 第 2 点）；
+  - 不加 `params <pattern>`，`sys_file_settings.error` 先不做（B.5）；
+  - `buffers_backend_fsync > 0` 只展示（B.13）；
+  - seq 快用完不报 WARN，列类型错配先不做（B.15）；
+  - freeze 的 WARN 线用 `autovacuum_freeze_max_age`（B.2 第 1 点）；
+  - top 有数据那支的 L6 不改服务器配置（B.10 第 3 点）；
+  - B 组 18 条按现状确认。
+

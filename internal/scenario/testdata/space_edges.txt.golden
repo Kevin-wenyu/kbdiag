@@ -1,4 +1,8 @@
-space  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+space  FAIL  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+[FAIL] space.disk_full  the filesystem holding wal has 0 bytes free, less than one WAL segment (16 MB): writes that need new space fail (a table cannot grow), and once no old segment is left to reuse, the server stops at the next WAL segment
+  verify: kbdiag wal  # what keeps WAL here: slots, wal_keep_segments, archiving
+  verify: kbdiag top-objects  # the largest tables and indexes in this database
 
 disk: 3 filesystems
   holds                                      used     size     free     use

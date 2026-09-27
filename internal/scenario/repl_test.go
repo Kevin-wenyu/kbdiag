@@ -121,12 +121,13 @@ func TestReplTextEdges(t *testing.T) {
 
 	sb := v02Context("standby", "system", "local")
 	port := int32(54321)
-	u := facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{Status: str("streaming"), SenderHost: str("10.0.0.1"), SenderPort: &port, SlotName: str("repmgr_slot_2"), LastMsgAgeS: f64(95)}}}
+	u := facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{Status: str("streaming"), SenderHost: str("10.0.0.1"), SenderPort: &port, SlotName: str("repmgr_slot_2"), LastMsgAgeS: f64(95), WALReceiverTimeoutS: f64(30)}}}
 	r := facts.ReplReplay{Status: facts.StatusOK, Rows: []facts.Replay{{ReceiveLSN: str("0/C0000000"), ReplayLSN: str("0/10000000"), ReplayGapBytes: i64(3 << 30), LastReplayAgeS: f64(600), ReplayPaused: true}}}
 	cascade := facts.ReplDownstreams{Status: facts.StatusOK, Rows: []facts.Replica{{PID: 9, ApplicationName: str("node3"), State: str("streaming"), SyncState: str("async"), SentLagBytes: i64(0), FlushLagBytes: i64(0), ReplayLagBytes: i64(0)}}}
 	rep = Repl(sb, cascade, facts.ReplSync{Status: facts.StatusNotApplicable, Reason: "standby: synchronous replication is decided on the primary"}, u, r)
 	assertGolden(t, "repl_edges_standby", rep)
-	if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 1 || rep.Findings[0].ID != "repl.replay_paused" {
+	// the receiver has heard nothing for 95s, past wal_receiver_timeout: stuck
+	if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 2 || rep.Findings[0].ID != "inst.upstream" || rep.Findings[1].ID != "repl.replay_paused" {
 		t.Errorf("verdict=%s findings=%+v", rep.Verdict, rep.Findings)
 	}
 }

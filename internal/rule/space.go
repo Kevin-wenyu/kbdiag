@@ -1,6 +1,12 @@
 package rule
 
-import "github.com/Kevin-wenyu/kbdiag/internal/facts"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/Kevin-wenyu/kbdiag/internal/facts"
+	"github.com/Kevin-wenyu/kbdiag/internal/units"
+)
 
 // Display is the verdict of a command that only shows: OK says every probe
 // was collected and nothing was hidden, never that the numbers are fine; a
@@ -14,9 +20,67 @@ func Display(hidden bool, sts ...facts.Status) Result {
 	return Result{Verdict: verdictOf(nil, unknown)}
 }
 
-// Space only shows: how much is left on a disk is not wrong in itself, since
-// how much is too little depends on the database.
+// Space shows the space account and judges one line (user 2026-09-27): a
+// filesystem holding data_directory or the WAL directory with less free
+// space than one WAL segment is FAIL. Writes that need new space already
+// fail there (a table cannot grow), and once no old segment is left to
+// reuse, the next WAL segment cannot be created and the server stops.
+// Everything else is shown only: how much is too little otherwise depends
+// on the database. A full tablespace disk stops writes to its tables, not
+// the server, so it is shown only. The segment size comes from space.wal,
+// which kbdiag_ro cannot collect: then the line is not judged (UNKNOWN).
 func Space(d facts.InstDatabases, t facts.SpaceTablespaces, w facts.SpaceWAL, disk facts.SpaceDisk) Result {
 	hidden := len(d.Redacted())+len(t.Redacted()) > 0
-	return Display(hidden, d.Status, t.Status, w.Status, disk.Status)
+	r := Display(hidden, d.Status, t.Status, w.Status, disk.Status)
+	if disk.Status != facts.StatusOK || w.Status != facts.StatusOK || len(w.Rows) == 0 || w.Rows[0].WALSegmentBytes == nil {
+		return r
+	}
+	seg := *w.Rows[0].WALSegmentBytes
+	type filesystem struct {
+		kinds, paths []string
+		d            facts.Disk
+	}
+	var order []string
+	byID := map[string]*filesystem{}
+	for _, m := range disk.Rows {
+		if m.Kind != "data_directory" && m.Kind != "wal" {
+			continue
+		}
+		id := m.FSID
+		if id == "" { // no id: never merged, as in the text
+			id = "path:" + m.Path
+		}
+		f, ok := byID[id]
+		if !ok {
+			f = &filesystem{d: m.Disk}
+			byID[id] = f
+			order = append(order, id)
+		}
+		f.kinds = append(f.kinds, m.Kind)
+		f.paths = append(f.paths, m.Path)
+	}
+	var fs []Finding
+	for _, id := range order {
+		f := byID[id]
+		if seg <= 0 || f.d.AvailBytes >= uint64(seg) {
+			continue
+		}
+		fs = append(fs, Finding{
+			ID:    "space.disk_full",
+			Level: LevelFAIL,
+			Symptom: fmt.Sprintf("the filesystem holding %s has %s free, less than one WAL segment (%s): writes that need new space fail (a table cannot grow), and once no old segment is left to reuse, the server stops at the next WAL segment",
+				strings.Join(f.kinds, " and "), units.Bytes(float64(f.d.AvailBytes)), units.Bytes(float64(seg))),
+			Evidence: []Evidence{{ProbeID: facts.SpaceDiskID, Fields: map[string]any{
+				"paths": f.paths, "avail_bytes": f.d.AvailBytes, "total_bytes": f.d.TotalBytes, "wal_segment_bytes": seg,
+			}}},
+			Next: []Next{
+				{Kind: "verify", Command: "kbdiag wal", Note: "what keeps WAL here: slots, wal_keep_segments, archiving"},
+				{Kind: "verify", Command: "kbdiag top-objects", Note: "the largest tables and indexes in this database"},
+			},
+		})
+	}
+	if len(fs) == 0 {
+		return r
+	}
+	return Result{Verdict: VerdictFAIL, Findings: fs}
 }

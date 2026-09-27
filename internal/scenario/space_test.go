@@ -101,8 +101,9 @@ func TestSpaceTextEdges(t *testing.T) {
 	d := facts.InstDatabases{Status: facts.StatusOK}
 	rep := Space(c, d, ts, w, disk)
 	assertGolden(t, "space_edges", rep)
-	if rep.Verdict != rule.VerdictOK {
-		t.Errorf("verdict = %s", rep.Verdict)
+	// the WAL filesystem has 0 bytes free, less than one segment
+	if rep.Verdict != rule.VerdictFAIL || len(rep.Findings) != 1 || rep.Findings[0].ID != "space.disk_full" {
+		t.Errorf("verdict=%s findings=%+v", rep.Verdict, rep.Findings)
 	}
 
 	// settings not visible: no reference, no hint

@@ -42,7 +42,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `txn` | The oldest xid holding back vacuum and who holds it, open transactions, prepared (2PC) ones; WARN on old ones | `--limit N`, `--xact-warn S`, `--prepared-warn S` |
 | `waits` | What the sessions doing something wait on, grouped by wait event and state, biggest pile first; idle sessions and background processes only counted | |
 | `slots` | Replication slots, inactive ones and the ones keeping the most WAL first; WARN on inactive ones | |
-| `space` | Where the space goes: the filesystems holding the data directory, WAL and tablespaces (local runs only), WAL size against `max_wal_size` and `wal_keep_segments`, database and tablespace sizes. Shows only, no verdict of its own | |
+| `space` | Where the space goes: the filesystems holding the data directory, WAL and tablespaces (local runs only), WAL size against `max_wal_size` and `wal_keep_segments`, database and tablespace sizes. FAIL when the filesystem holding the data directory or WAL has less free space than one WAL segment; everything else is shown only | |
 | `freeze` | How far each database is from transaction ID wraparound, and the oldest tables of this one; WARN past `autovacuum_freeze_max_age`, FAIL at the stop limit where new transaction IDs are refused | `--limit N` |
 | `vacuum` | The tables with the most dead tuples and where autovacuum's threshold is for each, what is vacuuming now; WARN when nothing will clean them (autovacuum or track_counts off, or a table past its threshold with autovacuum off for it). Primary only | `--limit N` |
 | `archive` | Whether WAL archiving works: the settings, the last success and failure, WAL waiting to be archived; WARN when the last attempt failed | |
@@ -154,7 +154,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `txn` | 最老的 xid 压着 vacuum、是谁压的，开着的事务，两阶段事务；过久报 WARN | `--limit N`、`--xact-warn 秒`、`--prepared-warn 秒` |
 | `waits` | 在干活的会话在等什么，按等待事件和状态汇总，人多的在前；idle 会话和后台进程只计数 | |
 | `slots` | 复制槽，未激活的和保留 WAL 最多的排前面；未激活报 WARN | |
-| `space` | 空间账：数据目录、WAL、表空间所在的文件系统（只在本机运行时有），WAL 大小对照 `max_wal_size` 和 `wal_keep_segments`，各库和表空间大小。只展示，不判 | |
+| `space` | 空间账：数据目录、WAL、表空间所在的文件系统（只在本机运行时有），WAL 大小对照 `max_wal_size` 和 `wal_keep_segments`，各库和表空间大小。数据目录或 WAL 所在文件系统的可用空间不够一个 WAL 段时 FAIL，其余只展示 | |
 | `freeze` | 各库离事务号回卷还有多远，当前库最老的表；超过 `autovacuum_freeze_max_age` 报 WARN，到了拒绝分配新事务号的停止线报 FAIL | `--limit N` |
 | `vacuum` | 死元组最多的表和各自的 autovacuum 触发线，正在跑的 vacuum；没人会清时报 WARN（autovacuum 或 track_counts 关了，或表级关了 autovacuum 又过了线）。只在主库上有表统计 | `--limit N` |
 | `archive` | 归档是不是在正常工作：设置、最后一次成功和失败、等着归档的 WAL；最后一次尝试失败时报 WARN | |

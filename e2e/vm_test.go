@@ -108,25 +108,37 @@ func ksql(t *testing.T, sql string) string {
 // inject brings an e2e/inject scenario up and registers its teardown, which
 // runs whether or not the test passes. A leftover from a run that crashed
 // before its teardown is cleared first, so fingerprints stay unambiguous.
-func inject(t *testing.T, name string) {
+func inject(t *testing.T, name string) { injectEnv(t, name, "KB_TEST_NODE="+node) }
+
+// injectFromPrimary runs a script that acts on the primary and a standby
+// (slot.sh) from a standby's run: this node is the standby.
+func injectFromPrimary(t *testing.T, name string) {
+	primary := os.Getenv("KB_PRIMARY_NODE")
+	if primary == "" {
+		primary = "kes-node1"
+	}
+	injectEnv(t, name, "KB_TEST_NODE="+primary, "KB_STANDBY_NODE="+node)
+}
+
+func injectEnv(t *testing.T, name string, env ...string) {
 	t.Helper()
 	script := filepath.Join("inject", name+".sh")
-	if out, err := injectCmd(script, "down").CombinedOutput(); err != nil {
+	if out, err := injectCmd(script, "down", env).CombinedOutput(); err != nil {
 		t.Fatalf("%s pre-clean: %v\n%s", name, err, out)
 	}
 	t.Cleanup(func() {
-		if out, err := injectCmd(script, "down").CombinedOutput(); err != nil {
+		if out, err := injectCmd(script, "down", env).CombinedOutput(); err != nil {
 			t.Errorf("%s down: %v\n%s", name, err, out)
 		}
 	})
-	if out, err := injectCmd(script, "up").CombinedOutput(); err != nil {
+	if out, err := injectCmd(script, "up", env).CombinedOutput(); err != nil {
 		t.Fatalf("%s up: %v\n%s", name, err, out)
 	}
 }
 
-func injectCmd(script, action string) *exec.Cmd {
+func injectCmd(script, action string, env []string) *exec.Cmd {
 	c := exec.Command("bash", script, action)
-	c.Env = append(os.Environ(), "KB_TEST_NODE="+node)
+	c.Env = append(os.Environ(), env...)
 	return c
 }
 

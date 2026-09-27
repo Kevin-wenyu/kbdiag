@@ -186,7 +186,7 @@ func statusFacts(role string) (facts.Context, facts.InstInfo, facts.InstDatabase
 		info.StartTime, info.UptimeS, info.Connections = time.Date(2026, 9, 23, 15, 44, 58, 0, cst), 268991, 3
 		n.Rows = nil
 		u = facts.InstUpstream{Status: facts.StatusOK, Rows: []facts.Upstream{{Status: str("streaming"), SenderHost: str("192.168.105.10"),
-			SenderPort: i32(54321), SlotName: str("repmgr_slot_2"), LastMsgAgeS: f64(8.0)}}}
+			SenderPort: i32(54321), SlotName: str("repmgr_slot_2"), LastMsgAgeS: f64(8.0), WALReceiverTimeoutS: f64(30)}}}
 		disk = facts.Disk{TotalBytes: 213452304384, UsedBytes: 12501807104, AvailBytes: 200950497280}
 	}
 	return c, facts.InstInfo{Status: facts.StatusOK, Rows: []facts.Info{info}}, d, n, u, facts.InstDisk{Status: facts.StatusOK, Rows: []facts.Disk{disk}}
@@ -234,6 +234,17 @@ func TestStatusText(t *testing.T) {
 			t.Errorf("verdict = %s", rep.Verdict)
 		}
 		assertGolden(t, "status_standby_no_walreceiver", rep)
+	})
+	// the slot.sh injection: SIGSTOP leaves the status at streaming while
+	// last_msg grows past wal_receiver_timeout
+	t.Run("standby with a stuck walreceiver", func(t *testing.T) {
+		c, i, d, n, u, disk := statusFacts("standby")
+		u.Rows[0].LastMsgAgeS = f64(47.3)
+		rep := Status(c, i, d, n, u, disk)
+		if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 1 || rep.Findings[0].ID != "inst.upstream" {
+			t.Errorf("verdict=%s findings=%+v", rep.Verdict, rep.Findings)
+		}
+		assertGolden(t, "status_standby_stuck", rep)
 	})
 	// kbdiag_ro without sys_monitor, every usable slot taken: masked cells,
 	// a hidden size, nothing collected for the disk.

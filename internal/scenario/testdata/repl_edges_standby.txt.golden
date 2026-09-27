@@ -1,5 +1,8 @@
 repl  WARN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T21:20:09+08:00)
 
+[WARN] inst.upstream  the standby's WAL receiver shows streaming, but nothing has come from the primary for 1m 35s, longer than wal_receiver_timeout (30s), after which a working receiver reconnects: it is stuck (stopped or blocked), so it is not receiving WAL: if the primary fails now, no standby can take over
+  verify: kbdiag slots  # run on the primary: is this standby's slot inactive?
+
 [WARN] repl.replay_paused  WAL replay is paused on this standby (sys_wal_replay_pause()): queries still run, but it falls further behind, and a failover would first have to replay everything received
   fix: SELECT sys_wal_replay_resume()  # unless replay was paused on purpose
 

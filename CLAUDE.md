@@ -79,7 +79,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 ### status 打磨（2026-09-26）
 
 - **只判两条，没有参数**：FAIL 只给"普通用户已经连不上"（已用 ≥ 可用），WARN 只给"备库没在收 WAL"（没有接收进程，或状态不是 `streaming`）。80% 的 WARN 和 `--conn-warn`/`--conn-fail` 删掉：多少算快满因应用而异，没有客观线；没人会调的阈值不做成参数。
-- **`last_msg_age_s` 只展示不判**：空闲的主库每 `wal_receiver_status_interval`（默认 10s）才发一条，实测 8 秒前是正常值。代价是 walreceiver 被暂停（SIGSTOP）时状态仍是 `streaming`，status 不报；要判就得定一条客观线（比如超过 `wal_receiver_timeout`），留给以后。
+- **`last_msg_age_s` 超过 `wal_receiver_timeout` 才判**（用户 2026-09-27 选 B，取代原来的"只展示不判"）：walreceiver 被暂停（SIGSTOP）或卡在内核里时状态仍是 `streaming`，只有 last_msg 在涨。线用服务器自己的：正常的接收进程在超时的一半时就向主库要回复（空闲的主库也会回），满了就断开重连，所以只有卡住的进程会越过它；实验环境是 30s，空闲时实测 8 秒前。和"没有接收进程""不是 streaming"同一个 id、同一个 WARN，evidence 多 `last_msg_age_s`、`wal_receiver_timeout_s`。`wal_receiver_timeout` 为 0（关闭）或读不到时不判。`slot.sh` 正好造出这种情况，所以这一支有 L4（未在 VM 上跑过）。
 - **`inst.upstream` 的 WARN 没在 KES 上验证就合并**（用户 2026-09-26 定）：能可靠造出"备库没在收 WAL"的办法都要动 sudo 或集群网络，比如改 `primary_conninfo` 要重启、会被 kbha 拉起，在主库上杀 walsender 后 5 秒就重连。判定本身只是"查询没返回行"和一次字符串比较，L1/L2 已经覆盖。等 slots 或复制延迟打磨需要复制中断注入时再补 L4。文档页如实写明这条 finding 是从源码摘的，不是实采。
 - **`inst.disk` 是"一个 probe 一条 SQL"的例外**（v0.2 起还有 `space.disk`，见 space 小节）：KES 没有查磁盘剩余空间的函数，而磁盘满是库挂掉最常见的原因之一，status 又是第一个跑的命令，所以直接对 `data_directory` 做 statfs。只有确定跑在数据库主机上才读：走 socket，或者 host 是 localhost/127.0.0.1/::1 并且目录在本机能 stat（端口可能被转发到别的机器，所以只看 host 不够）；否则 `not_applicable`。它只展示、不参与 verdict，所以没读到也不会让结论变成 UNKNOWN。
 - **`inst.upstream` 在主库上由 probe 自己报 `not_applicable`**：和备库上的 2PC 一样，是"能不能采"，不是业务判断。
@@ -146,7 +146,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 各节先写一行场景表和"不归它"的边界（阶段 1 的完整版在计划附录 B，计划 done 时随计划删除），再写每条命令的"为什么"，结构同 v0.1 各节。
 
-- **纯展示的命令**（没有判定的：space、top-objects、top 等）任何一个 probe 没采到、或有列看不到，verdict 就是 UNKNOWN（`rule.Display`）：OK 只表示"都采到了"，不表示数值好。有判定的命令照旧，只有判定的输入没采到才 UNKNOWN，只展示的 probe（像 `inst.disk`）不影响。
+- **纯展示的命令**（没有判定的：top-objects、top、wal 等；space 有了一条 FAIL 之后仍按这个规矩算 UNKNOWN）任何一个 probe 没采到、或有列看不到，verdict 就是 UNKNOWN（`rule.Display`）：OK 只表示"都采到了"，不表示数值好。有判定的命令照旧，只有判定的输入没采到才 UNKNOWN，只展示的 probe（像 `inst.disk`）不影响。
 - 新命令的列表默认 20 行；列契约登记在 PRD §5.2（不再逐条写 JSON 示例）。
 - 云会话写的部分只过了 L1/L2，VM 验证在计划的阶段 13。
 - **PRD §5.2 由测试强制**（阶段 18）：每个 golden 和 fuzz 生成的 v0.2 报告，probe 的列、finding 的 evidence 字段都要和 §5.2 登记的完全一致；改列就得先改 PRD。fuzz 同时查服务器来的字符串都已转义，首行的 version 和 user 就是它找出来的漏网之鱼。
@@ -156,7 +156,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 场景表：SP1 磁盘还剩多少、是哪块盘在满；SP2 哪个库最大；SP3 表空间各多大、在哪；SP4 WAL 目录多大、有没有超出配置该有的量。不归 space：表和索引 → `top-objects`；单表 → `table`；谁保留了 WAL → `slots`、`archive`、`wal`；数据目录那块盘的一行摘要 → `status`。
 
-- **只展示，不判**：剩多少算少因库而异。"可用空间不够一个 WAL 段"是候选的 FAIL 客观线，列为拍板点，没做。
+- **只判一条 FAIL：数据目录或 WAL 目录所在文件系统的可用空间不到一个 WAL 段**（`space.disk_full`，用户 2026-09-27 定）：那里需要新空间的写入已经失败（表长不了），旧段用完后下一个 WAL 段建不出来，实例就停了，所以是"业务已经受影响"。剩多少算少的其余情况因库而异，只展示。只看数据目录和 WAL：表空间所在盘满了只影响那些表，不让实例停，只展示。段大小来自 `space.wal`，kbdiag_ro 采不到，这时不判（本来就是 UNKNOWN）。每个文件系统一条，和文本一样按 `st_dev` 合并；avail 是非 root 可用的量，kingbase 用户就只能用这么多。L6 造不出来（要真把数据盘填满），只有 L1/L2。status 的 `inst.disk` 仍只展示，没改。
 - **`space.disk` 是第二个 statfs 例外**：space 的问题就是"哪块盘在满"，而 `sys_wal` 常是指向另一块盘的符号链接，表空间也可以在别的盘上；只看数据目录（`inst.disk`）答不了。按目录的设备号（`st_dev`，跟随符号链接；statfs 的 fsid 在有些文件系统上是 0，靠不住）把同一文件系统上的目录合成一行；本机判断和 `inst.disk` 完全相同（复用它）。
 - **表空间大小按权限用 CASE 包住**：kbdiag_ro 调 `pg_tablespace_size(sys_global)` 会让整条 SQL 失败（阶段 0 实采），包住之后看不到的只是 NULL，记 `redacted[]`。
 - **WAL 只给参照，不下结论**：超过 `max_wal_size` 加 `wal_keep_segments × wal_segment_size` 时（PG12 的保留量大约是这两者加上最近检查点以来的 WAL，只超过其中一个是常态），文本提示去看 slots、archive；`max_wal_size` 是软上限，超出不等于故障。kbdiag_ro 调不了 `sys_ls_waldir`，这一块是 skipped，所以 kbdiag_ro 下 space 是 UNKNOWN。
@@ -180,7 +180,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 场景表：VA1 哪些表死元组多、autovacuum 该不该管它了；VA2 autovacuum 开着吗；VA3 现在有没有 vacuum 在跑、跑到哪了；VA4 清不动的原因 → next 指向 `txn`、`slots`。不归 vacuum：膨胀估算 → `bloat`（待排）；冻结 → `freeze`；统计是否过时 → 待排；单表 → `table`。
 
 - **只报"没人会清"的两种情况，都是 WARN**：`autovacuum` 或 `track_counts` 关了（`vacuum.disabled`）；表级 `autovacuum_enabled=off` 而死元组已过触发线（`vacuum.table_disabled`）。客观线是开关和服务器自己的触发线公式。
-- **过线但 autovacuum 开着的不报，文本标 `due`**：那是 autovacuum 的正常队列，每个 naptime 轮一次；"过线很久没清"需要一条时间线，没有客观的（拍板点）。
+- **过线但 autovacuum 开着的不报，文本标 `due`**：那是 autovacuum 的正常队列，每个 naptime 轮一次；"过线很久没清"需要一条时间线，没有客观的（用户 2026-09-27 定：按建议不判）。
 - **触发线在 rule 里算**（`rule.VacuumThreshold`，纯函数），probe 只给原样的 `reloptions`：不依赖 KES 上有没有 `pg_options_to_table`，也能单测各种写法。
 - **备库不判**：表统计是节点本地的，备库全是 0（阶段 0 实采），autovacuum 也不在备库跑；表和进度 `not_applicable`，设置照样展示。
 - **修复 SQL 里的名字按 quote_ident 加引号**（`rule.quoteIdent`，含关键字），带控制字符或格式字符（和文本转义的范围相同）时改指 `--json`（同 txn 的 gid）。
@@ -193,7 +193,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 - **`archive.failing` 是 WARN，线是"最后一次尝试失败了"**：最后一次失败晚于最后一次成功，或从没成功过。WAL 堆在本节点、备份缺段，但业务照常。实验环境的归档本来就在失败，VM 上天然能测。
 - **先排除主动配置**（queries.md 的归档注记）：`archive_mode=off` 不判；`archive_mode=on` 的备库本来就不归档，只有 `always` 才判。
-- **`archive_command` 为空不判**：PG 文档说这时 WAL 会一直留着，但 KES 没实采，只在文本里写 `(empty)`，等用户定。
+- **`archive_command` 为空不判**：PG 文档说这时 WAL 会一直留着，但 KES 没实采，只在文本里写 `(empty)`（用户 2026-09-27 定按建议：VM 阶段核实 KES 的行为后再说）。
 - `archive.ready`（`.ready` 个数和最老的等了多久）只展示：kbdiag_ro 调不了 `sys_ls_archive_statusdir`，不能让它影响结论。
 - next 指向 `kbdiag space`（WAL 目录被撑到多大）和服务器日志：失败原因只在日志里，kbdiag 不读日志（K1 待排）。
 
@@ -204,7 +204,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **只列有人设过的参数**：去掉 default、override（编译或 initdb 定的）和 client/session（kbdiag 自己连接时带的参数就是 client，列出来是噪声）。
 - **`params.pending_restart` 是 WARN，每个参数一条**：线是服务器自己的 `pending_restart` 列。现在跑的还是旧值，业务没受影响；但下一次重启（包括故障切换后的重启）会突然换成新值。
 - **看不到来源文件的账号，没有 finding 时是 UNKNOWN**：kbdiag_ro 的 `sourcefile` 是 NULL，而且根本看不到超级用户专属参数（实采少 27 行），它们的 `pending_restart` 也就看不到。
-- 不加 `params <pattern>`：看单个参数用 `ksql -c 'show x'` 或 `--json` 配 jq（拍板点）。
+- 不加 `params <pattern>`：看单个参数用 `ksql -c 'show x'` 或 `--json` 配 jq（用户 2026-09-27 定按建议不加）。配置文件有错（`sys_file_settings.error`）也按建议先不做：kbdiag_ro 调不了。
 - **撤回的修复语句是把运行值写回**（`ALTER SYSTEM SET x = '<运行值>'` 再 reload）：PG12 的 reload 只在文件值等于运行值时清掉 pending 标志，只 `ALTER SYSTEM RESET` 会一直挂到重启（阶段 6 审查从 PG12 源码查出来的，注入脚本的 down 也照这个顺序）。
 - 看不全的两处在文本里写明：kbdiag 自己连接设的四个参数（来源 client）看不到配置值；按角色、按库的设置只看得到当前角色和库的。
 
@@ -215,7 +215,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **三条 WARN，没有 FAIL**：备库没在收 WAL（复用 status 的 `inst.upstream` 规则）、回放被暂停（`repl.replay_paused`）、同步备库不够数（`repl.sync_short`）。最后一条本想报 FAIL（提交会卡住），但阶段 0 实采看到备库断开后同步提交照样过去了（怀疑 KES 或 repmgr 自动降级，未验证），所以 symptom 只说"要么在等，要么已经不等了，同步副本没有保证"。
 - **延迟只展示**：没有服务器端的客观线；digoal 的 1 分钟/5 分钟是经验值。落后字节按本节点当前位置算，备库上按回放位置（同 slots）。
 - **最近回放的事务多久前不当成延迟**：空闲主库上它能到 7 小时，而 LSN 完全追平（阶段 0 实采）；收到 = 回放时文本写 caught up。
-- **暂停的 walreceiver 只展示 last_msg，不判**（用户未定；计划附录 B.6 的拍板点写了选项，建议用 `wal_receiver_timeout`）。
+- **卡住的 walreceiver 由 `inst.upstream` 报**：last_msg 超过 `wal_receiver_timeout` 而状态仍是 streaming（用户 2026-09-27 选 B，见 status 小节），repl 复用同一条规则。
 - **有几个同步候选，数服务器给的 `sync_state`（sync/quorum）**，不自己按名单和 state 重算：服务器挑候选的规则（streaming 或 stopping、flush 有效、名字不分大小写）自己重做只会不一致。名单只用来解析要几个；解析不了的不猜，UNKNOWN。只在 `synchronous_commit` 让提交等备库时判（这个值是本连接的，按角色或库另设的看不到）。
 - **OK 不代表提交在流动**：remote_apply 下候选停止回放，它仍是候选，只能从 replay_lag 看出来。所以回放暂停没有注入：在实验环境会卡住主库的所有提交（阶段 7 审查指出，删了注入脚本）。
 - 备库上落后字节按收到和回放中较远的那个算：级联 walsender 发到那里。
@@ -278,7 +278,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 场景表：CK1 checkpoint 是定时触发还是被请求的；CK2 最近一次是什么时候、redo 在哪；CK3 脏页是谁写的；CK4 相关参数。不归 checkpoint：WAL 目录多大、谁留着 → `wal`、`space`；进行中的进度 → `progress`；日志里的 checkpoint 记录 → 待排。
 
 - **只展示**：服务器自己的"checkpoint 太频繁"看的是两次 checkpoint 的间隔（`checkpoint_warning`），累计计数算不出间隔；被请求的占比只给数，不下结论。
-- **脏页是谁写的**分三方给比例，但第三方写成"backends and others"：PG12 的 `buffers_backend` 还算关系扩展、VACUUM/COPY 的环形缓冲和备库的 startup 进程，空闲节点上也能占六七成（实采 65%、70%），不能读成"checkpointer 跟不上"（阶段 15 审查纠正）。`buffers_backend_fsync > 0` 是否报 WARN 留给用户定：它表示 fsync 请求没能交给 checkpointer，队列满或 checkpointer 当时没在跑都会（node2 被 kbha 拉起过，实采 9）。
+- **脏页是谁写的**分三方给比例，但第三方写成"backends and others"：PG12 的 `buffers_backend` 还算关系扩展、VACUUM/COPY 的环形缓冲和备库的 startup 进程，空闲节点上也能占六七成（实采 65%、70%），不能读成"checkpointer 跟不上"（阶段 15 审查纠正）。`buffers_backend_fsync > 0` 只展示、不报 WARN（用户 2026-09-27 定按建议）：它表示 fsync 请求没能交给 checkpointer，队列满或 checkpointer 当时没在跑都会（node2 被 kbha 拉起过，实采 9）。
 - **备库上不是 restartpoint 计数**：PG12 的 checkpointer 每次尝试都加一，没有新的 checkpoint 记录时每 15 秒试一次（node2 4 天多 15917 次），文本写"restartpoint attempts"、不给比例；控制文件里的时间是主库写那条 checkpoint 记录的时间，标题写明。
 - "requested"不只是 WAL 量：还有手工 CHECKPOINT、基础备份（包括 repmgr clone）、promote、建删库。
 
@@ -292,9 +292,9 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### seq（2026-09-27）
 
-场景表：SQ1 有没有序列快用完；SQ2 哪些是 int/smallint 的；SQ3 会循环的（写 cycles，不算用完）。不归 seq：序列是 bigint 而那一列是 int 的错配（列先溢出，要查 `sys_depend`，拍板点）；表的其他信息 → `table`。
+场景表：SQ1 有没有序列快用完；SQ2 哪些是 int/smallint 的；SQ3 会循环的（写 cycles，不算用完）。不归 seq：序列是 bigint 而那一列是 int 的错配（列先溢出，要查 `sys_depend`；用户 2026-09-27 定按建议先不做）；表的其他信息 → `table`。
 
-- **FAIL 只给"取不出下一个值"**：nextval 报错，插入已经失败，线是序列自己的上/下限；会循环的不算。快用完只展示比例，没有客观线（拍板点）。
+- **FAIL 只给"取不出下一个值"**：nextval 报错，插入已经失败，线是序列自己的上/下限；会循环的不算。快用完只展示比例，没有客观线（用户 2026-09-27 定按建议不报 WARN）。
 - **精确算**（`math/big`）：bigint 序列跨满 int64，普通相减会溢出。
 - **NULL 要分开**：没权限读、从没调用过、`setval(..., false)` 之后都让 `last_value` 是 NULL（kbdiag_ro 实采全是 NULL）。SQL 按 oid 判权限（不按名字重解析，被删掉的序列不会让整条 probe 失败），看不到的记 `redacted[]`、UNKNOWN，提示授予序列的 SELECT（sys_monitor 解不开）；其余写 `no value yet`。
 - **备库不判**：备库上的序列值是 WAL 里的副本，主库每次预写 32 个，会显示"到头了"而主库还有值（阶段 17 审查指出）。
@@ -320,7 +320,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **`session.idle_in_txn` 保留 300 秒和参数**：idle in transaction 放 5 分钟无论应用怎么设计都是毛病（连接池泄漏、漏了 commit），和"连接数 80%"这种因应用而异的比例不同；300 秒是滤噪声的下限，不是容量线。DBA 手工开事务改数据是合理例外，所以参数留着。和 txn 的 `txn.long` 在默认阈值下必然同时报，但问题不同（"它闲着" vs "事务太长"），各自保留。
 - **文本合成一行 `redacted`**：原来每个被遮蔽的列一行（9 行），现在按原因一行，列名折成 state、backend_type、client_addr、ages、wait、query；JSON 的 `redacted[]` 不变。
 - **表格按终端列宽对齐**（`internal/report/table.go`）：`text/tabwriter` 按 rune 计宽，中文用户名、应用名会错位；改用 `golang.org/x/text/width`，东亚宽字符算 2 列。sql 仍截到 60 个字符，没按终端宽度截：输出常被管道和重定向，终端宽度拿不准（和附录 A 写的"截到终端宽度"不同，用户 2026-09-26 确认）。
-- **slots 的下一步改指 `kbdiag status`**：walreceiver 是后台进程，sessions 默认不再列出；status 的 `inst.upstream` 本来就回答"在不在收 WAL"。它仍然看不出被暂停的 walreceiver（状态停在 streaming），所以 note 里提示隔十几秒再跑一次，看 last_msg 是否还在涨。
+- **slots 的下一步改指 `kbdiag status`**：walreceiver 是后台进程，sessions 默认不再列出；status 的 `inst.upstream` 本来就回答"在不在收 WAL"。2026-09-27 起它也报卡住的 walreceiver（last_msg 超过 `wal_receiver_timeout`），note 里原来"隔十几秒再跑一次"的提示随之删掉。
 
 ## KingbaseES 特有行为
 

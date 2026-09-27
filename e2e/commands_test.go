@@ -531,7 +531,7 @@ from sys_stat_replication`)
 		}
 	} else {
 		wantUp := ksql(t, "select status || '|' || sender_host || '|' || sender_port || '|' || slot_name from sys_stat_wal_receiver")
-		u := okProbe(t, r, "inst.upstream", []string{"status", "sender_host", "sender_port", "slot_name", "last_msg_age_s"}).rowsOf()
+		u := okProbe(t, r, "inst.upstream", []string{"status", "sender_host", "sender_port", "slot_name", "last_msg_age_s", "wal_receiver_timeout_s"}).rowsOf()
 		if len(u) != 1 {
 			t.Fatalf("inst.upstream rows = %v", u)
 		}
@@ -540,6 +540,11 @@ from sys_stat_replication`)
 		}
 		if age, ok := u[0]["last_msg_age_s"].(float64); !ok || age < 0 || age > 60 {
 			t.Errorf("last_msg_age_s = %v", u[0]["last_msg_age_s"])
+		}
+		// the setting, converted by its unit (30000 ms in the lab)
+		wantTimeout := ksql(t, "select extract(epoch from current_setting('wal_receiver_timeout')::interval)::int")
+		if fmt.Sprint(u[0]["wal_receiver_timeout_s"]) != wantTimeout {
+			t.Errorf("wal_receiver_timeout_s = %v, ksql says %s", u[0]["wal_receiver_timeout_s"], wantTimeout)
 		}
 	}
 
@@ -587,6 +592,37 @@ from sys_stat_replication`)
 			t.Errorf("connections = %v, usable %v", c, usable)
 		}
 	})
+
+	// L4 (user 2026-09-27, option B): slot.sh stops the walreceiver with
+	// SIGSTOP; its status stays streaming while last_msg grows past
+	// wal_receiver_timeout, and status must say it is stuck.
+	if role == "standby" {
+		t.Run("stuck walreceiver", func(t *testing.T) {
+			injectFromPrimary(t, "slot")
+			var r report
+			var code int
+			deadline := time.Now().Add(90 * time.Second)
+			for {
+				r, code = kbdiag(t, nil, "status")
+				if len(r.Findings) > 0 || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(2 * time.Second)
+			}
+			if got := findings(r, "inst.upstream", "status", "streaming"); !reflect.DeepEqual(got, []string{"WARN"}) || r.Verdict != "WARN" || code != 1 {
+				t.Fatalf("findings=%+v verdict=%s exit=%d", r.Findings, r.Verdict, code)
+			}
+			ev := r.Findings[0].Evidence[0].Fields
+			age, _ := ev["last_msg_age_s"].(float64)
+			limit, _ := ev["wal_receiver_timeout_s"].(float64)
+			if limit <= 0 || age <= limit {
+				t.Errorf("evidence = %v", ev)
+			}
+			if out, _ := kbdiagText(t, nil, "status"); !strings.Contains(out, "it is stuck") {
+				t.Errorf("text does not say the receiver is stuck:\n%s", out)
+			}
+		})
+	}
 }
 
 // L3 + L4: slots on the primary (the standby's slot), on the standby (none,

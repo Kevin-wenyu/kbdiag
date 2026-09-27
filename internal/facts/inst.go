@@ -15,7 +15,7 @@ var (
 	InfoColumns        = []string{"version", "start_time", "uptime_s", "connections", "max_connections", "superuser_reserved_connections", "data_directory", "port", "usable_connections"}
 	DatabaseColumns    = []string{"datname", "size_bytes"}
 	DownstreamsColumns = []string{"application_name", "client_addr", "state", "sync_state"}
-	UpstreamColumns    = []string{"status", "sender_host", "sender_port", "slot_name", "last_msg_age_s"}
+	UpstreamColumns    = []string{"status", "sender_host", "sender_port", "slot_name", "last_msg_age_s", "wal_receiver_timeout_s"}
 	DiskColumns        = []string{"total_bytes", "used_bytes", "avail_bytes"}
 )
 
@@ -119,10 +119,13 @@ type Upstream struct {
 	SenderPort  *int32
 	SlotName    *string
 	LastMsgAgeS *float64
+	// the server's line for "the sender is gone": the receiver asks for a
+	// reply at half of it and reconnects after all of it; 0 disables it
+	WALReceiverTimeoutS *float64
 }
 
 func (u Upstream) Row() []any {
-	return []any{u.Status, u.SenderHost, u.SenderPort, u.SlotName, u.LastMsgAgeS}
+	return []any{u.Status, u.SenderHost, u.SenderPort, u.SlotName, u.LastMsgAgeS, u.WALReceiverTimeoutS}
 }
 
 // InstUpstream has no row when the standby runs no WAL receiver.

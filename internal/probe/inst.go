@@ -61,9 +61,15 @@ order by application_name, pid`
 //   - the view names no repmgr node, only sender_host:sender_port
 //   - unlike PG, a user without sys_monitor sees every column (kbdiag_ro,
 //     2026-09-26); a row of NULLs is still handled as masked
+//
+// wal_receiver_timeout is read from sys_settings and converted by its own
+// unit (ms in PG12), like checkpoint.settings; 0 means disabled. Not yet run
+// on a VM (plan stage 13).
 const instUpstreamSQL = `
 select status::text, sender_host::text, sender_port, slot_name::text,
-       round(extract(epoch from now() - last_msg_receipt_time)::numeric, 1)::float8
+       round(extract(epoch from now() - last_msg_receipt_time)::numeric, 1)::float8,
+       (select setting::numeric * case unit when 'ms' then 0.001 when 's' then 1 when 'min' then 60 else 1 end
+        from sys_settings where name = 'wal_receiver_timeout')::float8
 from sys_stat_wal_receiver`
 
 func InstInfo(ctx context.Context, x *pgx.Conn) facts.InstInfo {
@@ -101,7 +107,7 @@ func InstUpstream(ctx context.Context, x *pgx.Conn, c facts.Context) facts.InstU
 	}
 	st, reason, out := collect(ctx, x, instUpstreamSQL, func(r pgx.CollectableRow) (facts.Upstream, error) {
 		var u facts.Upstream
-		err := r.Scan(&u.Status, &u.SenderHost, &u.SenderPort, &u.SlotName, &u.LastMsgAgeS)
+		err := r.Scan(&u.Status, &u.SenderHost, &u.SenderPort, &u.SlotName, &u.LastMsgAgeS, &u.WALReceiverTimeoutS)
 		return u, err
 	})
 	return facts.InstUpstream{Status: st, Reason: reason, Rows: out}

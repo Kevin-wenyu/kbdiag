@@ -1,6 +1,6 @@
 # kbdiag 2.0 需求说明书（PRD）
 
-状态: active | 最后核对: 2026-09-26
+状态: active | 最后核对: 2026-09-27
 
 **职责**：需求、范围、输出契约、版本目标、DS 场景表。查询条目和它们属于哪个版本以 `docs/queries.md` 为准；选型、架构、测试以 `docs/engineering.md` 为准。
 
@@ -50,14 +50,14 @@
 | `locks` | 谁挡的人最多、它持有什么锁；谁在等锁、直接被谁挡住（一层）、等了多久。文本先列挡路者（按挡住的会话数排），再列等锁的会话（等得最久的在前）；JSON 不变 | `lock.list` | 正常 |
 | `txn` | 谁压着 vacuum 视界（最老的 xid/xmin 和持有者）、开着的事务、未结束的 2PC；长事务和 2PC 都只报 WARN（2026-09-26 起不再 FAIL） | `session.activity`、`txn.prepared` | 2PC 部分 `not_applicable`，提示去主库查 |
 | `waits` | 此刻在干活的会话在等什么（按等待事件和状态汇总，人多的在前）；idle 会话、空闲的后台进程（`Activity` 类等待）、在跑但没有等待事件的后台进程和看不到状态的会话只计数；后台进程卡在真正的等待上照样列出。没有判定，看不全时 UNKNOWN；JSON 不变 | `wait.summary` | 正常 |
-| `status` | 刚登上实例时的基本盘：身份（短版本号、数据目录、端口）、角色和复制（主库列出每个备库，备库看上游在不在收 WAL）、启动时间、连接数/可用数、各库大小、数据目录所在磁盘。只判两条：普通用户已经连不上（`inst.connections` FAIL），备库没在收 WAL（`inst.upstream` WARN）；没有参数 | `inst.info`、`inst.downstreams`、`inst.upstream`、`inst.databases`、`inst.disk` | 主库上 `inst.upstream` 为 `not_applicable`；远程运行时 `inst.disk` 为 `not_applicable` |
+| `status` | 刚登上实例时的基本盘：身份（短版本号、数据目录、端口）、角色和复制（主库列出每个备库，备库看上游在不在收 WAL）、启动时间、连接数/可用数、各库大小、数据目录所在磁盘。只判两条：普通用户已经连不上（`inst.connections` FAIL），备库没在收 WAL（`inst.upstream` WARN：没有接收进程、状态不是 streaming，或 last_msg 超过 `wal_receiver_timeout`）；没有参数 | `inst.info`、`inst.downstreams`、`inst.upstream`、`inst.databases`、`inst.disk` | 主库上 `inst.upstream` 为 `not_applicable`；远程运行时 `inst.disk` 为 `not_applicable` |
 | `slots` | 复制槽是否活跃、保留多少 WAL、xmin（逻辑槽的 catalog_xmin）是否压着视界；不活跃的排前面、保留 WAL 多的排前面；不活跃报 WARN（2026-09-26 起不再 FAIL）；JSON 除 evidence 加了 `catalog_xmin` 外不变 | `slot.list` | 正常；WAL 保留量改用 `sys_last_wal_replay_lsn()` 计算 |
-| `space`（v0.2） | 空间账：数据目录、`sys_wal`、各表空间目录所在的文件系统（同一文件系统合并成一行，本机运行才有）；WAL 目录的文件数和大小，对照 `max_wal_size` 和 `wal_keep_segments`，超出两者时指向 slots、archive；各库大小；各表空间位置和大小。只展示，不判；有 probe 没采到或大小看不到时 UNKNOWN | `space.disk`、`space.wal`、`inst.databases`、`space.tablespaces` | 正常；远程运行时 `space.disk` 为 `not_applicable` |
+| `space`（v0.2） | 空间账：数据目录、`sys_wal`、各表空间目录所在的文件系统（同一文件系统合并成一行，本机运行才有）；WAL 目录的文件数和大小，对照 `max_wal_size` 和 `wal_keep_segments`，超出两者时指向 slots、archive；各库大小；各表空间位置和大小。只判一条（用户 2026-09-27 定）：数据目录或 WAL 目录所在文件系统的可用空间不到一个 WAL 段（`space.disk_full` FAIL，每个文件系统一条）；其余只展示，有 probe 没采到或大小看不到时 UNKNOWN（kbdiag_ro 采不到 `space.wal`，拿不到段大小，这条也就不判） | `space.disk`、`space.wal`、`inst.databases`、`space.tablespaces` | 正常；远程运行时 `space.disk` 为 `not_applicable` |
 | `freeze`（v0.2） | 离事务号回卷还有多远：每个库的 xid/multixact 年龄对照 `autovacuum_freeze_max_age`（WARN）和回卷停止线（FAIL，服务器拒绝分配新 xid 或 multixact；PG12 内核的 xid 停止线是回卷线前 100 万，multixact 前 100），当前库最老的表（`relfrozenxid = 0` 的不算，大小按 relpages 估算）；next 指向 `txn`、`-d <库> freeze` 和 `VACUUM (FREEZE)`。`--limit` 只裁表 | `freeze.databases`、`freeze.tables`、`freeze.limits` | 正常（年龄和主库相同）；VACUUM 要到主库上跑 |
 | `vacuum`（v0.2） | 当前库死元组最多的表、各自的 autovacuum 触发线（`threshold + scale_factor × reltuples`，表级 reloptions 覆盖）和是否已过线，最近 vacuum/autovacuum 多久前；正在跑的 vacuum；`autovacuum`、`track_counts` 开关。只报两种没人清的情况：开关关了（`vacuum.disabled`），表级关了 autovacuum 又过了线（`vacuum.table_disabled`），都是 WARN；过线而 autovacuum 开着的只标 due。`--limit` 只裁表 | `vacuum.tables`、`vacuum.progress`、`vacuum.settings` | `vacuum.tables`、`vacuum.progress` 为 `not_applicable`（统计是节点本地的，autovacuum 不在备库跑），不判定 |
 | `archive`（v0.2） | 归档在不在正常工作：`archive_mode`、`archive_command`、`archive_timeout`，归档进程的成功/失败次数和各自最后一个 WAL、多久以前，`archive_status` 下 `.ready`/`.done` 的个数和最老的 `.ready` 等了多久。最后一次失败晚于最后一次成功（或从没成功过而有失败时间）报 WARN（`archive.failing`）；`archive_mode=off`、`archive_command` 为空不报；next 指向 `space` 和服务器日志 | `archive.status`、`archive.ready` | 正常；`archive_mode=on` 的备库不归档，不判定（只有 always 才判） |
 | `params`（v0.2） | 哪些参数不是默认值、在哪设的（文件和行号；来源不含 default、override 和本连接自己的 client/session），先列等着重启才生效的（服务器的 `pending_restart`，每个报一条 WARN `params.pending_restart`）；看不到来源文件的账号也看不到超级用户专属参数，没有 finding 时 UNKNOWN。没有参数 | `params.changed` | 正常 |
-| `repl`（v0.2） | 从本节点看复制。主库：`synchronous_standby_names` 要几个、服务器现在算几个同步候选（`sync_state` 为 sync/quorum），每个下游的状态、同步状态、sent/flushed/replayed 落后本节点多少字节、replay_lag、上次回复多久前；备库：上游（复用 `inst.upstream`）、收到和回放的 LSN、差多少、最近回放的事务多久前、回放是否暂停，以及级联的下游。WARN 三条：同步候选不够数（`repl.sync_short`，KES 此时提交会不会卡住未验证，所以不报 FAIL；OK 不代表提交在流动，候选不确认时只看得到 replay_lag 在涨）、回放暂停（`repl.replay_paused`）、备库没在收 WAL（`inst.upstream`）；延迟只展示（没有客观线）；暂停的 walreceiver 只展示 last_msg，不判（用户未定） | `repl.downstreams`、`repl.sync`、`repl.replay`、`inst.upstream` | 备库上 `repl.sync` 为 `not_applicable`；主库上 `repl.replay`、`inst.upstream` 为 `not_applicable` |
+| `repl`（v0.2） | 从本节点看复制。主库：`synchronous_standby_names` 要几个、服务器现在算几个同步候选（`sync_state` 为 sync/quorum），每个下游的状态、同步状态、sent/flushed/replayed 落后本节点多少字节、replay_lag、上次回复多久前；备库：上游（复用 `inst.upstream`）、收到和回放的 LSN、差多少、最近回放的事务多久前、回放是否暂停，以及级联的下游。WARN 三条：同步候选不够数（`repl.sync_short`，KES 此时提交会不会卡住未验证，所以不报 FAIL；OK 不代表提交在流动，候选不确认时只看得到 replay_lag 在涨）、回放暂停（`repl.replay_paused`）、备库没在收 WAL（`inst.upstream`，含接收进程卡住：last_msg 超过 `wal_receiver_timeout`）；延迟只展示（没有客观线） | `repl.downstreams`、`repl.sync`、`repl.replay`、`inst.upstream` | 备库上 `repl.sync` 为 `not_applicable`；主库上 `repl.replay`、`inst.upstream` 为 `not_applicable` |
 | `cluster`（v0.2） | repmgr 眼里的集群：节点、类型、上游、active、优先级、槽，标出本节点（repmgr 的 `get_local_node_id()` 给的节点，或槽名等于本实例的 `primary_slot_name`），最近 20 条 repmgr 事件；和数据库自己的看法对照。WARN 四条：多于一个 active 的 primary（`cluster.primaries`）、repmgr 标了 inactive 的节点（`cluster.inactive`）、本节点的类型和恢复角色不一致（`cluster.role_mismatch`）、主库上 repmgr 说跟着本节点的 active 备库没挂上来（`cluster.detached`）。节点能不能连上看不到（只连一个库）。没给 `-d` 时连 `esrep` 库（没有这个库就连默认库）；当前库没有 repmgr schema 时 `not_applicable`；认不出本节点时 UNKNOWN | `cluster.nodes`、`cluster.events`、`inst.downstreams` | 正常（备库的元数据是复制过来的；witness 的由 repmgrd 拷过去）；`cluster.detached` 只在主库上判 |
 | `top-objects`（v0.2） | 当前库最大的表（含分区表、物化视图；总大小 = 堆 + 索引 + TOAST，三部分分列，给估算行数）和最大的索引（TOAST 的索引算在 TOAST 里，不单列）。只展示，不判；有 probe 没采到时 UNKNOWN（有表被 AccessExclusiveLock 锁着时大小函数会等到 lock_timeout）。`--limit` 两个列表各自裁 | `object.tables`、`object.indexes` | 正常（大小是本地文件；unlogged 表在备库上只有 init 分支，读成 0） |
 | `table <name>`（v0.2） | 一张表的全貌：大小（堆、索引、TOAST）、估算和实际的活/死元组、xid/multixact 年龄、reloptions；vacuum 和 analyze（触发线、最近手工/自动各多久前、次数、自上次 analyze 的修改数）；自统计重置以来的访问（顺序/索引扫描、写入、块的读和命中）；索引（大小、扫描次数、主键/唯一/无效、定义）。判定复用 freeze（`freeze.table_age`）和 vacuum（`vacuum.table_disabled`、`vacuum.disabled`）的规则，不另立。名字按 SQL 规则解析（`to_regclass`，不带引号的折成小写，按 search_path 找）；找不到或不是表时 UNKNOWN（退出码 3），stderr 写明；空名字是用法错误（64） | `table.info`、`table.size`、`table.stats`、`table.indexes`、`freeze.limits`、`vacuum.settings` | `table.stats` 为 `not_applicable`（统计是节点本地的），索引扫描次数为 NULL；年龄照判 |
@@ -350,7 +350,7 @@ node1（主库），2026-09-26 18:28 实采（chronicle/2026-09-26.md）。`inst
     "inst.upstream": {
       "status": "not_applicable",
       "reason": "primary",
-      "columns": ["status", "sender_host", "sender_port", "slot_name", "last_msg_age_s"],
+      "columns": ["status", "sender_host", "sender_port", "slot_name", "last_msg_age_s", "wal_receiver_timeout_s"],
       "rows": [],
       "truncated": 0
     },
@@ -376,7 +376,7 @@ node1（主库），2026-09-26 18:28 实采（chronicle/2026-09-26.md）。`inst
 
 #### 示例：status（备库）
 
-node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，只有上游地址；`last_msg_age_s` 只展示不判定（空闲时主库每 `wal_receiver_status_interval` 发一次，8 秒是正常值）。
+node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，只有上游地址；`last_msg_age_s` 超过 `wal_receiver_timeout_s`（服务器自己的线：正常的接收进程在一半时就向主库要回复，满了就重连）而状态仍是 `streaming` 时报 WARN（用户 2026-09-27 选 B）；空闲时 8 秒是正常值。`wal_receiver_timeout_s` 为 0 表示关闭，不判。
 
 ```json
 {
@@ -396,8 +396,8 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
     "inst.upstream": {
       "status": "ok",
       "reason": null,
-      "columns": ["status", "sender_host", "sender_port", "slot_name", "last_msg_age_s"],
-      "rows": [["streaming", "192.168.105.10", 54321, "repmgr_slot_2", 8.0]],
+      "columns": ["status", "sender_host", "sender_port", "slot_name", "last_msg_age_s", "wal_receiver_timeout_s"],
+      "rows": [["streaming", "192.168.105.10", 54321, "repmgr_slot_2", 8.0, 30.0]],
       "truncated": 0
     },
     "inst.downstreams": {
@@ -437,7 +437,7 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
  "next": [{"kind": "verify", "command": "kbdiag slots", "note": "run on the primary: is this standby's slot inactive?"}]}
 ```
 
-有接收进程但状态不是 `streaming` 时，symptom 写出状态，evidence 字段为 `status`、`sender_host`、`sender_port`、`slot_name`。`inst.connections`（FAIL）的 evidence 字段为 `connections`、`max_connections`、`superuser_reserved_connections`。
+有接收进程但状态不是 `streaming` 时，symptom 写出状态，evidence 字段为 `status`、`sender_host`、`sender_port`、`slot_name`。状态是 `streaming` 但 `last_msg_age_s` 超过 `wal_receiver_timeout_s`（接收进程卡住，比如被 SIGSTOP）时，evidence 字段另加 `last_msg_age_s`、`wal_receiver_timeout_s`。`inst.connections`（FAIL）的 evidence 字段为 `connections`、`max_connections`、`superuser_reserved_connections`。
 
 #### 示例：slots
 
@@ -466,7 +466,7 @@ node2（备库），同一次采集。`inst.upstream` 没有 repmgr 节点名，
       "symptom": "replication slot repmgr_slot_2 is inactive, retaining 48 MB WAL, xmin 5859 holding back the vacuum horizon",
       "evidence": [{"probe_id": "slot.list", "fields": {"slot_name": "repmgr_slot_2", "active": false, "xmin": 5859, "catalog_xmin": null, "retained_wal_bytes": 50331648}}],
       "cause": null,
-      "next": [{"kind": "verify", "command": "kbdiag status", "note": "run on this slot's downstream node (usually a standby): if it cannot connect, the node is down; inst.upstream with no receiver or not streaming means it is not receiving WAL; if it shows streaming, run it again after 10-20s: a last_msg that keeps growing means the receiver is stuck"}]
+      "next": [{"kind": "verify", "command": "kbdiag status", "note": "run on this slot's downstream node (usually a standby): if it cannot connect, the node is down; inst.upstream warns when it has no receiver, the receiver is not streaming, or nothing has come for longer than wal_receiver_timeout"}]
     }
   ],
   "redacted": []
@@ -512,6 +512,7 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 
 | finding.id | 级别 | 命令 | evidence 字段 |
 |---|---|---|---|
+| `space.disk_full` | FAIL（数据目录或 WAL 目录所在文件系统的可用空间 < 一个 WAL 段） | space | `paths`（这个文件系统上的数据目录和 WAL 目录）、`avail_bytes`、`total_bytes`、`wal_segment_bytes` |
 | `freeze.database_age` | WARN（≥ `autovacuum_freeze_max_age` 或 multixact ≥ `autovacuum_multixact_freeze_max_age`）/ FAIL（xid 年龄 ≥ 2^31−1−100 万，或 multixact 年龄 ≥ 2^31−1−100） | freeze | `datname`、`xid_age`、`mxid_age`、`autovacuum_freeze_max_age`、`autovacuum_multixact_freeze_max_age`（没采到时为 null） |
 | `freeze.table_age` | 同 `freeze.database_age` | table | `schemaname`、`relname`、`xid_age`、`mxid_age` |
 | `vacuum.disabled` | WARN | vacuum、table | `autovacuum`、`track_counts` |
@@ -612,7 +613,7 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | 22 | 复制槽堵塞 | |
 | 23 | repmgrd 异常 | |
 | 24 | 备库不具备 promote 条件 | |
-| 25 | 磁盘或表空间快满 | v0.2 `space`；没有客观线，只展示（阶段 1 拍板点） |
+| 25 | 磁盘或表空间快满 | v0.2 `space`；快满没有客观线，只展示；数据目录或 WAL 所在盘不够一个 WAL 段时 FAIL（`space.disk_full`，用户 2026-09-27 定）。L6 造不出（要真的填满数据盘），只有 L1/L2 |
 | 26 | 归档失败 | v0.2 `archive`；WAL 堆在主库、备份缺段 |
 | 27 | 参数改了没生效（待重启） | v0.2 `params`；下次重启会突然换成新值 |
 | 28 | 同步备库不够数 | v0.2 `repl`；KES 断开同步备库时提交是否卡住未验证 |
