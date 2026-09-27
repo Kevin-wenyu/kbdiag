@@ -32,6 +32,7 @@ func TestTable(t *testing.T) {
 		{"no frozen xid (partitioned)", facts.TableInfos{Status: facts.StatusOK, Rows: []facts.TableInfo{{Schemaname: "public", Relname: "p", Relkind: "p"}}}, facts.TableStats{Status: facts.StatusOK}, "primary", VerdictOK, ""},
 		{"info not collected", facts.TableInfos{Status: facts.StatusError}, stats(0), "primary", VerdictUNKNOWN, ""},
 		{"stats not collected", info(5), facts.TableStats{Status: facts.StatusSkipped}, "primary", VerdictUNKNOWN, ""},
+		{"no statistics row (a catalog)", info(5), facts.TableStats{Status: facts.StatusOK}, "primary", VerdictOK, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -44,5 +45,15 @@ func TestTable(t *testing.T) {
 				t.Errorf("verdict=%s ids=%v", r.Verdict, ids)
 			}
 		})
+	}
+}
+
+func TestTableAutovacuumOff(t *testing.T) {
+	age := int32(5)
+	i := facts.TableInfos{Status: facts.StatusOK, Rows: []facts.TableInfo{{Schemaname: "public", Relname: "t", Relkind: "r", Reltuples: 10000, XIDAge: &age}}}
+	off := facts.VacuumSettings{Status: facts.StatusOK, Rows: []facts.VacuumSetting{{Autovacuum: "off", TrackCounts: "on", Threshold: 50, ScaleFactor: 0.2}}}
+	r := Table(i, facts.TableStats{Status: facts.StatusSkipped}, labLimits, off, "primary", "test")
+	if r.Verdict != VerdictWARN || len(r.Findings) != 1 || r.Findings[0].ID != "vacuum.disabled" {
+		t.Errorf("%s %+v", r.Verdict, r.Findings)
 	}
 }

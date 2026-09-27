@@ -1,0 +1,22 @@
+table  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T22:42:52+08:00)
+
+[WARN] freeze.table_age  table app.Q\x1b[2J is 250000000 xids old, past autovacuum_freeze_max_age 200000000 (1896483647 xids left before new transaction IDs are refused): the anti-wraparound autovacuum is due or cannot finish
+  verify: kbdiag txn  # the oldest transaction or 2PC holding back freezing
+  fix: VACUUM (FREEZE, VERBOSE) <table>  # the name has control characters and is shown escaped: use it as you gave it; on the primary, connected to database test
+
+[WARN] vacuum.disabled  autovacuum=off, track_counts=on: no table is vacuumed automatically any more (only the anti-wraparound vacuum still runs), so dead tuples pile up
+  fix: ALTER SYSTEM SET autovacuum = on  # then SELECT sys_reload_conf(); unless it was turned off on purpose
+
+app.Q\x1b[2J  (table, unlogged)
+  size        ?  (table.size: skipped)
+  rows        1000000 estimated
+  xid age     250000000  (autovacuum_freeze_max_age 200000000)
+  mxid age    3
+  reloptions  autovacuum_enabled=false, fillfactor=70
+  the table is locked exclusively (VACUUM FULL, TRUNCATE, ALTER TABLE ...): kbdiag locks shows who holds it
+
+statistics: none  (sys_stat_user_tables has no row for system catalogs, partitioned tables and TOAST tables)
+
+indexes: 1
+  name   size     scans  kind     definition
+  q_idx  1024 MB  -      INVALID  CREATE INDEX q_idx ON app."Q" USING btree (a)

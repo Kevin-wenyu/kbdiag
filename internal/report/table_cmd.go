@@ -15,6 +15,7 @@ import (
 // and written, then its indexes.
 type tableView struct {
 	i     facts.TableInfos
+	z     facts.TableSizes
 	s     facts.TableStats
 	x     facts.TableIndexes
 	l     facts.FreezeLimits
@@ -22,8 +23,8 @@ type tableView struct {
 	found bool
 }
 
-func (r *Report) SetTable(i facts.TableInfos, s facts.TableStats, x facts.TableIndexes, l facts.FreezeLimits, v facts.VacuumSettings, found bool) {
-	t := &tableView{i: i, s: s, x: x, l: l, v: v, found: found}
+func (r *Report) SetTable(i facts.TableInfos, z facts.TableSizes, s facts.TableStats, x facts.TableIndexes, l facts.FreezeLimits, v facts.VacuumSettings, found bool) {
+	t := &tableView{i: i, z: z, s: s, x: x, l: l, v: v, found: found}
 	r.layout = func(r *Report, w io.Writer) error { return t.write(w) }
 }
 
@@ -52,9 +53,17 @@ func (t *tableView) write(w io.Writer) error {
 		kind += ", " + p
 	}
 	fmt.Fprintf(w, "\n%s  (%s)\n", escapeControl(x.Schemaname+"."+x.Relname), kind)
-	toast := "no TOAST"
-	if x.ToastBytes != nil {
-		toast = "TOAST " + size(float64(*x.ToastBytes))
+	sz := "?  (table.size: " + string(t.z.Status) + ")"
+	if t.z.Status == facts.StatusOK && len(t.z.Rows) > 0 {
+		z := t.z.Rows[0]
+		toast := "no TOAST"
+		if z.ToastBytes != nil {
+			toast = "TOAST " + size(float64(*z.ToastBytes))
+		}
+		sz = fmt.Sprintf("%s  (heap %s, indexes %s, %s)", size(float64(z.TotalBytes)), size(float64(z.TableBytes)), size(float64(z.IndexBytes)), toast)
+		if x.Relkind == "p" {
+			sz += "; a partitioned table holds nothing itself: its partitions are tables of their own"
+		}
 	}
 	rows := strconv.FormatFloat(float64(x.Reltuples), 'f', -1, 32) + " estimated"
 	var st *facts.TableStat
@@ -77,13 +86,19 @@ func (t *tableView) write(w io.Writer) error {
 		opts = escapeControl(strings.Join(x.Reloptions, ", "))
 	}
 	writeKV(w, 0, [][2]string{
-		{"size", fmt.Sprintf("%s  (heap %s, indexes %s, %s)", size(float64(x.TotalBytes)), size(float64(x.TableBytes)), size(float64(x.IndexBytes)), toast)},
+		{"size", sz},
 		{"rows", rows}, {"xid age", xid}, {"mxid age", mxid}, {"reloptions", opts},
 	})
-	if st == nil {
-		writeNotOKAs(w, "statistics", t.s.Status, t.s.Reason)
-	} else {
+	if t.z.Status != facts.StatusOK && strings.Contains(t.z.Reason, "55P03") {
+		fmt.Fprintln(w, "  the table is locked exclusively (VACUUM FULL, TRUNCATE, ALTER TABLE ...): kbdiag locks shows who holds it")
+	}
+	switch {
+	case st != nil:
 		t.writeStats(w, x, *st)
+	case t.s.Status == facts.StatusOK:
+		fmt.Fprintln(w, "\nstatistics: none  (sys_stat_user_tables has no row for system catalogs, partitioned tables and TOAST tables)")
+	default:
+		writeNotOKAs(w, "statistics", t.s.Status, t.s.Reason)
 	}
 	return t.writeIndexes(w)
 }
@@ -96,7 +111,10 @@ func (t *tableView) writeStats(w io.Writer, x facts.TableInfo, s facts.TableStat
 		if float32(s.NDeadTup) > th {
 			dead += ": due"
 		}
-		if !on {
+		switch {
+		case t.v.Rows[0].Autovacuum != "on" || t.v.Rows[0].TrackCounts != "on":
+			dead += " (autovacuum is off for the whole server)"
+		case !on:
 			dead += " (autovacuum is off for this table)"
 		}
 	}

@@ -248,6 +248,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **找不到是 UNKNOWN（3），不是用法错误（64）**：表可能在别的库里（stderr 提示 `-d`），同 `session <pid>` 找不到 pid；只有空名字是 64。
 - 备库上统计不适用（节点本地），索引扫描次数给 NULL 而不是 0；年龄照判（复制过来的）。
 - 块命中率保留一位小数：几次读盘不该被四舍五入成 100%。
+- **解析不加锁，大小单独一个 probe**（阶段 10 审查）：有人看这张表时，它常常正被 VACUUM FULL 之类锁住；大小函数等到 lock_timeout 时只丢大小，别的照常，文本指向 `kbdiag locks`。堆大小和 top-objects 用同一个定义（`pg_table_size` 减 TOAST），同一张表两处数字一致。
 
 ### top（2026-09-27）
 

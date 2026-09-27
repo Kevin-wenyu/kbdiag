@@ -1,7 +1,7 @@
 table  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T22:42:52+08:00)
 
 public.kbdiag_inj_tbl  (table)
-  size        3472 kB  (heap 2464 kB, indexes 976 kB, TOAST 8192 bytes)
+  size        3472 kB  (heap 2488 kB, indexes 976 kB, TOAST 8192 bytes)
   rows        15000 estimated
   xid age     5  (autovacuum_freeze_max_age 200000000)
   mxid age    0

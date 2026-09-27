@@ -22,14 +22,7 @@ func Vacuum(t facts.VacuumTables, s facts.VacuumSettings, role, db string) Resul
 	unknown = unknown || !setOK
 	var fs []Finding
 	if setOK && (set.Autovacuum != "on" || set.TrackCounts != "on") {
-		fs = append(fs, Finding{
-			ID:    "vacuum.disabled",
-			Level: LevelWARN,
-			Symptom: fmt.Sprintf("autovacuum=%s, track_counts=%s: no table is vacuumed automatically any more (only the anti-wraparound vacuum still runs), so dead tuples pile up",
-				set.Autovacuum, set.TrackCounts),
-			Evidence: []Evidence{{ProbeID: facts.VacuumSettingsID, Fields: map[string]any{"autovacuum": set.Autovacuum, "track_counts": set.TrackCounts}}},
-			Next:     []Next{{Kind: "fix", SQL: "ALTER SYSTEM SET " + vacuumSwitch(set) + " = on", Note: "then SELECT sys_reload_conf(); unless it was turned off on purpose"}},
-		})
+		fs = append(fs, vacuumDisabled(set))
 	}
 	if judge && setOK {
 		for _, x := range t.Rows {
@@ -110,4 +103,16 @@ func vacuumSwitch(s facts.VacuumSetting) string {
 		return "autovacuum"
 	}
 	return "track_counts"
+}
+
+// vacuumDisabled is the finding for autovacuum or track_counts turned off.
+func vacuumDisabled(set facts.VacuumSetting) Finding {
+	return Finding{
+		ID:    "vacuum.disabled",
+		Level: LevelWARN,
+		Symptom: fmt.Sprintf("autovacuum=%s, track_counts=%s: no table is vacuumed automatically any more (only the anti-wraparound vacuum still runs), so dead tuples pile up",
+			set.Autovacuum, set.TrackCounts),
+		Evidence: []Evidence{{ProbeID: facts.VacuumSettingsID, Fields: map[string]any{"autovacuum": set.Autovacuum, "track_counts": set.TrackCounts}}},
+		Next:     []Next{{Kind: "fix", SQL: "ALTER SYSTEM SET " + vacuumSwitch(set) + " = on", Note: "then SELECT sys_reload_conf(); unless it was turned off on purpose"}},
+	}
 }

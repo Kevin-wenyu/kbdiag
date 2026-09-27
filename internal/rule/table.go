@@ -10,7 +10,8 @@ import (
 // Table judges one table with the freeze and vacuum rules, no rule of its
 // own: its age against the freeze and stop limits (freeze.table_age), and
 // autovacuum turned off for it while past its threshold
-// (vacuum.table_disabled, primary only: statistics are local).
+// (vacuum.table_disabled, primary only: statistics are local), or turned
+// off for the whole server (vacuum.disabled).
 func Table(i facts.TableInfos, s facts.TableStats, l facts.FreezeLimits, v facts.VacuumSettings, role, db string) Result {
 	judge, unknown := collected(i.Status)
 	if !judge || len(i.Rows) == 0 {
@@ -40,7 +41,11 @@ func Table(i facts.TableInfos, s facts.TableStats, l facts.FreezeLimits, v facts
 	sj, su := collected(s.Status)
 	set, setOK := vacuumSetting(v)
 	unknown = unknown || su || !setOK
-	if sj && setOK && len(s.Rows) > 0 {
+	off := setOK && (set.Autovacuum != "on" || set.TrackCounts != "on")
+	if off {
+		fs = append(fs, vacuumDisabled(set))
+	}
+	if sj && setOK && !off && len(s.Rows) > 0 {
 		vt := facts.VacuumTable{Schemaname: t.Schemaname, Relname: t.Relname, NDeadTup: s.Rows[0].NDeadTup, Reltuples: t.Reltuples, Reloptions: t.Reloptions}
 		threshold, on := VacuumThreshold(vt, set)
 		if !on && float32(vt.NDeadTup) > threshold {

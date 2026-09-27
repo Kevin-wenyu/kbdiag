@@ -2,6 +2,7 @@ package facts
 
 const (
 	TableInfoID    = "table.info"
+	TableSizeID    = "table.size"
 	TableStatsID   = "table.stats"
 	TableIndexesID = "table.indexes"
 )
@@ -9,8 +10,8 @@ const (
 // Column contracts of the table probes (PRD §5.2). freeze.limits and
 // vacuum.settings are reused for the judgments.
 var (
-	TableInfoColumns = []string{"oid", "schemaname", "relname", "relkind", "relpersistence", "reltuples", "relpages", "total_bytes", "table_bytes", "index_bytes", "toast_bytes",
-		"reloptions", "xid_age", "mxid_age"}
+	TableInfoColumns  = []string{"oid", "schemaname", "relname", "relkind", "relpersistence", "reltuples", "relpages", "reloptions", "xid_age", "mxid_age"}
+	TableSizeColumns  = []string{"total_bytes", "table_bytes", "index_bytes", "toast_bytes"}
 	TableStatsColumns = []string{"n_live_tup", "n_dead_tup", "n_mod_since_analyze", "last_vacuum_age_s", "last_autovacuum_age_s", "last_analyze_age_s", "last_autoanalyze_age_s",
 		"vacuum_count", "autovacuum_count", "analyze_count", "autoanalyze_count", "seq_scan", "seq_tup_read", "idx_scan", "idx_tup_fetch",
 		"n_tup_ins", "n_tup_upd", "n_tup_del", "n_tup_hot_upd", "heap_blks_read", "heap_blks_hit", "idx_blks_read", "idx_blks_hit"}
@@ -18,7 +19,8 @@ var (
 )
 
 // TableInfo is the single row of table.info: what sys_class knows of the
-// table, its sizes and ages.
+// table and its ages. It takes no lock, so it answers even while the table
+// is held exclusively; the sizes are table.size.
 type TableInfo struct {
 	OID            uint32
 	Schemaname     string
@@ -27,10 +29,6 @@ type TableInfo struct {
 	Relpersistence string
 	Reltuples      float32
 	Relpages       int32
-	TotalBytes     int64
-	TableBytes     int64
-	IndexBytes     int64
-	ToastBytes     *int64
 	Reloptions     []string
 	XIDAge         *int32 // NULL: no frozen xid (relfrozenxid 0, or a partitioned table)
 	MXIDAge        *int32
@@ -41,14 +39,30 @@ func (t TableInfo) Row() []any {
 	if opts == nil {
 		opts = []string{}
 	}
-	return []any{t.OID, t.Schemaname, t.Relname, t.Relkind, t.Relpersistence, t.Reltuples, t.Relpages, t.TotalBytes, t.TableBytes, t.IndexBytes, t.ToastBytes,
-		opts, t.XIDAge, t.MXIDAge}
+	return []any{t.OID, t.Schemaname, t.Relname, t.Relkind, t.Relpersistence, t.Reltuples, t.Relpages, opts, t.XIDAge, t.MXIDAge}
 }
 
 type TableInfos struct {
 	Status Status
 	Reason string
 	Rows   []TableInfo
+}
+
+// TableSize is the single row of table.size: the heap (with its free
+// space and visibility maps), indexes and TOAST add up to the total.
+type TableSize struct {
+	TotalBytes int64
+	TableBytes int64
+	IndexBytes int64
+	ToastBytes *int64 // NULL without a TOAST table
+}
+
+func (t TableSize) Row() []any { return []any{t.TotalBytes, t.TableBytes, t.IndexBytes, t.ToastBytes} }
+
+type TableSizes struct {
+	Status Status
+	Reason string
+	Rows   []TableSize
 }
 
 // TableStat is the table's row of sys_stat_user_tables joined with

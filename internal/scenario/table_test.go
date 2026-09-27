@@ -20,8 +20,12 @@ func tableFacts(t *testing.T, node string) (facts.Context, facts.TableInfos, fac
 	// the sizes capture has two columns named pg_total_relation_size: the
 	// loader keeps the last (the TOAST table's)
 	info := facts.TableInfo{OID: uint32(*kI64(t, cl["oid"])), Schemaname: "public", Relname: *cl["relname"], Relkind: *cl["relkind"], Relpersistence: *cl["relpersistence"],
-		Reltuples: float32(*kF64(t, cl["reltuples"])), Relpages: int32(*kI64(t, cl["relpages"])), TotalBytes: 3555328, TableBytes: *kI64(t, sz["pg_relation_size"]),
-		IndexBytes: *kI64(t, sz["pg_indexes_size"]), ToastBytes: kI64(t, sz["pg_total_relation_size"]), XIDAge: &xid, MXIDAge: &mxid}
+		Reltuples: float32(*kF64(t, cl["reltuples"])), Relpages: int32(*kI64(t, cl["relpages"])), XIDAge: &xid, MXIDAge: &mxid}
+	// the capture has pg_relation_size (main fork only); the probe's heap is
+	// pg_table_size less TOAST, i.e. the total less indexes and TOAST
+	toast := *kI64(t, sz["pg_total_relation_size"])
+	tableSize = facts.TableSizes{Status: facts.StatusOK, Rows: []facts.TableSize{{TotalBytes: 3555328, TableBytes: 3555328 - *kI64(t, sz["pg_indexes_size"]) - toast,
+		IndexBytes: *kI64(t, sz["pg_indexes_size"]), ToastBytes: &toast}}}
 	at := time.Date(2026, 9, 27, 22, 42, 52, 0, cst)
 	c := v02Context("primary", "system", "local")
 	if node == "node2" {
@@ -69,6 +73,9 @@ func tableFacts(t *testing.T, node string) (facts.Context, facts.TableInfos, fac
 	return c, facts.TableInfos{Status: facts.StatusOK, Rows: []facts.TableInfo{info}}, stats, ix
 }
 
+// tableSize is set by tableFacts for the same capture.
+var tableSize facts.TableSizes
+
 func freezeLimitsLab() facts.FreezeLimits {
 	return facts.FreezeLimits{Status: facts.StatusOK, Rows: []facts.FreezeLimit{{FreezeMaxAge: 200_000_000, MultiFreezeMaxAge: 400_000_000, FreezeTableAge: 150_000_000}}}
 }
@@ -82,7 +89,7 @@ func TestTableText(t *testing.T) {
 		golden := map[string]string{"node1": "table_primary", "node2": "table_standby"}[node]
 		t.Run(golden, func(t *testing.T) {
 			c, i, s, x := tableFacts(t, node)
-			rep, found := Table(c, i, s, x, freezeLimitsLab(), vacuumSettingsLab())
+			rep, found := Table(c, i, tableSize, s, x, freezeLimitsLab(), vacuumSettingsLab())
 			assertGolden(t, golden, rep)
 			if !found || rep.Verdict != rule.VerdictOK {
 				t.Errorf("found=%v verdict=%s", found, rep.Verdict)
@@ -91,7 +98,7 @@ func TestTableText(t *testing.T) {
 	}
 	t.Run("missing", func(t *testing.T) {
 		c, _, _, _ := tableFacts(t, "node1")
-		rep, found := Table(c, facts.TableInfos{Status: facts.StatusOK}, facts.TableStats{Status: facts.StatusOK}, facts.TableIndexes{Status: facts.StatusOK}, freezeLimitsLab(), vacuumSettingsLab())
+		rep, found := Table(c, facts.TableInfos{Status: facts.StatusOK}, facts.TableSizes{Status: facts.StatusNotApplicable}, facts.TableStats{Status: facts.StatusOK}, facts.TableIndexes{Status: facts.StatusOK}, freezeLimitsLab(), vacuumSettingsLab())
 		assertGolden(t, "table_missing", rep)
 		if found || rep.Verdict != rule.VerdictUNKNOWN {
 			t.Errorf("found=%v verdict=%s", found, rep.Verdict)
@@ -104,7 +111,7 @@ func TestTableText(t *testing.T) {
 func TestTableTextEdges(t *testing.T) {
 	c, _, _, _ := tableFacts(t, "node1")
 	idx := facts.TableInfos{Status: facts.StatusOK, Rows: []facts.TableInfo{{Schemaname: "public", Relname: "orders_pkey", Relkind: "i"}}}
-	rep, found := Table(c, idx, facts.TableStats{Status: facts.StatusNotApplicable}, facts.TableIndexes{Status: facts.StatusNotApplicable}, freezeLimitsLab(), vacuumSettingsLab())
+	rep, found := Table(c, idx, facts.TableSizes{Status: facts.StatusNotApplicable}, facts.TableStats{Status: facts.StatusNotApplicable}, facts.TableIndexes{Status: facts.StatusNotApplicable}, freezeLimitsLab(), vacuumSettingsLab())
 	assertGolden(t, "table_index", rep)
 	if found || rep.Verdict != rule.VerdictUNKNOWN {
 		t.Errorf("found=%v verdict=%s", found, rep.Verdict)
@@ -112,16 +119,19 @@ func TestTableTextEdges(t *testing.T) {
 
 	old, mx := int32(250_000_000), int32(3)
 	info := facts.TableInfos{Status: facts.StatusOK, Rows: []facts.TableInfo{{Schemaname: "app", Relname: "Q\x1b[2J", Relkind: "r", Relpersistence: "u", Reltuples: 1e6,
-		TotalBytes: 5 << 30, TableBytes: 4 << 30, IndexBytes: 1 << 30, Reloptions: []string{"autovacuum_enabled=false", "fillfactor=70"}, XIDAge: &old, MXIDAge: &mx}}}
+		Reloptions: []string{"autovacuum_enabled=false", "fillfactor=70"}, XIDAge: &old, MXIDAge: &mx}}}
+	sizes := facts.TableSizes{Status: facts.StatusOK, Rows: []facts.TableSize{{TotalBytes: 5 << 30, TableBytes: 4 << 30, IndexBytes: 1 << 30}}}
 	st := facts.TableStats{Status: facts.StatusOK, Rows: []facts.TableStat{{NLiveTup: 1e6, NDeadTup: 600_000, LastAutovacuumAgeS: f64(8 * 86400), AutovacuumCount: 3}}}
 	ix := facts.TableIndexes{Status: facts.StatusOK, Rows: []facts.TableIndex{{Name: "q_idx", Definition: "CREATE INDEX q_idx ON app.\"Q\" USING btree (a)", Bytes: 1 << 30, IsValid: false}}}
-	rep, _ = Table(c, info, st, ix, freezeLimitsLab(), vacuumSettingsLab())
+	rep, _ = Table(c, info, sizes, st, ix, freezeLimitsLab(), vacuumSettingsLab())
 	assertGolden(t, "table_edges", rep)
 	if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 2 {
 		t.Errorf("verdict=%s findings=%+v", rep.Verdict, rep.Findings)
 	}
-	rep, _ = Table(c, info, facts.TableStats{Status: facts.StatusSkipped, Reason: "timeout 57014: canceling statement due to statement timeout"}, ix, freezeLimitsLab(), vacuumSettingsLab())
+	rep, _ = Table(c, info, facts.TableSizes{Status: facts.StatusSkipped, Reason: "timeout 55P03: canceling statement due to lock timeout"},
+		facts.TableStats{Status: facts.StatusOK}, ix, freezeLimitsLab(), facts.VacuumSettings{Status: facts.StatusOK, Rows: []facts.VacuumSetting{{Autovacuum: "off", TrackCounts: "on", Threshold: 50, ScaleFactor: 0.2}}})
+	assertGolden(t, "table_locked", rep)
 	if rep.Verdict != rule.VerdictWARN {
-		t.Errorf("stats skipped, old table: %s", rep.Verdict)
+		t.Errorf("locked, autovacuum off, old table: %s", rep.Verdict)
 	}
 }

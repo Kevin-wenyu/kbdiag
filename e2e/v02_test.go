@@ -395,8 +395,7 @@ func TestTopObjects(t *testing.T) {
 }
 
 var (
-	tableInfoColumns = []string{"oid", "schemaname", "relname", "relkind", "relpersistence", "reltuples", "relpages", "total_bytes", "table_bytes", "index_bytes", "toast_bytes",
-		"reloptions", "xid_age", "mxid_age"}
+	tableInfoColumns = []string{"oid", "schemaname", "relname", "relkind", "relpersistence", "reltuples", "relpages", "reloptions", "xid_age", "mxid_age"}
 	tableIndexColumns = []string{"indexrelname", "definition", "bytes", "is_unique", "is_primary", "is_valid", "idx_scan"}
 )
 
@@ -408,7 +407,8 @@ func TestTable(t *testing.T) {
 		}
 	})
 	t.Run("empty name is a usage error", func(t *testing.T) {
-		if _, code := kbdiagText(t, nil, "table", "''"); code != 64 {
+		// vm() joins arguments for a remote shell: quote so it passes one blank argument
+		if _, code := kbdiagText(t, nil, "table", "' '"); code != 64 {
 			t.Errorf("exit=%d", code)
 		}
 	})
@@ -430,7 +430,8 @@ func TestTable(t *testing.T) {
 	if n := num(t, r.Data["table.stats"].rowsOf()[0]["n_dead_tup"]); n < 5000 {
 		t.Errorf("n_dead_tup = %v", n)
 	}
-	if r, code := kbdiag(t, nil, "table", `public."KBDIAG_INJ_TBL"`); len(r.Data["table.info"].Rows) != 0 || code != 3 {
+	// single quotes keep the double quotes through the remote shell
+	if r, code := kbdiag(t, nil, "table", `'public."KBDIAG_INJ_TBL"'`); len(r.Data["table.info"].Rows) != 0 || code != 3 {
 		t.Errorf("a quoted upper-case name must not resolve: exit=%d", code)
 	}
 	out, _ := kbdiagText(t, nil, "table", "kbdiag_inj_tbl")

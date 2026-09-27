@@ -402,15 +402,21 @@ func newTable(g *globalFlags, stdout, stderr io.Writer) *cobra.Command {
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
 				i := probe.TableInfo(ctx, x, name)
-				s := facts.TableStats{Status: facts.StatusNotApplicable, Reason: "no table"}
-				ix := facts.TableIndexes{Status: facts.StatusNotApplicable, Reason: "no table"}
+				st, reason := scenario.TableAfter(i)
+				z := facts.TableSizes{Status: st, Reason: reason}
+				s := facts.TableStats{Status: st, Reason: reason}
+				ix := facts.TableIndexes{Status: st, Reason: reason}
 				if i.Status == facts.StatusOK && len(i.Rows) == 1 && scenario.TableKinds[i.Rows[0].Relkind] {
-					s = probe.TableStats(ctx, x, info, i.Rows[0].OID)
-					ix = probe.TableIndexes(ctx, x, i.Rows[0].OID)
+					oid := i.Rows[0].OID
+					z, s, ix = probe.TableSize(ctx, x, oid), probe.TableStats(ctx, x, info, oid), probe.TableIndexes(ctx, x, oid)
 				}
-				rep, found := scenario.Table(info, i, s, ix, probe.FreezeLimits(ctx, x), probe.VacuumSettings(ctx, x))
-				if !found && len(i.Rows) == 0 {
+				rep, found := scenario.Table(info, i, z, s, ix, probe.FreezeLimits(ctx, x), probe.VacuumSettings(ctx, x))
+				switch {
+				case found:
+				case len(i.Rows) == 0:
 					fmt.Fprintf(stderr, "kbdiag: no table %q in database %s (unquoted names fold to lower case; quote them as in SQL: '\"Name\"'; use -d for another database)\n", name, info.Database)
+				default:
+					fmt.Fprintf(stderr, "kbdiag: %q is not a table (relkind %s)\n", name, i.Rows[0].Relkind)
 				}
 				return rep
 			})
