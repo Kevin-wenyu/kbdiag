@@ -173,6 +173,18 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - limits 没采到时仍能判 FAIL（常数不依赖参数），年龄在停止线以下则 UNKNOWN。
 - **报告上下文加了 `database`**（JSON `context.database`，`omitempty`，只增不改）：freeze、vacuum、top-objects 这类按库查询的命令要说清楚是哪个库，next 也要用它拼 `-d`。
 
+### vacuum（2026-09-27）
+
+场景表见计划附录 B.3。
+
+- **只报"没人会清"的两种情况，都是 WARN**：`autovacuum` 或 `track_counts` 关了（`vacuum.disabled`）；表级 `autovacuum_enabled=off` 而死元组已过触发线（`vacuum.table_disabled`）。客观线是开关和服务器自己的触发线公式。
+- **过线但 autovacuum 开着的不报，文本标 `due`**：那是 autovacuum 的正常队列，每个 naptime 轮一次；"过线很久没清"需要一条时间线，没有客观的（拍板点）。
+- **触发线在 rule 里算**（`rule.VacuumThreshold`，纯函数），probe 只给原样的 `reloptions`：不依赖 KES 上有没有 `pg_options_to_table`，也能单测各种写法。
+- **备库不判**：表统计是节点本地的，备库全是 0（阶段 0 实采），autovacuum 也不在备库跑；表和进度 `not_applicable`，设置照样展示。
+- **修复 SQL 里的名字按 quote_ident 加引号**（`rule.quoteIdent`，含关键字），带控制字符或格式字符（和文本转义的范围相同）时改指 `--json`（同 txn 的 gid）。
+- **跟服务器算得一样**：触发线用 float4 算（`relation_needs_vacanalyze` 就是这样），`autovacuum_enabled` 按 parse_bool 认前缀，否则卡在线上的表会和 autovacuum 的判断不一致。
+- **`track_counts=off` 时表的 probe 是 skipped**：计数器停了，旧值不能当成现在的（同 `track_activities` 的做法）。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

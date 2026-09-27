@@ -1,0 +1,25 @@
+vacuum  WARN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] vacuum.disabled  autovacuum=off, track_counts=on: no table is vacuumed automatically any more (only the anti-wraparound vacuum still runs), so dead tuples pile up
+  fix: ALTER SYSTEM SET autovacuum = on  # then SELECT sys_reload_conf(); unless it was turned off on purpose
+
+[WARN] vacuum.table_disabled  table public.x\x1b[2J has 60 dead tuples, past its autovacuum threshold 50, but autovacuum is off for it (autovacuum_enabled=off): nothing will clean it
+  verify: kbdiag vacuum --json  # the table name has control characters and the text shows it escaped: take the raw name from the JSON before running VACUUM
+  verify: kbdiag txn  # if dead tuples remain after VACUUM: the oldest transaction holding back the horizon
+
+settings
+  autovacuum    off  (3 workers, naptime 1m 0s)
+  track_counts  on
+  threshold     50 + 0.2 x reltuples
+
+running: 3
+  pid  kind        database  relation    phase              scanned                  running
+  101  autovacuum  test      public.big  scanning heap      250 / 1000 blocks (25%)  1h 1m
+  102  manual      other     16384       vacuuming indexes  0                        2s
+  103  ?           test      public.t    ?                  ?                        ?
+
+tables in test: 2, most dead tuples first
+  table            dead       live        threshold  due  autovacuum  last autovacuum  last vacuum
+  public.big       700000000  3000000000  600000060  yes  off         1d 1h ago        never
+  public.x\x1b[2J  60         0           50         yes  off         never            5s ago
+redacted: 1 row of vacuum.progress hides phase (insufficient_privilege; grant sys_monitor)

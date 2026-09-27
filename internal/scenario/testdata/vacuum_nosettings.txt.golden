@@ -1,0 +1,10 @@
+vacuum  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@local, 2026-09-27T21:20:09+08:00)
+
+settings: skipped  (timeout 57014: canceling statement due to statement timeout)
+
+running: 0
+
+tables in test: 2, most dead tuples first
+  table       dead       live        threshold  due  autovacuum  last autovacuum  last vacuum
+  public.big  700000000  3000000000  ?          ?    ?           1d 1h ago        never
+  ... 1 more not shown (--limit 0 shows all)

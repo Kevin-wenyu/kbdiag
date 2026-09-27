@@ -95,7 +95,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 	pf.BoolVar(&g.json, "json", false, "print the report as JSON")
 	root.AddCommand(newSessions(g, stdout), newSession(g, stdout, stderr), newLocks(g, stdout),
 		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
-		newSpace(g, stdout), newFreeze(g, stdout))
+		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout))
 	return root
 }
 
@@ -271,6 +271,23 @@ func newFreeze(g *globalFlags, stdout io.Writer) *cobra.Command {
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
 				return scenario.Freeze(info, probe.FreezeDatabases(ctx, x), probe.FreezeTables(ctx, x), probe.FreezeLimits(ctx, x), o)
+			})
+		},
+	}
+	limitFlagN(c, &o.Limit, 20)
+	return c
+}
+
+func newVacuum(g *globalFlags, stdout io.Writer) *cobra.Command {
+	var o scenario.VacuumOptions
+	c := &cobra.Command{
+		Use:   "vacuum",
+		Short: "Which tables have the most dead tuples, whether autovacuum will clean them, and what is vacuuming now",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Vacuum(info, probe.VacuumTables(ctx, x, info), probe.VacuumProgress(ctx, x, info), probe.VacuumSettings(ctx, x), o)
 			})
 		},
 	}

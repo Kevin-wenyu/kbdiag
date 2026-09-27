@@ -126,3 +126,45 @@ func TestFreeze(t *testing.T) {
 		t.Errorf("context.database = %q", r.Context.Database)
 	}
 }
+
+var (
+	vacuumTableColumns    = []string{"schemaname", "relname", "n_live_tup", "n_dead_tup", "reltuples", "reloptions", "last_vacuum_age_s", "last_autovacuum_age_s", "vacuum_count", "autovacuum_count"}
+	vacuumProgressColumns = []string{"pid", "datname", "relation", "phase", "heap_blks_total", "heap_blks_scanned", "is_autovacuum", "xact_age_s"}
+	vacuumSettingColumns  = []string{"autovacuum", "track_counts", "autovacuum_vacuum_threshold", "autovacuum_vacuum_scale_factor", "autovacuum_naptime_s", "autovacuum_max_workers"}
+)
+
+func TestVacuum(t *testing.T) {
+	r, code := kbdiag(t, nil, "vacuum", "--limit", "0")
+	okProbe(t, r, "vacuum.settings", vacuumSettingColumns)
+	if role == "standby" {
+		for _, id := range []string{"vacuum.tables", "vacuum.progress"} {
+			if p := r.Data[id]; p.Status != "not_applicable" {
+				t.Errorf("%s on a standby = %+v", id, p)
+			}
+		}
+		if r.Verdict != "OK" || code != 0 {
+			t.Errorf("verdict=%s exit=%d", r.Verdict, code)
+		}
+		return
+	}
+	tables := okProbe(t, r, "vacuum.tables", vacuumTableColumns)
+	if n := ksql(t, "select count(*) from sys_stat_user_tables"); strconv.Itoa(len(tables.Rows)) != n {
+		t.Errorf("tables = %d, ksql %s", len(tables.Rows), n)
+	}
+	okProbe(t, r, "vacuum.progress", vacuumProgressColumns)
+	if r.Verdict != "OK" || code != 0 {
+		t.Errorf("clean lab: verdict=%s exit=%d findings=%v", r.Verdict, code, r.Findings)
+	}
+
+	t.Run("autovacuum off for a table past its threshold", func(t *testing.T) {
+		inject(t, "dead_tuples")
+		r, code := kbdiag(t, nil, "vacuum")
+		if got := findings(r, "vacuum.table_disabled", "relname", "kbdiag_inj_dead"); len(got) != 1 || got[0] != "WARN" || code != 1 {
+			t.Errorf("findings=%v exit=%d", got, code)
+		}
+		out, _ := kbdiagText(t, nil, "vacuum")
+		if !textRow(out, "public.kbdiag_inj_dead", "2050", "yes", "off") {
+			t.Errorf("text does not list the table as due with autovacuum off:\n%s", out)
+		}
+	})
+}

@@ -1,0 +1,10 @@
+vacuum  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T21:20:09+08:00)
+
+settings
+  autovacuum    on  (3 workers, naptime 1m 0s)
+  track_counts  on
+  threshold     50 + 0.2 x reltuples
+
+running: not_applicable  (standby: autovacuum does not run here; run on the primary)
+
+tables in test: not_applicable  (standby: table statistics are local to each node and stay 0 here; run on the primary)

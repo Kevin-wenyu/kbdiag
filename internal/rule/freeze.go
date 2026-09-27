@@ -78,7 +78,7 @@ func freezeNext(db string, allowConn bool, role string, stopped bool) []Next {
 		return next
 	}
 	where := "connected to database " + db
-	if strings.IndexFunc(db, unicode.IsControl) >= 0 {
+	if hasControl(db) {
 		// the text shows the name escaped: a pasted -d would not match
 		next = append(next, Next{Kind: "verify", Command: "kbdiag freeze --json", Note: "the database name has control characters and the text shows it escaped: take the raw name from the JSON, then run kbdiag -d <name> freeze"})
 		where = "connected to that database"

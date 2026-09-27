@@ -1,0 +1,36 @@
+vacuum  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] vacuum.table_disabled  table public.kbdiag_inj_dead has 5000 dead tuples, past its autovacuum threshold 2050, but autovacuum is off for it (autovacuum_enabled=off): nothing will clean it
+  fix: VACUUM public.kbdiag_inj_dead  # connected to database test; turn autovacuum back on with ALTER TABLE ... RESET (autovacuum_enabled) unless it was turned off on purpose
+  verify: kbdiag txn  # if dead tuples remain after VACUUM: the oldest transaction holding back the horizon
+
+settings
+  autovacuum    on  (3 workers, naptime 1m 0s)
+  track_counts  on
+  threshold     50 + 0.2 x reltuples
+
+running: 0
+
+tables in test: 99, most dead tuples first
+  table                             dead  live  threshold  due  autovacuum  last autovacuum  last vacuum
+  public.kbdiag_inj_dead            5000  5000  2050       yes  off         never            never
+  sysmac.sysmac_policy              0     0     50         -    on          never            never
+  sysmac.sysmac_level               0     0     50         -    on          never            never
+  sysmac.sysmac_compartment         0     0     50         -    on          never            never
+  sysmac.sysmac_label               0     0     50         -    on          never            never
+  sysmac.sysmac_policy_enforcement  0     0     50         -    on          never            never
+  sysmac.sysmac_user                0     0     50         -    on          never            never
+  sysmac.sysmac_obj                 0     0     50         -    on          never            never
+  sysmac.sysmac_column_label        0     0     50         -    on          never            never
+  sys_hm.check_type                 0     0     50         -    on          never            never
+  sys_hm.hm_run_t                   0     0     50         -    on          never            never
+  sys_hm.check_param                0     0     50         -    on          never            never
+  sys.dual                          0     0     50         -    on          never            never
+  sys_catalog._kingbase_loginfo     0     0     50         -    on          never            never
+  public.t1                         0     0     50         -    on          never            never
+  public.t_perf_test                0     0     50         -    on          never            never
+  kdb_schedule.kdb_jobagent         0     0     50         -    on          never            never
+  kdb_schedule.kdb_jobclass         0     0     50         -    on          never            never
+  kdb_schedule.kdb_action           0     0     50         -    on          never            never
+  kdb_schedule.kdb_schedule         0     0     50         -    on          never            never
+  ... 79 more not shown (--limit 0 shows all)
