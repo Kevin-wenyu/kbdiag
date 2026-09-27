@@ -229,6 +229,15 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **不调 repmgr 二进制**（和不调 ksql 同一个理由），所以 `repmgr cluster show` 的 Status 列（逐个连节点）做不了，文本和 next 指到各节点跑 `kbdiag status`。
 - conninfo 不采：可能带密码。
 
+### top-objects（2026-09-27）
+
+场景表见计划附录 B.8。
+
+- **只展示**：多大算大没有客观线。
+- **用精确大小，不用 relpages 估算**（和 freeze 相反）：这条命令就是回答"现在谁占了空间"，批量导入后没 analyze 的表 relpages 还是旧的。代价是大小函数要加 AccessShareLock，碰上 VACUUM FULL 这类独占锁时整条 probe 在 lock_timeout 上 skipped（写明原因，不给部分结果）。
+- 总大小拆成堆、索引、TOAST 三列：大是因为数据、索引还是大字段，处理办法不同。TOAST 表和它的索引不单列，算在父表里。
+- 命令名带连字符，README/PRD 的一致性测试的正则跟着改成 `[a-z-]+`。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

@@ -97,7 +97,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
 		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
 		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout),
-		newCluster(g, stdout))
+		newCluster(g, stdout), newTopObjects(g, stdout))
 	return root
 }
 
@@ -368,6 +368,23 @@ func newCluster(g *globalFlags, stdout io.Writer) *cobra.Command {
 			return diagnose(ctx, &cg, stdout, build)
 		},
 	}
+}
+
+func newTopObjects(g *globalFlags, stdout io.Writer) *cobra.Command {
+	var o scenario.TopObjectsOptions
+	c := &cobra.Command{
+		Use:   "top-objects",
+		Short: "The largest tables (heap, indexes, TOAST) and indexes of this database",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.TopObjects(info, probe.ObjectTables(ctx, x), probe.ObjectIndexes(ctx, x), o)
+			})
+		},
+	}
+	limitFlagN(c, &o.Limit, 20)
+	return c
 }
 
 func limitFlag(c *cobra.Command, limit *int) { limitFlagN(c, limit, 50) }

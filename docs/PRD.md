@@ -59,6 +59,7 @@
 | `params`（v0.2） | 哪些参数不是默认值、在哪设的（文件和行号；来源不含 default、override 和本连接自己的 client/session），先列等着重启才生效的（服务器的 `pending_restart`，每个报一条 WARN `params.pending_restart`）；看不到来源文件的账号也看不到超级用户专属参数，没有 finding 时 UNKNOWN。没有参数 | `params.changed` | 正常 |
 | `repl`（v0.2） | 从本节点看复制。主库：`synchronous_standby_names` 要几个、服务器现在算几个同步候选（`sync_state` 为 sync/quorum），每个下游的状态、同步状态、sent/flushed/replayed 落后本节点多少字节、replay_lag、上次回复多久前；备库：上游（复用 `inst.upstream`）、收到和回放的 LSN、差多少、最近回放的事务多久前、回放是否暂停，以及级联的下游。WARN 三条：同步候选不够数（`repl.sync_short`，KES 此时提交会不会卡住未验证，所以不报 FAIL；OK 不代表提交在流动，候选不确认时只看得到 replay_lag 在涨）、回放暂停（`repl.replay_paused`）、备库没在收 WAL（`inst.upstream`）；延迟只展示（没有客观线）；暂停的 walreceiver 只展示 last_msg，不判（用户未定） | `repl.downstreams`、`repl.sync`、`repl.replay`、`inst.upstream` | 备库上 `repl.sync` 为 `not_applicable`；主库上 `repl.replay`、`inst.upstream` 为 `not_applicable` |
 | `cluster`（v0.2） | repmgr 眼里的集群：节点、类型、上游、active、优先级、槽，标出本节点（repmgr 的 `get_local_node_id()` 给的节点，或槽名等于本实例的 `primary_slot_name`），最近 20 条 repmgr 事件；和数据库自己的看法对照。WARN 四条：多于一个 active 的 primary（`cluster.primaries`）、repmgr 标了 inactive 的节点（`cluster.inactive`）、本节点的类型和恢复角色不一致（`cluster.role_mismatch`）、主库上 repmgr 说跟着本节点的 active 备库没挂上来（`cluster.detached`）。节点能不能连上看不到（只连一个库）。没给 `-d` 时连 `esrep` 库（没有这个库就连默认库）；当前库没有 repmgr schema 时 `not_applicable`；认不出本节点时 UNKNOWN | `cluster.nodes`、`cluster.events`、`inst.downstreams` | 正常（备库的元数据是复制过来的；witness 的由 repmgrd 拷过去）；`cluster.detached` 只在主库上判 |
+| `top-objects`（v0.2） | 当前库最大的表（含分区表、物化视图；总大小 = 堆 + 索引 + TOAST，三部分分列，给估算行数）和最大的索引（TOAST 的索引算在 TOAST 里，不单列）。只展示，不判；有 probe 没采到时 UNKNOWN（有表被 AccessExclusiveLock 锁着时大小函数会等到 lock_timeout）。`--limit` 两个列表各自裁 | `object.tables`、`object.indexes` | 正常（大小是本地文件，和主库一致） |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
 
@@ -489,6 +490,8 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | `repl.replay` | repl | `receive_lsn`、`replay_lsn`、`replay_gap_bytes`、`last_replay_age_s`（主库空闲时也会涨，只展示）、`replay_paused` |
 | `cluster.nodes` | cluster | `node_id`、`node_name`、`type`、`upstream_node_id`、`active`、`priority`、`location`、`slot_name`、`is_local`（不采 conninfo：可能带密码） |
 | `cluster.events` | cluster | `node_id`、`event`、`successful`、`event_time`、`event_age_s`、`details`（最近 20 条，这是 probe 的定义，不算截断） |
+| `object.tables` | top-objects | `schemaname`、`relname`、`relkind`、`total_bytes`、`table_bytes`（主分支）、`index_bytes`、`toast_bytes`（没有 TOAST 表时 NULL）、`reltuples`（估算） |
+| `object.indexes` | top-objects | `schemaname`、`relname`、`table_name`、`bytes` |
 
 | finding.id | 级别 | 命令 | evidence 字段 |
 |---|---|---|---|

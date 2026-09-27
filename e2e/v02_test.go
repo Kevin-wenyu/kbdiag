@@ -366,3 +366,30 @@ func ksqlDB(t *testing.T, db, sql string) string {
 	}
 	return strings.TrimSpace(string(out))
 }
+
+var (
+	objectTableColumns = []string{"schemaname", "relname", "relkind", "total_bytes", "table_bytes", "index_bytes", "toast_bytes", "reltuples"}
+	objectIndexColumns = []string{"schemaname", "relname", "table_name", "bytes"}
+)
+
+func TestTopObjects(t *testing.T) {
+	r, code := kbdiag(t, nil, "top-objects", "--limit", "0")
+	if r.Verdict != "OK" || code != 0 {
+		t.Errorf("verdict=%s exit=%d", r.Verdict, code)
+	}
+	tables := okProbe(t, r, "object.tables", objectTableColumns)
+	if n := ksql(t, "select count(*) from sys_class where relkind in ('r','p','m')"); strconv.Itoa(len(tables.Rows)) != n {
+		t.Errorf("tables = %d, ksql %s", len(tables.Rows), n)
+	}
+	// the lab's largest table (stage 0: public.orders, 114 MB), same size as ksql
+	top := tables.rowsOf()[0]
+	want := ksql(t, "select n.nspname || '.' || c.relname || ' ' || pg_total_relation_size(c.oid) from sys_class c join sys_namespace n on n.oid = c.relnamespace where c.relkind in ('r','p','m') order by pg_total_relation_size(c.oid) desc limit 1")
+	if got := str(top["schemaname"]) + "." + str(top["relname"]) + " " + str(top["total_bytes"]); got != want {
+		t.Errorf("largest = %q, ksql %q", got, want)
+	}
+	okProbe(t, r, "object.indexes", objectIndexColumns)
+	out, _ := kbdiagText(t, nil, "top-objects")
+	if !strings.Contains(out, "\ntables in test: ") || !strings.Contains(out, "more not shown") {
+		t.Errorf("text:\n%s", out)
+	}
+}

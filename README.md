@@ -49,6 +49,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `params` | The parameters someone set (not at their default) and where: file and line; WARN for each change that waits for a restart | |
 | `repl` | Replication from this node's side: on a primary the synchronous settings and how far each standby is behind; on a standby its upstream, receive and replay. WARN when fewer synchronous standbys stream than asked for, replay is paused, or a standby receives no WAL. Lag is shown, not judged | |
 | `cluster` | repmgr's view (nodes, roles, upstreams, latest events) checked against this node; WARN on two primaries, inactive nodes, a role repmgr has wrong, a standby not attached. Connects to database `esrep` unless `-d` is given | |
+| `top-objects` | The largest tables (heap, indexes, TOAST) and indexes of this database. Shows only | `--limit N` |
 
 Defaults: idle in transaction 300 s, lock wait 10 s, transaction 300 s, prepared transaction 900 s, all WARN. `--limit` only trims what is shown; findings always cover every row.
 
@@ -154,6 +155,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `params` | 哪些参数不是默认值、在哪设的（文件和行号）；改了但要重启才生效的每个报 WARN | |
 | `repl` | 从本节点看复制：主库看同步设置和每个备库落后多少；备库看上游、接收和回放。同步备库不够数、回放暂停、备库没在收 WAL 时报 WARN；延迟只展示，不判 | |
 | `cluster` | repmgr 眼里的集群（节点、角色、上游、最近事件），和本节点对照；两个主库、inactive 节点、repmgr 记错的角色、没挂上来的备库报 WARN。没给 `-d` 时连 `esrep` 库 | |
+| `top-objects` | 当前库最大的表（堆、索引、TOAST 分列）和最大的索引。只展示 | `--limit N` |
 
 默认阈值：idle in transaction 300 秒，等锁 10 秒，事务 300 秒，两阶段事务 900 秒，都报 WARN。`--limit` 只影响显示，判定始终覆盖全部行。
 

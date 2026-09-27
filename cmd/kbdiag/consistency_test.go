@@ -91,7 +91,7 @@ func TestDocsListTheRealCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	row := regexp.MustCompile("(?m)^\\| `([a-z]+)(?: <pid>)?` \\|.*\\| *([^|]*)\\|$")
+	row := regexp.MustCompile("(?m)^\\| `([a-z-]+)(?: <[a-z]+>)?` \\|.*\\| *([^|]*)\\|$")
 	flag := regexp.MustCompile("`(--[a-z-]+)")
 	tables := 0
 	for _, part := range strings.Split(string(readme), "\n## ") {
@@ -142,7 +142,7 @@ func TestDocsListTheRealCommands(t *testing.T) {
 		t.Fatal("PRD §4 command table not found")
 	}
 	var listed []string
-	for _, m := range regexp.MustCompile("(?m)^\\| `([a-z]+)").FindAllStringSubmatch(doc[start:start+end], -1) {
+	for _, m := range regexp.MustCompile("(?m)^\\| `([a-z-]+)").FindAllStringSubmatch(doc[start:start+end], -1) {
 		listed = append(listed, m[1])
 	}
 	var names []string
