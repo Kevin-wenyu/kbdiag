@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"math/big"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
 	"github.com/Kevin-wenyu/kbdiag/internal/rule"
@@ -32,6 +31,9 @@ func (v *seqView) write(r *Report, w io.Writer) error {
 		return nil
 	}
 	fmt.Fprintf(w, "\n%s: %d, most used first\n", title, len(v.l.Rows))
+	if r.Context.Role == "standby" {
+		fmt.Fprintln(w, "  on a standby a sequence reads up to 32 values ahead of the primary (and is not judged): run on the primary")
+	}
 	shown := v.l.Rows
 	if v.limit > 0 && len(shown) > v.limit {
 		shown = shown[:v.limit]
@@ -41,7 +43,7 @@ func (v *seqView) write(r *Report, w io.Writer) error {
 	}
 	var rows [][]string
 	for _, s := range shown {
-		last, used, left := "-", "-", "never used"
+		last, used, left := "-", "-", "no value yet"
 		switch l, u, ok := rule.SeqLeft(s); {
 		case !s.Readable:
 			last, used, left = "?", "?", "?"
@@ -64,13 +66,4 @@ func (v *seqView) write(r *Report, w io.Writer) error {
 	}
 	writeTruncated(w, len(v.l.Rows)-len(shown))
 	return nil
-}
-
-// count is exact below a million, three significant digits above.
-func count(n *big.Int) string {
-	if n.IsInt64() && n.Int64() < 1_000_000 {
-		return n.String()
-	}
-	f, _ := new(big.Float).SetInt(n).Float64()
-	return fmt.Sprintf("%.3g", f)
 }

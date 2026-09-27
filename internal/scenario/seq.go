@@ -30,7 +30,7 @@ func Seq(c facts.Context, l facts.SeqList, o SeqOptions) *report.Report {
 		return rs[i].Schemaname+"."+rs[i].Sequencename < rs[j].Schemaname+"."+rs[j].Sequencename
 	})
 	l.Rows = rs
-	rep := report.New("seq", c, rule.Seq(l))
+	rep := report.New("seq", c, rule.Seq(l, c.Role))
 	rep.AddProbe(facts.SeqListID, l.Status, l.Reason, facts.SeqColumns, rows(l.Rows), o.Limit)
 	rep.AddRedacted(l.Redacted())
 	rep.SetSeq(l, o.Limit)

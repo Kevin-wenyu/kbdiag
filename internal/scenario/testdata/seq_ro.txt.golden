@@ -6,4 +6,4 @@ sequences in test: 16, most used first
   kdb_schedule.kdb_exception_jexid_seq  integer  ?     2147483647  ?     ?
   kdb_schedule.kdb_job_action_jaid_seq  integer  ?     2147483647  ?     ?
   ... 13 more not shown (--limit 0 shows all)
-redacted: 16 rows of seq.list hide last_value (insufficient_privilege; grant sys_monitor)
+redacted: 16 rows of seq.list hide last_value (insufficient_privilege; grant SELECT on the sequences (sys_monitor does not cover them))

@@ -126,10 +126,3 @@ func (v *replView) writeDownstreams(w io.Writer) error {
 	}
 	return writeTable(w, "  ", []string{"name", "address", "state", "sync", "sent", "flushed", "replayed", "replay lag", "last reply"}, rows)
 }
-
-func behind(b *int64) string {
-	if b == nil {
-		return "-"
-	}
-	return size(max(0, float64(*b)))
-}

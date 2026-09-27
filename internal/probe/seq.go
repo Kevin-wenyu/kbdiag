@@ -18,9 +18,11 @@ import (
 // has_sequence_privilege with a list of privileges is the PG kernel's
 // (not captured). Not run on a VM yet.
 const seqListSQL = `
-select schemaname::text, sequencename::text, data_type::text, start_value, min_value, max_value, increment_by, cycle, cache_size, last_value,
-       has_sequence_privilege(quote_ident(schemaname) || '.' || quote_ident(sequencename), 'SELECT, USAGE')
-from sys_sequences
+select s.schemaname::text, s.sequencename::text, s.data_type::text, s.start_value, s.min_value, s.max_value, s.increment_by, s.cycle, s.cache_size, s.last_value,
+       coalesce(has_sequence_privilege(c.oid, 'SELECT, USAGE'), false)
+from sys_sequences s
+left join sys_namespace n on n.nspname = s.schemaname
+left join sys_class c on c.relnamespace = n.oid and c.relname = s.sequencename
 order by 1, 2`
 
 func SeqList(ctx context.Context, x *pgx.Conn) facts.SeqList {

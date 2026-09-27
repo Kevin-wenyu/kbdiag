@@ -60,14 +60,6 @@ func (r *Report) writeTopObjects(w io.Writer) error {
 	return nil
 }
 
-// bytesCell is a size in readable units, "-" for NULL.
-func bytesCell(v any) string {
-	if b, ok := number(v); ok {
-		return size(b)
-	}
-	return "-"
-}
-
 // lockHint points at locks when a size function waited out lock_timeout:
 // some relation is held under an exclusive lock.
 func lockHint(w io.Writer, p Probe) {

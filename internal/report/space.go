@@ -14,10 +14,13 @@ import (
 // and tablespaces. Directories on one filesystem share a line.
 type spaceView struct{ disk facts.SpaceDisk }
 
-func (r *Report) SetSpace(d facts.SpaceDisk) { r.space = &spaceView{disk: d} }
+func (r *Report) SetSpace(d facts.SpaceDisk) {
+	v := &spaceView{disk: d}
+	r.layout = func(r *Report, w io.Writer) error { return v.write(r, w) }
+}
 
-func (r *Report) writeSpace(w io.Writer) error {
-	if err := r.space.writeDisk(w); err != nil {
+func (v *spaceView) write(r *Report, w io.Writer) error {
+	if err := v.writeDisk(w); err != nil {
 		return err
 	}
 	for _, id := range []string{facts.SpaceWALID, facts.InstDatabasesID, facts.SpaceTablespacesID} {

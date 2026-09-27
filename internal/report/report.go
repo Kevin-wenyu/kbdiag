@@ -25,7 +25,6 @@ type Report struct {
 	txn      *txnView
 	waits    *waitsView
 	slots    *slotsView
-	space    *spaceView
 	layout   func(*Report, io.Writer) error // the v0.2 commands' text layouts
 }
 

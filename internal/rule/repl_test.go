@@ -54,7 +54,9 @@ func TestRepl(t *testing.T) {
 	names := func(s, commit string) facts.ReplSync {
 		return facts.ReplSync{Status: facts.StatusOK, Rows: []facts.SyncSetting{{StandbyNames: &s, Commit: commit}}}
 	}
-	down := func(rs ...facts.Replica) facts.ReplDownstreams { return facts.ReplDownstreams{Status: facts.StatusOK, Rows: rs} }
+	down := func(rs ...facts.Replica) facts.ReplDownstreams {
+		return facts.ReplDownstreams{Status: facts.StatusOK, Rows: rs}
+	}
 	na := facts.InstUpstream{Status: facts.StatusNotApplicable}
 	naReplay := facts.ReplReplay{Status: facts.StatusNotApplicable}
 	cases := []struct {

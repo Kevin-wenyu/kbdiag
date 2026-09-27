@@ -28,6 +28,12 @@ var redactedLabels = map[string][]fieldLabel{
 	facts.WaitSummaryID: {{"wait", []string{"wait_event_type", "wait_event"}}, {"state", []string{"state"}}},
 }
 
+// grantHints are the grants that lift a probe's redaction when
+// sys_monitor does not.
+var grantHints = map[string]string{
+	facts.SeqListID: "grant SELECT on the sequences (sys_monitor does not cover them)",
+}
+
 // writeRedacted prints one line per probe and reason instead of one per
 // column: "redacted: 12 rows of session.activity hide state, ... (reason)".
 // JSON keeps one entry per column.
@@ -52,9 +58,15 @@ func writeRedacted(w io.Writer, rs []Redacted) {
 	}
 	for _, k := range keys {
 		g := groups[k]
+		hint := ""
+		if k.reason == facts.ReasonInsufficientPrivilege {
+			hint = "; grant sys_monitor"
+			if h, ok := grantHints[k.probe]; ok {
+				hint = "; " + h
+			}
+		}
 		fmt.Fprintf(w, "redacted: %s of %s %s %s (%s%s)\n", plural(g.rows, "row", "rows"), k.probe,
-			map[bool]string{true: "hides", false: "hide"}[g.rows == 1], strings.Join(labels(k.probe, g.fields), ", "), k.reason,
-			map[bool]string{true: "; grant sys_monitor", false: ""}[k.reason == facts.ReasonInsufficientPrivilege])
+			map[bool]string{true: "hides", false: "hide"}[g.rows == 1], strings.Join(labels(k.probe, g.fields), ", "), k.reason, hint)
 	}
 }
 

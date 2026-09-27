@@ -295,8 +295,9 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 - **FAIL 只给"取不出下一个值"**：nextval 报错，插入已经失败，线是序列自己的上/下限；会循环的不算。快用完只展示比例，没有客观线（拍板点）。
 - **精确算**（`math/big`）：bigint 序列跨满 int64，普通相减会溢出。
-- **两种 NULL 要分开**：从没调用过和没权限读都让 `last_value` 是 NULL（kbdiag_ro 实采全是 NULL），SQL 加权限判断，看不到的记 `redacted[]`、UNKNOWN，不当成"从没用过"。
-- 修复语句按类型给：int/smallint 改 bigint（列先改，要重写表），bigint 挪限值。
+- **NULL 要分开**：没权限读、从没调用过、`setval(..., false)` 之后都让 `last_value` 是 NULL（kbdiag_ro 实采全是 NULL）。SQL 按 oid 判权限（不按名字重解析，被删掉的序列不会让整条 probe 失败），看不到的记 `redacted[]`、UNKNOWN，提示授予序列的 SELECT（sys_monitor 解不开）；其余写 `no value yet`。
+- **备库不判**：备库上的序列值是 WAL 里的副本，主库每次预写 32 个，会显示"到头了"而主库还有值（阶段 17 审查指出）。
+- 修复语句按"是什么挡住了"给：序列自己的 MAXVALUE/MINVALUE 比类型小就挪它（`AS bigint` 不会动它，注入脚本 `maxvalue 3` 就是这种）；到了类型的边界，int/smallint 改 bigint（列先改，要重写表），bigint 只能换键。
 
 ### 三层深度（看 / 查 / 断）
 

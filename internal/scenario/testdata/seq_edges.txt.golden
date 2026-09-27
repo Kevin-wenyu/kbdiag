@@ -1,13 +1,13 @@
 seq  FAIL  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
 
 [FAIL] seq.exhausted  sequence app.Capped\x1b[2J (bigint) is at 100, its limit is 100: nextval fails, so inserts that use it fail
-  fix: ALTER SEQUENCE <sequence> MAXVALUE <higher>  # the name has control characters and is shown escaped: take it from kbdiag seq --json; a bigint sequence at its limit: move the limit if it was set short of the type's, or plan a new key
+  fix: ALTER SEQUENCE <sequence> MAXVALUE <higher>  # the name has control characters and is shown escaped: take it from kbdiag seq --json; it stops at its MAXVALUE, short of what its type allows
 
 [FAIL] seq.exhausted  sequence public.orders_id_seq (integer) is at 2147483647, its limit is 2147483647: nextval fails, so inserts that use it fail
   fix: ALTER SEQUENCE public.orders_id_seq AS bigint  # the column it feeds must become bigint first (ALTER TABLE ... ALTER COLUMN ... TYPE bigint rewrites the table)
 
 [FAIL] seq.exhausted  sequence public.down (bigint) is at -991, its limit is -1000: nextval fails, so inserts that use it fail
-  fix: ALTER SEQUENCE public.down MINVALUE <lower>  # a bigint sequence at its limit: move the limit if it was set short of the type's, or plan a new key
+  fix: ALTER SEQUENCE public.down MINVALUE <lower>  # it stops at its MINVALUE, short of what its type allows
 
 sequences in test: 4, most used first
   sequence              type      last        limit       used     left

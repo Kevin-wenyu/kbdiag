@@ -119,7 +119,9 @@ func (t *tableView) writeStats(w io.Writer, x facts.TableInfo, s facts.TableStat
 			dead += " (autovacuum is off for this table)"
 		}
 	}
-	times := func(n int64) string { return map[bool]string{true: "1 time", false: fmt.Sprintf("%d times", n)}[n == 1] }
+	times := func(n int64) string {
+		return map[bool]string{true: "1 time", false: fmt.Sprintf("%d times", n)}[n == 1]
+	}
 	fmt.Fprintln(w, "\nvacuum and analyze")
 	writeKV(w, 0, [][2]string{
 		{"dead tuples", dead},

@@ -3,7 +3,6 @@ package report
 import (
 	"fmt"
 	"io"
-	"math"
 	"time"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
@@ -97,12 +96,4 @@ func (v *checkpointView) write(r *Report, w io.Writer) error {
 		{"log_checkpoints", escapeControl(s.LogCheckpoints)},
 	})
 	return nil
-}
-
-// pct is n of total, rounded; "-" when there is no total.
-func pct(n, total int64) string {
-	if total <= 0 {
-		return "-"
-	}
-	return fmt.Sprintf("%.0f%%", math.Round(float64(n)*100/float64(total)))
 }

@@ -3,7 +3,6 @@ package report
 import (
 	"fmt"
 	"io"
-	"math"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
 )
@@ -63,20 +62,4 @@ func (v *topView) write(w io.Writer) error {
 	}
 	writeTruncated(w, len(v.t.Rows)-len(shown))
 	return nil
-}
-
-// execTime shows statement times the way they are read: 0.09 ms, 503 ms,
-// 1.75 s, then the two-unit durations past a minute.
-// The unit is picked after rounding, so 0.9996 s reads 1.00 s, not 1000 ms.
-func execTime(s float64) string {
-	ms := math.Round(s*1e5) / 100 // to 0.01 ms
-	switch {
-	case math.Round(s*100)/100 >= 60:
-		return duration(s)
-	case math.Round(ms) >= 1000:
-		return fmt.Sprintf("%.2f s", math.Round(s*100)/100)
-	case ms >= 10:
-		return fmt.Sprintf("%.0f ms", math.Round(ms))
-	}
-	return fmt.Sprintf("%.2f ms", ms)
 }

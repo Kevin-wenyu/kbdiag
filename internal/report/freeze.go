@@ -80,24 +80,3 @@ func (r *Report) writeFreeze(w io.Writer) error {
 	writeTruncated(w, p.Truncated)
 	return nil
 }
-
-// relkind names sys_class.relkind for a reader.
-func relkind(k string) string {
-	if n, ok := map[string]string{"r": "table", "p": "partitioned", "m": "matview", "t": "toast", "i": "index", "I": "partitioned index", "v": "view", "S": "sequence", "f": "foreign"}[k]; ok {
-		return n
-	}
-	return k
-}
-
-func reasonOf(p Probe) string {
-	if p.Reason == nil {
-		return ""
-	}
-	return *p.Reason
-}
-
-func writeTruncated(w io.Writer, n int) {
-	if n > 0 {
-		fmt.Fprintf(w, "  ... %d more not shown (--limit 0 shows all)\n", n)
-	}
-}

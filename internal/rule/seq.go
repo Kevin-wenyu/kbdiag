@@ -33,19 +33,27 @@ func SeqLeft(s facts.Sequence) (left *big.Int, used float64, ok bool) {
 		return left, 1, true
 	}
 	r, _ := new(big.Float).Quo(new(big.Float).SetInt(new(big.Int).Sub(span, room)), new(big.Float).SetInt(span)).Float64()
-	return left, r, true
+	// a value before the start (a cycle wrapped, a setval below it) counts
+	// as nothing used
+	return left, min(1, max(0, r)), true
 }
 
 // Seq fails a sequence that cannot hand out another value: nextval errors,
 // so every insert that uses it fails now. The line is the sequence's own
 // limit. One that cycles wraps instead. How close is too close has no
-// objective line and is only shown.
-func Seq(l facts.SeqList) Result {
+// objective line and is only shown. Not judged on a standby: its copy of a
+// sequence is the WAL record, written up to 32 values ahead of the
+// primary's, so it can read "at the limit" while the primary still has
+// values, and a standby inserts nothing anyway.
+func Seq(l facts.SeqList, role string) Result {
 	judge, unknown := collected(l.Status)
 	if !judge {
 		return Result{Verdict: verdictOf(nil, unknown)}
 	}
 	unknown = len(l.Redacted()) > 0
+	if role == "standby" {
+		return Result{Verdict: verdictOf(nil, unknown)}
+	}
 	var fs []Finding
 	for _, s := range l.Rows {
 		left, _, ok := SeqLeft(s)
@@ -72,20 +80,37 @@ func Seq(l facts.SeqList) Result {
 	return Result{Verdict: verdictOf(fs, unknown), Findings: fs}
 }
 
-// seqFix widens the sequence: int and smallint become bigint (the column
-// behind them first), a bigint gets its limit moved if it was set short of
-// the type's. A name the text shows escaped is left out of the SQL.
+// seqFix moves the limit that stops the sequence: its own MAXVALUE
+// (MINVALUE descending) when it was set short of the type's bound, else the
+// type, int and smallint to bigint (the column behind them first). A name
+// the text shows escaped is left out of the SQL.
 func seqFix(s facts.Sequence) Next {
 	name, note := qualified(s.Schemaname, s.Sequencename), ""
 	if hasControl(s.Schemaname + s.Sequencename) {
 		name, note = "<sequence>", "the name has control characters and is shown escaped: take it from kbdiag seq --json; "
 	}
-	if s.DataType != "bigint" {
+	lo, hi := typeBounds(s.DataType)
+	own := s.IncrementBy > 0 && s.MaxValue < hi || s.IncrementBy < 0 && s.MinValue > lo
+	if !own && s.DataType != "bigint" {
 		return Next{Kind: "fix", SQL: "ALTER SEQUENCE " + name + " AS bigint", Note: note + "the column it feeds must become bigint first (ALTER TABLE ... ALTER COLUMN ... TYPE bigint rewrites the table)"}
 	}
-	clause := "MAXVALUE <higher>"
+	clause, what := "MAXVALUE <higher>", "its MAXVALUE"
 	if s.IncrementBy < 0 {
-		clause = "MINVALUE <lower>"
+		clause, what = "MINVALUE <lower>", "its MINVALUE"
 	}
-	return Next{Kind: "fix", SQL: "ALTER SEQUENCE " + name + " " + clause, Note: note + "a bigint sequence at its limit: move the limit if it was set short of the type's, or plan a new key"}
+	if !own {
+		return Next{Kind: "fix", SQL: "ALTER SEQUENCE " + name + " " + clause, Note: note + "a bigint sequence at the type's bound: plan a new key"}
+	}
+	return Next{Kind: "fix", SQL: "ALTER SEQUENCE " + name + " " + clause, Note: note + "it stops at " + what + ", short of what its type allows"}
+}
+
+// typeBounds are the ranges of the sequence types.
+func typeBounds(t string) (lo, hi int64) {
+	switch t {
+	case "smallint":
+		return -1 << 15, 1<<15 - 1
+	case "integer":
+		return -1 << 31, 1<<31 - 1
+	}
+	return -1 << 63, 1<<63 - 1
 }

@@ -64,7 +64,7 @@ func TestSeq(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r := Seq(c.l)
+			r := Seq(c.l, "primary")
 			if r.Verdict != c.verdict || len(r.Findings) != c.n {
 				t.Errorf("verdict=%s findings=%+v", r.Verdict, r.Findings)
 			}
@@ -74,5 +74,30 @@ func TestSeq(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSeqStandbyAndFix(t *testing.T) {
+	v := func(n int64) *int64 { return &n }
+	full := facts.SeqList{Status: facts.StatusOK, Rows: []facts.Sequence{seq(v(10), 1, 10, 1, false)}}
+	if r := Seq(full, "standby"); r.Verdict != VerdictOK || len(r.Findings) != 0 {
+		t.Errorf("standby: %s %+v", r.Verdict, r.Findings)
+	}
+	for _, c := range []struct {
+		s   facts.Sequence
+		sql string
+	}{
+		{seq(v(3), 1, 3, 1, false), "ALTER SEQUENCE public.s MAXVALUE <higher>"}, // e2e/inject/seq.sh: integer maxvalue 3
+		{seq(v(math.MaxInt32), 1, math.MaxInt32, 1, false), "ALTER SEQUENCE public.s AS bigint"},
+		{seq(v(-5), -5, -1, -1, false), "ALTER SEQUENCE public.s MINVALUE <lower>"},
+	} {
+		if n := seqFix(c.s); n.SQL != c.sql {
+			t.Errorf("%+v: %q, want %q", c.s, n.SQL, c.sql)
+		}
+	}
+	// wrapped below its start: nothing used, not negative
+	s := facts.Sequence{DataType: "integer", StartValue: 1000, MinValue: 1, MaxValue: 2000, IncrementBy: 1, Cycle: true, LastValue: v(5), Readable: true}
+	if _, used, _ := SeqLeft(s); used != 0 {
+		t.Errorf("used = %v", used)
 	}
 }

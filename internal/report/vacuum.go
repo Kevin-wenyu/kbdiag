@@ -108,18 +108,3 @@ func writeVacuumRuns(w io.Writer, p Probe) error {
 	}
 	return writeTable(w, "  ", []string{"pid", "kind", "database", "relation", "phase", "scanned", "running"}, rows)
 }
-
-// ago is "never" for NULL, else how long ago.
-func ago(s *float64) string {
-	if s == nil {
-		return "never"
-	}
-	return duration(*s) + " ago"
-}
-
-func running(v any) string {
-	if s, ok := number(v); ok {
-		return duration(s)
-	}
-	return "?"
-}

@@ -17,6 +17,7 @@ import (
 //     sorts and loads them (the block counters stay at their last value)
 //   - CLUSTER counts heap blocks for a sequential scan, tuples (no total)
 //     for an index scan
+//
 // Running time is from xact_start, as vacuum.progress (a manual VACUUM of
 // several tables runs one transaction per table). A masked row has phase,
 // relid and counters NULL (PG12); backend_type is masked too, so such a

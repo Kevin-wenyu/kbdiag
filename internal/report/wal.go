@@ -58,6 +58,9 @@ func (v *walView) write(w io.Writer) error {
 		}
 	}
 	if v.s.Status == facts.StatusOK {
+		if len(v.s.Rows) == 0 {
+			kv = append(kv, [2]string{"slots", "none"})
+		}
 		for _, s := range v.s.Rows {
 			kept := "-"
 			if s.RetainedWALBytes != nil {

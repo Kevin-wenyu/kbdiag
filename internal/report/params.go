@@ -68,7 +68,7 @@ func paramFile(x facts.Param) string {
 	return "-"
 }
 
-// paramValue shows an empty setting as '' so it is not read as a gap.
+// paramValue shows an empty setting as ” so it is not read as a gap.
 func paramValue(s *string) string {
 	if s != nil && *s == "" {
 		return "''"

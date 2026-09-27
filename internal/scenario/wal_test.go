@@ -45,7 +45,9 @@ func TestWALTextEdges(t *testing.T) {
 	pos := facts.WALPosition{Status: facts.StatusOK, Rows: []facts.Position{{InRecovery: true, LSN: &lsn}}}
 	s := facts.SlotList{Status: facts.StatusOK, Rows: []facts.Slot{{Name: "cascade", Type: "physical", RetainedWALBytes: i64(3 << 30)}}}
 	assertGolden(t, "wal_standby", WAL(v02Context("standby", "system", "local"), pos, w, s, a))
-	ro := WAL(v02Context("primary", "kbdiag_ro", "remote"), pos, facts.SpaceWAL{Status: facts.StatusSkipped, Reason: "insufficient_privilege 42501: permission denied for function sys_ls_waldir"},
+	file := "0000000300000000000000A9"
+	primary := facts.WALPosition{Status: facts.StatusOK, Rows: []facts.Position{{LSN: &lsn, WALFile: &file}}}
+	ro := WAL(v02Context("primary", "kbdiag_ro", "remote"), primary, facts.SpaceWAL{Status: facts.StatusSkipped, Reason: "insufficient_privilege 42501: permission denied for function sys_ls_waldir"},
 		facts.SlotList{Status: facts.StatusOK}, facts.ArchiveReady{Status: facts.StatusSkipped, Reason: "insufficient_privilege 42501: permission denied for function sys_ls_archive_statusdir"})
 	assertGolden(t, "wal_ro", ro)
 	if ro.Verdict != rule.VerdictUNKNOWN {
