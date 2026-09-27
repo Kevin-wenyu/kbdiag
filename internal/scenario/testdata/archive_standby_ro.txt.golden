@@ -1,0 +1,12 @@
+archive  OK  (KingbaseES V008R006C009B0014, standby, kbdiag_ro@remote, 2026-09-27T21:22:51+08:00)
+
+settings
+  archive_mode     always
+  archive_command  export TZ=Asia/Shanghai;/home/kingbase/cluster/install/kingbase/bin/sys_rman --config /rman/kbbr_repo/sys_rman.conf --stanza=kingbase archive-push %p
+  archive_timeout  0 (off)
+
+archiver  (counting since 2026-09-23 15:44:59)
+  archived  1  last 0000000300000000000000A3  4d 5h ago
+  failed    0
+
+waiting: skipped  (insufficient_privilege 42501: permission denied for function sys_ls_archive_statusdir)

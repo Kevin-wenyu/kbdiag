@@ -1,0 +1,11 @@
+archive  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+settings
+  archive_mode     off  (archiving is off)
+  archive_timeout  60s
+
+archiver
+  archived  0
+  failed    3  last 00000001\u202e0001  20m 9s ago
+
+waiting: 250 .ready, 0 .done  (oldest .ready 1d 1h)

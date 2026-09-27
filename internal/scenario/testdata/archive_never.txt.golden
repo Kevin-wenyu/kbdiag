@@ -1,0 +1,15 @@
+archive  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] archive.failing  archiving is failing: the last attempt failed (00000001\u202e0001, 20m 9s ago) and it never succeeded; 3 failures since the statistics reset. WAL that is not archived stays in sys_wal and is missing from the backups
+  verify: kbdiag space  # how big sys_wal has grown; why archive_command fails is in the server log (log_directory)
+
+settings
+  archive_mode     on
+  archive_command  rm -rf \x1b[2J
+  archive_timeout  60s
+
+archiver
+  archived  0
+  failed    3  last 00000001\u202e0001  20m 9s ago
+
+waiting: 250 .ready, 0 .done  (oldest .ready 1d 1h)

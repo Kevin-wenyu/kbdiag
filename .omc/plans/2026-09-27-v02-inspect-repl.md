@@ -180,6 +180,7 @@
 - 2026-09-27：阶段 2 space 完成（云会话，提交见 git log `v02(space)`）。下一步：阶段 3 freeze
 - 2026-09-27：阶段 3 freeze 完成（云会话，`v02(freeze)`）。下一步：阶段 4 vacuum
 - 2026-09-27：阶段 4 vacuum 完成（云会话，`v02(vacuum)`）。下一步：阶段 5 archive
+- 2026-09-27：阶段 5 archive 完成（云会话，`v02(archive)`）。下一步：阶段 6 params
 - 2026-09-27：用户追加范围（top-objects、table、top，阶段 9–11），收口改为阶段 12、本地 VM 收尾改为阶段 13；补采这三条；明确云会话一口气做到阶段 12
 
 ## 附录 B：场景表（阶段 1 写）
@@ -298,7 +299,7 @@ DS：17（死元组/膨胀）、18（autovacuum 长时间未执行，关联长�
 参数：无。
 
 判定：
-- `archive.failing` **WARN**：`archive_mode` 不是 off，且最后一次失败晚于最后一次成功（或从没成功过而失败数 > 0）。客观线是"最近一次尝试失败了"。WAL 在主库上堆着、备份缺段，但业务还没受影响，所以 WARN。实验环境正是这样（failed 17961，最后成功 2026-09-16，`archive_node1_*_stat`），VM 上天然能测。
+- `archive.failing` **WARN**：`archive_mode` 不是 off、`archive_command` 不为空，且最后一次失败晚于最后一次成功（或从没成功过而有失败时间）。客观线是"最近一次尝试失败了"。WAL 在主库上堆着、备份缺段，但业务还没受影响，所以 WARN。实验环境正是这样（failed 17961，最后成功 2026-09-16，`archive_node1_*_stat`），VM 上天然能测。
 - `archive_mode=off` 不报：主动配置，文本写"archiving is off"。备库上 `archive_mode=on`（不是 always）时归档进程不跑，文本写明，同样不报（未验证：实验环境是 always）。
 - `archive_command` 为空而 mode 开着：PG 文档说此时 WAL 会一直留着等命令，是 WARN 的候选，但 KES 行为没有实采，只在文本里标出来，列为拍板点。
 - next：verify 看服务器日志里 archive_command 的报错（`log_directory`，实验环境是 `sys_log`）；verify `kbdiag space`（WAL 目录被撑到多大）。

@@ -95,7 +95,8 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 	pf.BoolVar(&g.json, "json", false, "print the report as JSON")
 	root.AddCommand(newSessions(g, stdout), newSession(g, stdout, stderr), newLocks(g, stdout),
 		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
-		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout))
+		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
+		newArchive(g, stdout))
 	return root
 }
 
@@ -293,6 +294,20 @@ func newVacuum(g *globalFlags, stdout io.Writer) *cobra.Command {
 	}
 	limitFlagN(c, &o.Limit, 20)
 	return c
+}
+
+func newArchive(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "archive",
+		Short: "Whether WAL archiving works: settings, last success and failure, WAL waiting to be archived",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Archive(info, probe.ArchiveStatus(ctx, x), probe.ArchiveReady(ctx, x))
+			})
+		},
+	}
 }
 
 func limitFlag(c *cobra.Command, limit *int) { limitFlagN(c, limit, 50) }

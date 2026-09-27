@@ -1,0 +1,15 @@
+archive  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:22:49+08:00)
+
+[WARN] archive.failing  archiving is failing: the last attempt failed (0000000300000000000000A3, 43s ago) and the last success was 11d 7h ago (0000000300000000000000A2); 17961 failures since the statistics reset. WAL that is not archived stays in sys_wal and is missing from the backups
+  verify: kbdiag space  # how big sys_wal has grown; why archive_command fails is in the server log (log_directory)
+
+settings
+  archive_mode     always
+  archive_command  export TZ=Asia/Shanghai;/home/kingbase/cluster/install/kingbase/bin/sys_rman --config /rman/kbbr_repo/sys_rman.conf --stanza=kingbase archive-push %p
+  archive_timeout  0 (off)
+
+archiver  (counting since 2026-09-15 23:12:34)
+  archived  35     last 0000000300000000000000A2  11d 7h ago
+  failed    17961  last 0000000300000000000000A3  43s ago
+
+waiting: 1 .ready, 174 .done

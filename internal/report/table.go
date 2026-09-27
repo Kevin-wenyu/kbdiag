@@ -11,14 +11,23 @@ import (
 // writeTable prints an aligned table: every line starts with indent, columns
 // are two spaces apart, and no line ends in spaces. Widths are
 // terminal columns, so Chinese text stays aligned (tabwriter counts runes).
+// A nil header prints rows only; rows may be shorter than the widest.
 func writeTable(w io.Writer, indent string, header []string, rows [][]string) error {
-	widths := make([]int, len(header))
-	for _, r := range append([][]string{header}, rows...) {
+	all := rows
+	if header != nil {
+		all = append([][]string{header}, rows...)
+	}
+	n := 0
+	for _, r := range all {
+		n = max(n, len(r))
+	}
+	widths := make([]int, n)
+	for _, r := range all {
 		for i, c := range r {
 			widths[i] = max(widths[i], displayWidth(c))
 		}
 	}
-	for _, r := range append([][]string{header}, rows...) {
+	for _, r := range all {
 		var b strings.Builder
 		b.WriteString(indent)
 		for i, c := range r {

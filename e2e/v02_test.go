@@ -168,3 +168,48 @@ func TestVacuum(t *testing.T) {
 		}
 	})
 }
+
+var (
+	archiveStatusColumns = []string{"archive_mode", "archive_command", "archive_timeout_s", "archived_count", "last_archived_wal", "last_archived_time", "last_archived_age_s",
+		"failed_count", "last_failed_wal", "last_failed_time", "last_failed_age_s", "stats_reset"}
+	archiveReadyColumns = []string{"ready", "done", "oldest_ready_age_s"}
+)
+
+// The lab's archive_command fails on node1 (stage 0): no injection needed.
+// On node2 it succeeded last, so both outcomes are checked against ksql.
+func TestArchive(t *testing.T) {
+	// the archiver retries every minute: sample before and after kbdiag and
+	// accept either
+	failingSQL := "select coalesce(last_failed_time > last_archived_time or (last_archived_time is null and last_failed_time is not null), false) from sys_stat_archiver"
+	readySQL := "select count(*) from sys_ls_archive_statusdir() where name like '%.ready'"
+	failBefore, readyBefore := ksql(t, failingSQL), ksql(t, readySQL)
+	r, code := kbdiag(t, nil, "archive")
+	failAfter, readyAfter := ksql(t, failingSQL), ksql(t, readySQL)
+	a := okProbe(t, r, "archive.status", archiveStatusColumns).rowsOf()[0]
+	if a["archive_mode"] != ksql(t, "show archive_mode") {
+		t.Errorf("archive_mode = %v", a["archive_mode"])
+	}
+	if failBefore != failAfter {
+		t.Skipf("the archiver changed state during the run (%s -> %s)", failBefore, failAfter)
+	}
+	failing := failAfter
+	wantWARN := failing == "t" && a["archive_mode"] != "off" && a["archive_command"] != nil && a["archive_command"] != "" && (role == "primary" || a["archive_mode"] == "always")
+	if got := len(r.Findings) == 1 && r.Findings[0].ID == "archive.failing" && r.Findings[0].Level == "WARN"; got != wantWARN || (wantWARN && code != 1) {
+		t.Errorf("failing=%s mode=%v findings=%+v exit=%d", failing, a["archive_mode"], r.Findings, code)
+	}
+	ready := okProbe(t, r, "archive.ready", archiveReadyColumns).rowsOf()[0]
+	if n := str(ready["ready"]); n != readyBefore && n != readyAfter {
+		t.Errorf("ready = %v", ready["ready"])
+	}
+
+	t.Run("kbdiag_ro", func(t *testing.T) {
+		r, code := kbdiag(t, roEnv, append([]string{"archive"}, roArgs...)...)
+		okProbe(t, r, "archive.status", archiveStatusColumns)
+		if p := r.Data["archive.ready"]; p.Status != "skipped" {
+			t.Errorf("archive.ready = %+v", p)
+		}
+		if (r.Verdict == "WARN") != wantWARN || code == 3 {
+			t.Errorf("verdict=%s exit=%d: archive.ready must not make it UNKNOWN", r.Verdict, code)
+		}
+	})
+}

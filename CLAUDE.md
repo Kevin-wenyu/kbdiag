@@ -185,6 +185,16 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **跟服务器算得一样**：触发线用 float4 算（`relation_needs_vacanalyze` 就是这样），`autovacuum_enabled` 按 parse_bool 认前缀，否则卡在线上的表会和 autovacuum 的判断不一致。
 - **`track_counts=off` 时表的 probe 是 skipped**：计数器停了，旧值不能当成现在的（同 `track_activities` 的做法）。
 
+### archive（2026-09-27）
+
+场景表见计划附录 B.4。
+
+- **`archive.failing` 是 WARN，线是"最后一次尝试失败了"**：最后一次失败晚于最后一次成功，或从没成功过。WAL 堆在本节点、备份缺段，但业务照常。实验环境的归档本来就在失败，VM 上天然能测。
+- **先排除主动配置**（queries.md 的归档注记）：`archive_mode=off` 不判；`archive_mode=on` 的备库本来就不归档，只有 `always` 才判。
+- **`archive_command` 为空不判**：PG 文档说这时 WAL 会一直留着，但 KES 没实采，只在文本里写 `(empty)`，等用户定。
+- `archive.ready`（`.ready` 个数和最老的等了多久）只展示：kbdiag_ro 调不了 `sys_ls_archive_statusdir`，不能让它影响结论。
+- next 指向 `kbdiag space`（WAL 目录被撑到多大）和服务器日志：失败原因只在日志里，kbdiag 不读日志（K1 待排）。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。
