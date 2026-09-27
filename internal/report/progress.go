@@ -48,12 +48,12 @@ func (v *progressView) write(w io.Writer) error {
 		case o.Phase == nil:
 			prog = "?"
 		case o.Done != nil && o.Total != nil:
-			prog = fmt.Sprintf("%d / %d %s", *o.Done, *o.Total, o.Unit)
+			prog = fmt.Sprintf("%d / %d %s", *o.Done, *o.Total, escapeControl(o.Unit))
 			if *o.Total > 0 {
 				prog += fmt.Sprintf(" (%.0f%%)", math.Floor(float64(*o.Done)*100/float64(*o.Total)))
 			}
 		case o.Done != nil:
-			prog = fmt.Sprintf("%d %s", *o.Done, o.Unit)
+			prog = fmt.Sprintf("%d %s", *o.Done, escapeControl(o.Unit))
 		}
 		rows = append(rows, []string{fmt.Sprint(o.PID), escapeControl(o.Command), name(o.Datname), fitWidth(cell(o.Relation), 2*maxName), phase, prog, running(o.RunningS)})
 	}

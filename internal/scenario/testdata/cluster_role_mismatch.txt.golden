@@ -1,0 +1,12 @@
+cluster  WARN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] cluster.role_mismatch  repmgr says this node (node1) is a primary, but the database is a standby: repmgr acts on the wrong role until its metadata is corrected
+  verify: kbdiag repl  # what this node streams to or from
+
+nodes: 2  (repmgr metadata in database esrep)
+  id  name   type     upstream  active  priority  location  slot
+  1   node1  primary  -         yes     -         -         repmgr_slot_1
+  2   node2  standby  node1     yes     -         -         repmgr_slot_2
+  this node is node1: repmgr says primary, the database is a standby
+
+events: 0  (the latest, at most 20)

@@ -25,7 +25,7 @@ const maxCell = 60
 
 func (r *Report) WriteText(w io.Writer) error {
 	c := r.Context
-	fmt.Fprintf(w, "%s  %s  (%s, %s, %s@%s, %s)\n", r.Command, r.Verdict, c.Version, c.Role, c.User, c.Location, c.CollectedAt)
+	fmt.Fprintf(w, "%s  %s  (%s, %s, %s@%s, %s)\n", r.Command, r.Verdict, escapeControl(c.Version), c.Role, escapeControl(c.User), c.Location, c.CollectedAt)
 	// Symptoms and next steps quote server strings (relation names, gids):
 	// they are escaped like every table cell.
 	for _, f := range r.Findings {

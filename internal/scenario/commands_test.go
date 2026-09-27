@@ -202,6 +202,7 @@ func TestStatusStandbyMatchesPRD(t *testing.T) {
 
 func assertGolden(t *testing.T, name string, rep *report.Report) {
 	t.Helper()
+	checkContract(t, rep)
 	var buf bytes.Buffer
 	if err := rep.WriteText(&buf); err != nil {
 		t.Fatal(err)

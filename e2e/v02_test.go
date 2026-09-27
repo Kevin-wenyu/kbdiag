@@ -395,7 +395,7 @@ func TestTopObjects(t *testing.T) {
 }
 
 var (
-	tableInfoColumns = []string{"oid", "schemaname", "relname", "relkind", "relpersistence", "reltuples", "relpages", "reloptions", "xid_age", "mxid_age"}
+	tableInfoColumns  = []string{"oid", "schemaname", "relname", "relkind", "relpersistence", "reltuples", "relpages", "reloptions", "xid_age", "mxid_age"}
 	tableIndexColumns = []string{"indexrelname", "definition", "bytes", "is_unique", "is_primary", "is_valid", "idx_scan"}
 )
 

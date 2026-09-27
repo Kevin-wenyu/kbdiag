@@ -110,3 +110,18 @@ func TestClusterTextEdges(t *testing.T) {
 		t.Errorf("verdict=%s", rep.Verdict)
 	}
 }
+
+// The database is in recovery while repmgr still records this node as the
+// primary (metadata not updated after a switchover).
+func TestClusterRoleMismatch(t *testing.T) {
+	one := int32(1)
+	n := facts.ClusterNodes{Status: facts.StatusOK, Rows: []facts.ClusterNode{
+		{NodeID: 1, NodeName: "node1", Type: "primary", Active: true, SlotName: str("repmgr_slot_1"), IsLocal: true},
+		{NodeID: 2, NodeName: "node2", Type: "standby", UpstreamNodeID: &one, Active: true, SlotName: str("repmgr_slot_2")},
+	}}
+	rep := Cluster(esrep("standby", "system", "local"), n, facts.ClusterEvents{Status: facts.StatusOK}, facts.InstDownstreams{Status: facts.StatusOK})
+	assertGolden(t, "cluster_role_mismatch", rep)
+	if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 1 || rep.Findings[0].ID != "cluster.role_mismatch" {
+		t.Errorf("verdict=%s findings=%+v", rep.Verdict, rep.Findings)
+	}
+}

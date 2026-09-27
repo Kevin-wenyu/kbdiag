@@ -144,16 +144,17 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### v0.2 共用约定（2026-09-27）
 
-计划附录 B 的场景表是来源；下面各节只写每条命令的"为什么"。
+各节先写一行场景表和"不归它"的边界（阶段 1 的完整版在计划附录 B，计划 done 时随计划删除），再写每条命令的"为什么"，结构同 v0.1 各节。
 
 - **纯展示的命令**（没有判定的：space、top-objects、top 等）任何一个 probe 没采到、或有列看不到，verdict 就是 UNKNOWN（`rule.Display`）：OK 只表示"都采到了"，不表示数值好。有判定的命令照旧，只有判定的输入没采到才 UNKNOWN，只展示的 probe（像 `inst.disk`）不影响。
 - 新命令的列表默认 20 行；列契约登记在 PRD §5.2（不再逐条写 JSON 示例）。
 - 云会话写的部分只过了 L1/L2，VM 验证在计划的阶段 13。
+- **PRD §5.2 由测试强制**（阶段 18）：每个 golden 和 fuzz 生成的 v0.2 报告，probe 的列、finding 的 evidence 字段都要和 §5.2 登记的完全一致；改列就得先改 PRD。fuzz 同时查服务器来的字符串都已转义，首行的 version 和 user 就是它找出来的漏网之鱼。
 - **文本里提到的每条 `kbdiag …` 都要存在**（`TestMentionedCommandsExist` 扫 rule/scenario/report 的全部字符串，不只是 next 的 Command）：提示写错了读者照着敲就是用法错误。
 
 ### space（2026-09-27）
 
-场景表见计划附录 B.1。
+场景表：SP1 磁盘还剩多少、是哪块盘在满；SP2 哪个库最大；SP3 表空间各多大、在哪；SP4 WAL 目录多大、有没有超出配置该有的量。不归 space：表和索引 → `top-objects`；单表 → `table`；谁保留了 WAL → `slots`、`archive`、`wal`；数据目录那块盘的一行摘要 → `status`。
 
 - **只展示，不判**：剩多少算少因库而异。"可用空间不够一个 WAL 段"是候选的 FAIL 客观线，列为拍板点，没做。
 - **`space.disk` 是第二个 statfs 例外**：space 的问题就是"哪块盘在满"，而 `sys_wal` 常是指向另一块盘的符号链接，表空间也可以在别的盘上；只看数据目录（`inst.disk`）答不了。按目录的设备号（`st_dev`，跟随符号链接；statfs 的 fsid 在有些文件系统上是 0，靠不住）把同一文件系统上的目录合成一行；本机判断和 `inst.disk` 完全相同（复用它）。
@@ -163,7 +164,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### freeze（2026-09-27）
 
-场景表见计划附录 B.2。
+场景表：FZ1 离事务号回卷还有多远；FZ2 哪些表最老；FZ3 为什么冻结推不动 → next 指向 `txn`、`slots`；FZ4 别的库 → `kbdiag -d <库> freeze`。不归 freeze：谁压着视界 → `txn`、`slots`；死元组 → `vacuum`；单表 → `table`。
 
 - **两条线都来自服务器，不设 kbdiag 自己的阈值**（修 GAP-6"冻结阈值两处来源不同"）：WARN 是 `autovacuum_freeze_max_age`（到这里 autovacuum 就该强制冻结，平时年龄会被压在线下，超过说明它正在跑或推不动）；FAIL 是停止线（PG12：xid 在回卷线 2^31 − 1 之前 100 万，multixact 之前 100；服务器拒绝分配，写事务失败）。停止线是 PG12 内核的常数（PG14 才改成 300 万，起草时写错过，审查纠正），KES 是否相同没核实，写在 `facts` 一处。
 - **只按库判，表只展示**：库的年龄就是它最老的表；逐表出 finding 会把同一个问题报几十遍。当前库的表按年龄列出，别的库用 next 的 `kbdiag -d <库> freeze`。
@@ -176,7 +177,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### vacuum（2026-09-27）
 
-场景表见计划附录 B.3。
+场景表：VA1 哪些表死元组多、autovacuum 该不该管它了；VA2 autovacuum 开着吗；VA3 现在有没有 vacuum 在跑、跑到哪了；VA4 清不动的原因 → next 指向 `txn`、`slots`。不归 vacuum：膨胀估算 → `bloat`（待排）；冻结 → `freeze`；统计是否过时 → 待排；单表 → `table`。
 
 - **只报"没人会清"的两种情况，都是 WARN**：`autovacuum` 或 `track_counts` 关了（`vacuum.disabled`）；表级 `autovacuum_enabled=off` 而死元组已过触发线（`vacuum.table_disabled`）。客观线是开关和服务器自己的触发线公式。
 - **过线但 autovacuum 开着的不报，文本标 `due`**：那是 autovacuum 的正常队列，每个 naptime 轮一次；"过线很久没清"需要一条时间线，没有客观的（拍板点）。
@@ -188,7 +189,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### archive（2026-09-27）
 
-场景表见计划附录 B.4。
+场景表：AR1 归档开了吗、命令是什么；AR2 是不是在失败；AR3 积压了多少没归档的 WAL；AR4 积压撑大了 WAL 目录没有 → `space`。不归 archive：槽保留的 WAL → `slots`；备份是否完整 → 不做。
 
 - **`archive.failing` 是 WARN，线是"最后一次尝试失败了"**：最后一次失败晚于最后一次成功，或从没成功过。WAL 堆在本节点、备份缺段，但业务照常。实验环境的归档本来就在失败，VM 上天然能测。
 - **先排除主动配置**（queries.md 的归档注记）：`archive_mode=off` 不判；`archive_mode=on` 的备库本来就不归档，只有 `always` 才判。
@@ -198,7 +199,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### params（2026-09-27）
 
-场景表见计划附录 B.5。
+场景表：PA1 哪些参数不是默认值、在哪设的；PA2 哪些改了还没生效（要重启）；PA3 某个参数现在是多少 → 不加参数，`ksql -c 'show x'` 或 `--json` 配 jq。不归 params：调优建议（不收录）；可观测性开关是否就绪 → `ready`（待排）。
 
 - **只列有人设过的参数**：去掉 default、override（编译或 initdb 定的）和 client/session（kbdiag 自己连接时带的参数就是 client，列出来是噪声）。
 - **`params.pending_restart` 是 WARN，每个参数一条**：线是服务器自己的 `pending_restart` 列。现在跑的还是旧值，业务没受影响；但下一次重启（包括故障切换后的重启）会突然换成新值。
@@ -209,12 +210,12 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### repl（2026-09-27）
 
-场景表见计划附录 B.6。
+场景表：RP1（主库）各备库连着吗、落后多少；RP2（主库）同步复制够不够数；RP3（备库）在不在收 WAL（复用 `inst.upstream`）；RP4（备库）回放落后多少、是不是被暂停了；RP5（备库）walreceiver 是不是卡住了 → 只展示 last_msg。不归 repl：槽保留的 WAL → `slots`；repmgr 眼里的集群 → `cluster`；"在不在复制"的一句话 → `status`。
 
 - **三条 WARN，没有 FAIL**：备库没在收 WAL（复用 status 的 `inst.upstream` 规则）、回放被暂停（`repl.replay_paused`）、同步备库不够数（`repl.sync_short`）。最后一条本想报 FAIL（提交会卡住），但阶段 0 实采看到备库断开后同步提交照样过去了（怀疑 KES 或 repmgr 自动降级，未验证），所以 symptom 只说"要么在等，要么已经不等了，同步副本没有保证"。
 - **延迟只展示**：没有服务器端的客观线；digoal 的 1 分钟/5 分钟是经验值。落后字节按本节点当前位置算，备库上按回放位置（同 slots）。
 - **最近回放的事务多久前不当成延迟**：空闲主库上它能到 7 小时，而 LSN 完全追平（阶段 0 实采）；收到 = 回放时文本写 caught up。
-- **暂停的 walreceiver 只展示 last_msg，不判**（用户未定；附录 B.6 的拍板点写了选项，建议用 `wal_receiver_timeout`）。
+- **暂停的 walreceiver 只展示 last_msg，不判**（用户未定；计划附录 B.6 的拍板点写了选项，建议用 `wal_receiver_timeout`）。
 - **有几个同步候选，数服务器给的 `sync_state`（sync/quorum）**，不自己按名单和 state 重算：服务器挑候选的规则（streaming 或 stopping、flush 有效、名字不分大小写）自己重做只会不一致。名单只用来解析要几个；解析不了的不猜，UNKNOWN。只在 `synchronous_commit` 让提交等备库时判（这个值是本连接的，按角色或库另设的看不到）。
 - **OK 不代表提交在流动**：remote_apply 下候选停止回放，它仍是候选，只能从 replay_lag 看出来。所以回放暂停没有注入：在实验环境会卡住主库的所有提交（阶段 7 审查指出，删了注入脚本）。
 - 备库上落后字节按收到和回放中较远的那个算：级联 walsender 发到那里。
@@ -222,7 +223,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### cluster（2026-09-27）
 
-场景表见计划附录 B.7。
+场景表：CL1 repmgr 认为有哪些节点、谁是主、谁跟谁；CL2 repmgr 的看法和数据库自己的看法一致吗；CL3 最近出过什么事（最近 20 条事件）；CL4 有没有两个主。不归 cluster：节点实际能不能连上、repmgrd 在不在跑 → 到各节点跑 `kbdiag status`；落后多少 → `repl`；槽 → `slots`。
 
 - **repmgr 的看法对照数据库自己的看法，四条都是 WARN**：两个 active 的 primary、inactive 节点、本节点类型和恢复角色不一致、主库上该挂上来的备库没挂上来。repmgr 按元数据做切换，不一致是隐患，业务此刻还没受影响；是不是真脑裂要到各节点上跑 status，所以不给 FAIL。
 - **本节点先问 repmgr 的 `get_local_node_id()`，再按 `primary_slot_name` 认**：repmgr 给节点 N 的槽叫 `repmgr_slot_N`，在克隆或 rejoin 时写进节点 N 的 `primary_slot_name`（阶段 0 两节点都是；node1 的是当备库时留下的），从没当过备库的主库可能没有，所以先问函数（repmgrd 设的，可能没有，未实采）。认不出来就不做角色对照，verdict 不说 OK。
@@ -232,7 +233,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### top-objects（2026-09-27）
 
-场景表见计划附录 B.8。
+场景表：TO1 库里空间被哪些表占了；TO2 哪些索引最大；TO3 大是因为数据、索引还是 TOAST。不归 top-objects：库、表空间、WAL → `space`；单表 → `table`；膨胀 → `bloat`（待排）；分区按父表汇总 → 以后。
 
 - **只展示**：多大算大没有客观线。
 - **用精确大小，不用 relpages 估算**（和 freeze 相反）：这条命令就是回答"现在谁占了空间"，批量导入后没 analyze 的表 relpages 还是旧的。代价是大小函数要加 AccessShareLock，碰上 VACUUM FULL 这类独占锁时整条 probe 在 lock_timeout 上 skipped（写明原因，不给部分结果）。
@@ -242,7 +243,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### table \<name\>（2026-09-27）
 
-场景表见计划附录 B.9。
+场景表：TB1 多大、多少行；TB2 最近什么时候 vacuum/analyze 过；TB3 有哪些索引、用没用；TB4 冻结年龄；TB5 读得多吗、命中率；TB6 表级 autovacuum 被关了吗。不归 table：表上现在的锁 → `locks`；精确膨胀、列统计、分区 → 以后。
 
 - **判定复用 freeze 和 vacuum 的规则，不另立**：年龄对照同样的两条线（id 换成 `freeze.table_age`，evidence 不同），表级关了 autovacuum 又过线同样是 `vacuum.table_disabled`。
 - **名字按 SQL 规则解析**（`to_regclass`，参数绑定）：不带引号的折成小写、按 search_path 找，和用户在 ksql 里写的一致；不自己拆 schema 和名字。
@@ -253,7 +254,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### top（2026-09-27）
 
-场景表见计划附录 B.10。
+场景表：TP1 哪些 SQL 累计耗时最多；TP2 单次最慢、调用最多、读盘最多、写临时文件最多（`--by`）；TP3 统计开着吗、从什么时候算的。不归 top：此刻在跑的 → `sessions`；此刻在等什么 → `waits`；最近一分钟 → `top --interval`（待排）；执行计划 → 待排。
 
 - **只展示**：哪条 SQL 算太贵没有客观线。每条给出占全部执行时间的比例，这是"数据库的时间花在哪"的直接答案。
 - **标明是累计值**（修 GAP-5 的文案部分）：从上次重置算起，而这个版本没有 `sys_stat_statements_info`，重置时间拿不到，标题直说。
@@ -264,7 +265,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### progress（2026-09-27）
 
-场景表见计划附录 B.12。
+场景表：PG1 那个跑了很久的 VACUUM / CREATE INDEX / CLUSTER 到哪一步了；PG2 checkpoint 在跑吗、写到哪了；PG3 CREATE INDEX CONCURRENTLY 卡在哪 → `locks`。不归 progress：ANALYZE 和 basebackup 的进度（V8R6 没有视图）；vacuum 该不该跑 → `vacuum`；谁挡着 DDL → `locks`。
 
 - **PG 的三个进度视图并成一个 probe**（UNION ALL，同一组列）：读者问的是"那个长操作到哪了"，不关心它在哪个视图里。KES 特有的 checkpoint 视图单独一个 probe：它只实采到列名，cast 失败时不能连累另三个。
 - **已做/总量按阶段取**：块计数在扫描结束后停住，接着的回收、建索引的排序加载阶段要换计数，否则长时间显示 100%。
@@ -274,7 +275,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### checkpoint（2026-09-27）
 
-场景表见计划附录 B.13。
+场景表：CK1 checkpoint 是定时触发还是被请求的；CK2 最近一次是什么时候、redo 在哪；CK3 脏页是谁写的；CK4 相关参数。不归 checkpoint：WAL 目录多大、谁留着 → `wal`、`space`；进行中的进度 → `progress`；日志里的 checkpoint 记录 → 待排。
 
 - **只展示**：服务器自己的"checkpoint 太频繁"看的是两次 checkpoint 的间隔（`checkpoint_warning`），累计计数算不出间隔；被请求的占比只给数，不下结论。
 - **脏页是谁写的**分三方给比例，但第三方写成"backends and others"：PG12 的 `buffers_backend` 还算关系扩展、VACUUM/COPY 的环形缓冲和备库的 startup 进程，空闲节点上也能占六七成（实采 65%、70%），不能读成"checkpointer 跟不上"（阶段 15 审查纠正）。`buffers_backend_fsync > 0` 是否报 WARN 留给用户定：它表示 fsync 请求没能交给 checkpointer，队列满或 checkpointer 当时没在跑都会（node2 被 kbha 拉起过，实采 9）。
@@ -283,7 +284,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### wal（2026-09-27）
 
-场景表见计划附录 B.14。
+场景表：WL1 现在写到哪了；WL2 WAL 目录多大（复用 `space.wal`）；WL3 谁让 WAL 留着：参数、槽、归档积压。不归 wal：生成速率 → `wal --interval`（待排）；槽不活跃的判定 → `slots`；归档失败的判定 → `archive`；checkpoint → `checkpoint`。
 
 - **把"谁让 WAL 留着"放在一屏**：参数、每个槽、归档积压，DBA 不用分别跑 space、slots、archive 再拼起来。数据全部复用这三条命令的 probe（同一 probe、同样的列），只多一个 `wal.position`。
 - **只展示，不重复判**：槽不活跃、归档失败各有自己的命令和 finding，这里只在那一行指过去；同一个问题在三条命令里各报一次只会让人以为出了三件事。
@@ -291,7 +292,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 ### seq（2026-09-27）
 
-场景表见计划附录 B.15。
+场景表：SQ1 有没有序列快用完；SQ2 哪些是 int/smallint 的；SQ3 会循环的（写 cycles，不算用完）。不归 seq：序列是 bigint 而那一列是 int 的错配（列先溢出，要查 `sys_depend`，拍板点）；表的其他信息 → `table`。
 
 - **FAIL 只给"取不出下一个值"**：nextval 报错，插入已经失败，线是序列自己的上/下限；会循环的不算。快用完只展示比例，没有客观线（拍板点）。
 - **精确算**（`math/big`）：bigint 序列跨满 int64，普通相减会溢出。
