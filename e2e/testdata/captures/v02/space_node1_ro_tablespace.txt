@@ -1,0 +1,3 @@
+-- kbdiag_ro@test on kes-node1: select oid, spcname, pg_tablespace_location(oid) as location, pg_tablespace_size(oid) as bytes, spcoptions from sys_tablespace order by spcname
+ERROR:  permission denied for tablespace sys_global
+EXIT_CODE=1

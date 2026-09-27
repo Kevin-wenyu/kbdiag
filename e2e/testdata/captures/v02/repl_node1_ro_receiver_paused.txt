@@ -1,0 +1,4 @@
+-- kbdiag_ro@test on kes-node1: select *, now() as now from sys_stat_wal_receiver
+pid|status|receive_start_lsn|receive_start_tli|received_lsn|received_tli|last_msg_send_time|last_msg_receipt_time|latest_end_lsn|latest_end_time|slot_name|sender_host|sender_port|conninfo|now
+(0 rows)
+EXIT_CODE=0

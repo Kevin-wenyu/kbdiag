@@ -1,0 +1,11 @@
+-- kbdiag_ro@test on kes-node2: select oid, datname, has_database_privilege(oid, 'CONNECT') as can_connect, case when has_database_privilege(oid, 'CONNECT') then pg_database_size(oid) end as bytes from sys_database order by datname
+oid|datname|can_connect|bytes
+16384|esrep|t|15622195
+13779|kingbase|t|15024179
+24982|mydb|t|14885379
+13780|security|t|14844419
+13777|template0|t|14795267
+1|template1|t|14795267
+13778|test|t|340459571
+(7 rows)
+EXIT_CODE=0

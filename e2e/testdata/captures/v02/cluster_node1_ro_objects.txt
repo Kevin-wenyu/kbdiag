@@ -1,0 +1,4 @@
+-- kbdiag_ro@esrep on kes-node1: select table_name, table_type from information_schema.tables where table_schema = 'repmgr' order by 1
+table_name|table_type
+(0 rows)
+EXIT_CODE=0

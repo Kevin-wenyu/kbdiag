@@ -1,0 +1,3 @@
+-- kbdiag_ro@test on kes-node1: select * from sys_file_settings order by seqno
+ERROR:  permission denied for function pg_show_all_file_settings
+EXIT_CODE=1

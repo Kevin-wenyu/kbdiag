@@ -1,0 +1,3 @@
+-- system@test on kes-node1: select txid_snapshot_xmax(txid_current_snapshot()) as next_xid, sys_is_in_recovery() as in_recovery
+ERROR:  xid snapshot is not supported
+EXIT_CODE=1

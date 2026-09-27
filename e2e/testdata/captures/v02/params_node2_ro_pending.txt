@@ -1,0 +1,4 @@
+-- kbdiag_ro@test on kes-node2: select name, setting, pending_restart from sys_settings where pending_restart order by name
+name|setting|pending_restart
+(0 rows)
+EXIT_CODE=0

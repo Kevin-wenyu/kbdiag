@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select * from sys_replication_slots
+slot_name|plugin|slot_type|datoid|database|temporary|active|active_pid|xmin|catalog_xmin|restart_lsn|confirmed_flush_lsn
+repmgr_slot_2|<NULL>|physical|<NULL>|<NULL>|f|f|<NULL>|6448|<NULL>|0/A453AE98|<NULL>
+(1 row)
+EXIT_CODE=0

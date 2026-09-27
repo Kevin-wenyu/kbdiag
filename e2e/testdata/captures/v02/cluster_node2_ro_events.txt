@@ -1,0 +1,5 @@
+-- kbdiag_ro@esrep on kes-node2: select * from repmgr.events order by event_timestamp desc limit 30
+ERROR:  permission denied for schema repmgr
+LINE 1: select * from repmgr.events order by event_timestamp desc li...
+                      ^
+EXIT_CODE=1

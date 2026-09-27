@@ -1,0 +1,78 @@
+-- kbdiag_ro@test on kes-node1: select name, setting, unit, source, sourcefile, sourceline, boot_val, reset_val, context, pending_restart from sys_settings where source <> 'default' order by name
+name|setting|unit|source|sourcefile|sourceline|boot_val|reset_val|context|pending_restart
+amm|0|<NULL>|override|<NULL>|<NULL>|0|0|internal|f
+application_name|ksql|<NULL>|client|<NULL>|<NULL>||ksql|user|f
+archive_command|export TZ=Asia/Shanghai;/home/kingbase/cluster/install/kingbase/bin/sys_rman --config /rman/kbbr_repo/sys_rman.conf --stanza=kingbase archive-push %p|<NULL>|configuration file|<NULL>|<NULL>|<NULL>|export TZ=Asia/Shanghai;/home/kingbase/cluster/install/kingbase/bin/sys_rman --config /rman/kbbr_repo/sys_rman.conf --stanza=kingbase archive-push %p|sighup|f
+archive_mode|always|<NULL>|configuration file|<NULL>|<NULL>|off|always|kingbase|f
+block_size|8192|<NULL>|override|<NULL>|<NULL>|8192|8192|internal|f
+control_file_copy|/home/kingbase/cluster/install/kingbase/copy_file|<NULL>|configuration file|<NULL>|<NULL>|<NULL>|/home/kingbase/cluster/install/kingbase/copy_file|kingbase|f
+database_mode|oracle|<NULL>|override|<NULL>|<NULL>|db_unknown|oracle|internal|f
+data_checksums|on|<NULL>|override|<NULL>|<NULL>|off|on|internal|f
+data_directory|/home/kingbase/cluster/install/kingbase/data|<NULL>|override|<NULL>|<NULL>|<NULL>|/home/kingbase/cluster/install/kingbase/data|kingbase|f
+DateStyle|ISO, MDY|<NULL>|configuration file|<NULL>|<NULL>|ISO, MDY|ISO, MDY|user|f
+default_text_search_config|pg_catalog.english|<NULL>|configuration file|<NULL>|<NULL>|pg_catalog.simple|pg_catalog.english|user|f
+dynamic_shared_memory_type|posix|<NULL>|configuration file|<NULL>|<NULL>|posix|posix|kingbase|f
+fsync|on|<NULL>|configuration file|<NULL>|<NULL>|on|on|sighup|f
+full_page_writes|on|<NULL>|configuration file|<NULL>|<NULL>|on|on|sighup|f
+hot_standby|on|<NULL>|configuration file|<NULL>|<NULL>|on|on|kingbase|f
+hot_standby_feedback|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|sighup|f
+lc_collate|en_US.UTF-8|<NULL>|override|<NULL>|<NULL>|C|en_US.UTF-8|internal|f
+lc_ctype|en_US.UTF-8|<NULL>|override|<NULL>|<NULL>|C|en_US.UTF-8|internal|f
+lc_messages|C|<NULL>|configuration file|<NULL>|<NULL>||C|superuser|f
+lc_monetary|en_US.UTF-8|<NULL>|configuration file|<NULL>|<NULL>|C|en_US.UTF-8|user|f
+lc_numeric|en_US.UTF-8|<NULL>|configuration file|<NULL>|<NULL>|C|en_US.UTF-8|user|f
+lc_time|en_US.UTF-8|<NULL>|configuration file|<NULL>|<NULL>|C|en_US.UTF-8|user|f
+listen_addresses|*|<NULL>|configuration file|<NULL>|<NULL>|localhost|*|kingbase|f
+log_autovacuum_min_duration|0|ms|configuration file|<NULL>|<NULL>|-1|0|sighup|f
+log_checkpoints|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|sighup|f
+log_connections|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|superuser-backend|f
+log_destination|stderr|<NULL>|configuration file|<NULL>|<NULL>|stderr|stderr|sighup|f
+log_disconnections|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|superuser-backend|f
+logging_collector|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|kingbase|f
+log_line_prefix|%t [%p]: [%l-1] [%x] user=%u,db=%d,app=%a,client=%h|<NULL>|configuration file|<NULL>|<NULL>|%m [%p] |%t [%p]: [%l-1] [%x] user=%u,db=%d,app=%a,client=%h|sighup|f
+log_lock_waits|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|superuser|f
+log_min_duration_statement|1000|ms|configuration file|<NULL>|<NULL>|-1|1000|superuser|f
+log_replication_commands|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|superuser|f
+log_rotation_age|1440|min|configuration file|<NULL>|<NULL>|1440|1440|sighup|f
+log_statement|ddl|<NULL>|configuration file|<NULL>|<NULL>|none|ddl|superuser|f
+log_temp_files|0|kB|configuration file|<NULL>|<NULL>|-1|0|superuser|f
+log_timezone|Asia/Shanghai|<NULL>|configuration file|<NULL>|<NULL>|GMT|Asia/Shanghai|sighup|f
+log_truncate_on_rotation|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|sighup|f
+max_connections|100|<NULL>|configuration file|<NULL>|<NULL>|100|100|kingbase|f
+max_prepared_transactions|100|<NULL>|configuration file|<NULL>|<NULL>|0|100|kingbase|f
+max_replication_slots|32|<NULL>|configuration file|<NULL>|<NULL>|10|32|kingbase|f
+max_stack_depth|3072|kB|configuration file|<NULL>|<NULL>|500|3072|superuser|f
+max_wal_senders|32|<NULL>|configuration file|<NULL>|<NULL>|10|32|kingbase|f
+max_wal_size|1024|MB|configuration file|<NULL>|<NULL>|1024|1024|sighup|f
+min_wal_size|80|MB|configuration file|<NULL>|<NULL>|80|80|sighup|f
+ora_input_emptystr_isnull|on|<NULL>|configuration file|<NULL>|<NULL>|on|on|user|f
+ora_integer_div_returnfloat|on|<NULL>|configuration file|<NULL>|<NULL>|on|on|user|f
+password_encryption|scram-sha-256|<NULL>|configuration file|<NULL>|<NULL>|md5|scram-sha-256|user|f
+port|54321|<NULL>|configuration file|<NULL>|<NULL>|54321|54321|kingbase|f
+primary_slot_name|repmgr_slot_1|<NULL>|configuration file|<NULL>|<NULL>||repmgr_slot_1|kingbase|f
+segment_size|131072|8kB|override|<NULL>|<NULL>|131072|131072|internal|f
+server_encoding|UTF8|<NULL>|override|<NULL>|<NULL>|SQL_ASCII|UTF8|internal|f
+shared_buffers|65536|8kB|configuration file|<NULL>|<NULL>|1024|65536|kingbase|f
+synchronous_commit|remote_apply|<NULL>|configuration file|<NULL>|<NULL>|on|remote_apply|user|f
+synchronous_standby_names|ANY 1( node2)|<NULL>|configuration file|<NULL>|<NULL>||ANY 1( node2)|sighup|f
+sys_stat_statements.track|none|<NULL>|configuration file|<NULL>|<NULL>|none|none|superuser|f
+tcp_keepalives_count|0|<NULL>|configuration file|<NULL>|<NULL>|0|3|user|f
+tcp_keepalives_idle|0|s|configuration file|<NULL>|<NULL>|0|2|user|f
+tcp_keepalives_interval|0|s|configuration file|<NULL>|<NULL>|0|2|user|f
+tcp_user_timeout|0|ms|configuration file|<NULL>|<NULL>|0|9000|user|f
+TimeZone|PRC|<NULL>|configuration file|<NULL>|<NULL>|GMT|PRC|user|f
+track_real_stats|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|superuser|f
+transaction_deferrable|off|<NULL>|override|<NULL>|<NULL>|off|off|user|f
+transaction_isolation|read committed|<NULL>|override|<NULL>|<NULL>|read committed|read committed|user|f
+transaction_read_only|off|<NULL>|override|<NULL>|<NULL>|off|off|user|f
+wal_buffers|2048|8kB|override|<NULL>|<NULL>|-1|2048|kingbase|f
+wal_compression|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|superuser|f
+wal_keep_segments|512|<NULL>|configuration file|<NULL>|<NULL>|0|512|sighup|f
+wal_level|replica|<NULL>|configuration file|<NULL>|<NULL>|replica|replica|sighup|f
+wal_log_hints|on|<NULL>|configuration file|<NULL>|<NULL>|off|on|kingbase|f
+wal_receiver_status_interval|2|s|configuration file|<NULL>|<NULL>|2|2|sighup|f
+wal_receiver_timeout|30000|ms|configuration file|<NULL>|<NULL>|60000|30000|sighup|f
+wal_segment_size|16777216|B|override|<NULL>|<NULL>|16777216|16777216|internal|f
+wal_sender_timeout|30000|ms|configuration file|<NULL>|<NULL>|60000|30000|user|f
+(74 rows)
+EXIT_CODE=0

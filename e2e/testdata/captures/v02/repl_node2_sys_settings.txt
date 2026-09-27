@@ -1,0 +1,15 @@
+-- system@test on kes-node2: select name, setting, unit, source from sys_settings where name in ('synchronous_standby_names','synchronous_commit','wal_receiver_timeout','wal_receiver_status_interval','wal_sender_timeout','hot_standby_feedback','max_standby_streaming_delay','recovery_min_apply_delay','primary_conninfo','primary_slot_name','max_wal_senders') order by name
+name|setting|unit|source
+hot_standby_feedback|on|<NULL>|configuration file
+max_standby_streaming_delay|30000|ms|default
+max_wal_senders|32|<NULL>|configuration file
+primary_conninfo|user=esrep connect_timeout=10 host=192.168.105.10 port=54321 keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000 application_name=node2|<NULL>|configuration file
+primary_slot_name|repmgr_slot_2|<NULL>|configuration file
+recovery_min_apply_delay|0|ms|default
+synchronous_commit|remote_apply|<NULL>|configuration file
+synchronous_standby_names|<NULL>|<NULL>|configuration file
+wal_receiver_status_interval|2|s|configuration file
+wal_receiver_timeout|30000|ms|configuration file
+wal_sender_timeout|30000|ms|configuration file
+(11 rows)
+EXIT_CODE=0

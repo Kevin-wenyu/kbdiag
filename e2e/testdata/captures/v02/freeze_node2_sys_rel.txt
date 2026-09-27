@@ -1,0 +1,34 @@
+-- system@test on kes-node2: select c.oid::regclass::text as rel, c.relkind, c.relfrozenxid, age(c.relfrozenxid) as xid_age, c.relminmxid, mxid_age(c.relminmxid) as mxid_age, pg_total_relation_size(c.oid) as bytes, c.reloptions from sys_class c where c.relkind in ('r','m','t') order by age(c.relfrozenxid) desc, 1 limit 30
+rel|relkind|relfrozenxid|xid_age|relminmxid|mxid_age|bytes|reloptions
+_kingbase_loginfo|r|0|2147483647|0|2147483647|0|<NULL>
+pg_toast.pg_toast_12603|t|0|2147483647|0|2147483647|0|<NULL>
+_agg|r|1078|5364|1|0|81920|<NULL>
+_am|r|1078|5364|1|0|73728|<NULL>
+_amop|r|1078|5364|1|0|294912|<NULL>
+_amproc|r|1078|5364|1|0|163840|<NULL>
+_anonpolicy|r|1078|5364|1|0|32768|<NULL>
+_att|r|1078|5364|1|0|3645440|<NULL>
+_attdef|r|1078|5364|1|0|98304|<NULL>
+_audit_blocklog|r|1078|5364|1|0|0|<NULL>
+_audit_userlog|r|1078|5364|1|0|0|<NULL>
+_authid|r|1078|5364|1|0|81920|<NULL>
+_authmem|r|1078|5364|1|0|73728|<NULL>
+_cast|r|1078|5364|1|0|90112|<NULL>
+_ce_col|r|1078|5364|1|0|16384|<NULL>
+_ce_col_key|r|1078|5364|1|0|24576|<NULL>
+_ce_col_key_arg|r|1078|5364|1|0|8192|<NULL>
+_ce_mst_key|r|1078|5364|1|0|16384|<NULL>
+_ce_mst_key_arg|r|1078|5364|1|0|8192|<NULL>
+_ce_proc|r|1078|5364|1|0|16384|<NULL>
+_coll|r|1078|5364|1|0|90112|<NULL>
+_con|r|1078|5364|1|0|188416|<NULL>
+_con_status|r|1078|5364|1|0|73728|<NULL>
+_conv|r|1078|5364|1|0|106496|<NULL>
+_ctx|r|1078|5364|1|0|16384|<NULL>
+_db|r|1078|5364|1|0|81920|<NULL>
+_dblink|r|1078|5364|1|0|16384|<NULL>
+_dbroleset|r|1078|5364|1|0|16384|<NULL>
+_defacl|r|1078|5364|1|0|24576|<NULL>
+_defpart|r|1078|5364|1|0|32768|<NULL>
+(30 rows)
+EXIT_CODE=0

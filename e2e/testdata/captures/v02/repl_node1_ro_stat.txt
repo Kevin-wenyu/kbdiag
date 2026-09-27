@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select *, now() as now from sys_stat_replication
+pid|usesysid|usename|application_name|client_addr|client_hostname|client_port|backend_start|backend_xmin|state|sent_lsn|write_lsn|flush_lsn|replay_lsn|write_lag|flush_lag|replay_lag|sync_priority|sync_state|reply_time|now
+1084078|16385|esrep|node2|192.168.105.11|<NULL>|48454|2026-09-27 13:58:23.868532+08|<NULL>|streaming|0/A43590F8|0/A43590F8|0/A43590F8|0/A43590F8|<NULL>|<NULL>|<NULL>|1|quorum|2026-09-27 21:23:05.780228+08|2026-09-27 21:23:06.256147+08
+(1 row)
+EXIT_CODE=0

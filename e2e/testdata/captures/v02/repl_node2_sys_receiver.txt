@@ -1,0 +1,5 @@
+-- system@test on kes-node2: select *, now() as now from sys_stat_wal_receiver
+pid|status|receive_start_lsn|receive_start_tli|received_lsn|received_tli|last_msg_send_time|last_msg_receipt_time|latest_end_lsn|latest_end_time|slot_name|sender_host|sender_port|conninfo|now
+612953|streaming|0/A4000000|3|0/A43590F8|3|2026-09-27 21:23:06.794389+08|2026-09-27 21:23:06.590756+08|0/A43590F8|2026-09-27 21:22:51.423330+08|repmgr_slot_2|192.168.105.10|54321|user=esrep passfile=/home/kingbase/.encpwd connect_timeout=10 dbname=replication host=192.168.105.10 port=54321 application_name=node2 fallback_application_name=walreceiver keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000 sslmode=prefer sslcompression=0 gssencmode=disable target_session_attrs=any loadbalance=off fastswitch=off enable_ce=0|2026-09-27 21:23:08.933400+08
+(1 row)
+EXIT_CODE=0

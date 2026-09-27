@@ -1,0 +1,12 @@
+-- system@test on kes-node1: select name, setting, unit, source from sys_settings where name in ('data_directory','max_wal_size','min_wal_size','wal_keep_segments','wal_segment_size','temp_tablespaces','default_tablespace','log_directory') order by name
+name|setting|unit|source
+data_directory|/home/kingbase/cluster/install/kingbase/data|<NULL>|override
+default_tablespace|<NULL>|<NULL>|default
+log_directory|sys_log|<NULL>|configuration file
+max_wal_size|1024|MB|configuration file
+min_wal_size|80|MB|configuration file
+temp_tablespaces|<NULL>|<NULL>|default
+wal_keep_segments|512|<NULL>|configuration file
+wal_segment_size|16777216|B|override
+(8 rows)
+EXIT_CODE=0

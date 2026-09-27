@@ -1,0 +1,6 @@
+-- system@esrep on kes-node2: select * from repmgr.nodes order by node_id
+node_id|upstream_node_id|active|node_name|type|location|priority|conninfo|repluser|slot_name|config_file|primary_seen|lsn
+1|<NULL>|t|node1|primary|default|100|host=192.168.105.10 user=esrep dbname=esrep port=54321 connect_timeout=10 keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000|esrep|repmgr_slot_1|/home/kingbase/cluster/install/kingbase/bin/../etc/repmgr.conf|<NULL>|<NULL>
+2|1|t|node2|standby|default|100|host=192.168.105.11 user=esrep dbname=esrep port=54321 connect_timeout=10 keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000|esrep|repmgr_slot_2|/home/kingbase/cluster/install/kingbase/bin/../etc/repmgr.conf|<NULL>|<NULL>
+(2 rows)
+EXIT_CODE=0

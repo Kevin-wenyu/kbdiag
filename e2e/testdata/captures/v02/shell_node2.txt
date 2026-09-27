@@ -1,0 +1,36 @@
+# data_directory=/home/kingbase/cluster/install/kingbase/data
+# df -k data_directory and sys_wal
+Filesystem     1K-blocks     Used Available Use% Mounted on
+/dev/vda4      208449516 12202212 196247304   6% /
+/dev/vda4      208449516 12202212 196247304   6% /
+# du -sk sys_wal
+2605092	/home/kingbase/cluster/install/kingbase/data/sys_wal
+# archive_status suffix counts
+    175 done
+# repmgr cluster show
+ ID | Name  | Role    | Status    | Upstream | Location | Priority | Timeline | LSN_Lag | Connection string                                                                                                                                                      
+----+-------+---------+-----------+----------+----------+----------+----------+---------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 1  | node1 | primary | * running |          | default  | 100      | 3        |         | host=192.168.105.10 user=esrep dbname=esrep port=54321 connect_timeout=10 keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000
+ 2  | node2 | standby |   running | node1    | default  | 100      | 3        | 0 bytes | host=192.168.105.11 user=esrep dbname=esrep port=54321 connect_timeout=10 keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000
+EXIT_CODE=0
+# repmgr cluster show --csv
+1,0,0
+2,0,1
+EXIT_CODE=0
+# repmgr node status
+Node "node2":
+	Kingbase version: KingbaseES V008R006C009B0014 on x86_64-pc-linux-gnu
+	Total data size: 410 MB
+	Conninfo: host=192.168.105.11 user=esrep dbname=esrep port=54321 connect_timeout=10 keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000
+	Role: standby
+	WAL archiving: enabled
+	Archive command: export TZ=Asia/Shanghai;/home/kingbase/cluster/install/kingbase/bin/sys_rman --config /rman/kbbr_repo/sys_rman.conf --stanza=kingbase archive-push %p
+	WALs pending archiving: 0 pending files
+	Replication connections: 0 (of maximal 32)
+	Replication slots: 0 physical (of maximal 32; 0 missing)
+	Upstream node: node1 (ID: 1)
+	Replication lag: 0 seconds
+	Last received LSN: 0/A435D838
+	Last replayed LSN: 0/A435D838
+
+EXIT_CODE=0

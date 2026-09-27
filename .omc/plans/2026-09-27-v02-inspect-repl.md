@@ -103,6 +103,22 @@
 
 **这些文件的寿命**：计划 done 时，被 golden 或 e2e 引用的留下，其余删掉。
 
+### 阶段 0 结果（2026-09-27 21:20–21:30，UTC+08，V008R006C009B0014）
+
+`e2e/testdata/captures/v02/` 共 153 个文件。命名 `<命令>_<节点>_<sys|ro>_<名字>[_<场景>].txt`，sys 是 `system`，ro 是 `kbdiag_ro`（不带监控角色）。首行 `-- 用户@库 on 节点: SQL`，末行 `EXIT_CODE=n`；输出格式 `ksql -X -A -F'|' -P null='<NULL>'`。`shell_node{1,2}.txt` 是主机侧的数据：data_directory、`df -k`、`du sys_wal`、archive_status 计数、`repmgr cluster show`（文本和 `--csv`）、`repmgr node status`。场景后缀：`_dead` 是死元组测试表，`_paused` 是 slot 注入。
+
+采集时发现的事实（云会话写场景表时要用；**都是这一次实采，不是文档结论**）：
+
+- **freeze**：`txid_current_snapshot()` 报 `xid snapshot is not supported`（`freeze_node1_sys_xid_unsupported.txt`）。`sys_control_checkpoint()` 可用，next_xid 形如 `0:6442`，但它是上一次 checkpoint 时的值。`age(xid)` 可用，按当前 next xid 算。
+- **ro 账号被拒**：`sys_ls_waldir()`、`sys_ls_archive_statusdir()`；表空间 `sys_global`（所以 `pg_tablespace_size` 失败）；`pg_show_all_file_settings`（`sys_file_settings` 也失败）；`esrep` 库的 `repmgr` schema。这些对 ro 只能是 `skipped` 或 `redacted`，不能当成空。
+- **vacuum**：`sys_stat_user_tables` 是节点本地的统计。主库上 `kbdiag_inj_dead` 有 5000 死元组，备库上同一张表全是 0。所以备库上判不了死元组，应当报 `not_applicable`，或者明说只是本节点的统计。
+- **archive**：归档确实在失败。`archive_mode=always`，`archive_command` 是 `sys_rman archive-push`。`sys_stat_archiver` 是 archived 35、failed 17952，最后一次成功在 2026-09-16。`repmgr node status` 报 1 个 pending。node2 的 archive_status 下有 175 个 `.done`。
+- **params**：`sys_settings` 有 509 行，其中有 `pending_restart` 列。`params_*_all` 里 grep 到的 "ERROR" 是描述文字（"error messages"），不是报错。
+- **repl**：参数是 `synchronous_standby_names='ANY 1( node2)'`、`synchronous_commit=remote_apply`、`wal_keep_segments=512`、`max_wal_size=1024`；repmgr.conf 里是 `synchronous='quorum'`。**意外发现**：slot 注入暂停 node2 的 walreceiver、过了 `wal_sender_timeout` 之后，主库 `sys_stat_replication` 是 0 行，在主库上 `select txid_current()` 的提交**没有卡住**（立即返回，也没有 SyncRep 等待，见 `repl_*_paused`）。`sys_settings` 里没有名字带 degrad/async 的参数。怀疑 KES 或 repmgr 有同步自动降级为异步的机制，**没有验证**。repl 的场景表里"同步备库断开时提交会不会卡住"只能标成未验证，由阶段 10 查 KES 文档和 VM。
+- **cluster**：暂停期间 `repmgr cluster show` 退出码是 25，警告 `node "node2" not found in sys_stat_replication` 和 `not attached to its upstream`，Upstream 列显示 `! node1`，LSN_Lag 在 node1 上是 320 bytes、node2 上是 272 bytes。干净时退出码 0。repmgr 二进制在 `/home/kingbase/cluster/install/kingbase/bin/repmgr`，元数据在 `esrep` 库。
+- **space**：数据盘 `/dev/vda4` 208 GB，用了 6%；`sys_wal` 约 2.6 GB（du 2605092 kB）。
+- 采完已撤注入、删测试表；两节点 `kbdiag_inj%` 会话 0、2PC 0，`repmgr_slot_2` active，node2 walreceiver streaming。
+
 ## 4. 审批门槛（压缩、交接、云会话都不能自己跨过）
 
 - 合进 main、推 main、打 tag、推 kbdiag-docs：只有用户明确说了才做（阶段 0 的实采推 main 是本计划批准的）。
@@ -113,5 +129,6 @@
 ## 5. 进度
 
 - 2026-09-27：用户定范围（巡检五条 + 复制两条）和做法；计划写成，状态 active
+- 2026-09-27：阶段 0 完成（实采 153 个文件，发现见 §3"阶段 0 结果"）。下一步：云会话从阶段 1 开始
 
 ## 附录 B：场景表（阶段 1 写）

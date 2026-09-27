@@ -1,0 +1,11 @@
+-- kbdiag_ro@test on kes-node2: select datname, datfrozenxid, age(datfrozenxid) as xid_age, datminmxid, mxid_age(datminmxid) as mxid_age, datallowconn from sys_database order by 3 desc
+datname|datfrozenxid|xid_age|datminmxid|mxid_age|datallowconn
+kingbase|1078|5364|1|0|t
+template1|1078|5364|1|0|t
+template0|1078|5364|1|0|f
+security|1078|5364|1|0|t
+esrep|1078|5364|1|0|t
+mydb|1078|5364|1|0|t
+test|1078|5364|1|0|t
+(7 rows)
+EXIT_CODE=0

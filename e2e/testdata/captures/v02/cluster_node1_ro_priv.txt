@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select has_database_privilege('kbdiag_ro', 'esrep', 'CONNECT') as ro_connect_esrep, current_user
+ro_connect_esrep|current_user
+t|kbdiag_ro
+(1 row)
+EXIT_CODE=0

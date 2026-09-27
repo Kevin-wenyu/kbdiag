@@ -1,0 +1,34 @@
+-- system@esrep on kes-node1: select * from repmgr.events order by event_timestamp desc limit 30
+node_id|event|successful|event_timestamp|details
+1|child_node_reconnect|t|2026-09-27 13:51:14.141348+08|standby node "node2" (ID: 2) has reconnected after 6 seconds
+1|child_node_disconnect|t|2026-09-27 13:51:07.867460+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-27 13:38:16.259341+08|standby node "node2" (ID: 2) has reconnected after 19 seconds
+1|child_node_disconnect|t|2026-09-27 13:37:56.911804+08|standby node "node2" (ID: 2) has disconnected
+2|standby_recovery|t|2026-09-26 23:24:40.980624+08|reconnected to local node "node2" (ID: 2), marking active
+1|child_node_reconnect|t|2026-09-26 23:24:39.970436+08|standby node "node2" (ID: 2) has reconnected after 43 seconds
+1|node_recovery_success|t|2026-09-26 23:24:36.553792+08|node "node2" (ID: 2) auto-recovery success
+1|child_node_disconnect|t|2026-09-26 23:23:57.433798+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-26 22:02:48.350916+08|standby node "node2" (ID: 2) has reconnected after 56 seconds
+2|standby_recovery|t|2026-09-26 22:02:48.177872+08|reconnected to local node "node2" (ID: 2), marking active
+1|node_recovery_success|t|2026-09-26 22:02:36.779889+08|node "node2" (ID: 2) auto-recovery success
+1|child_node_disconnect|t|2026-09-26 22:01:53.132070+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-26 19:44:08.100366+08|standby node "node2" (ID: 2) has reconnected after 6 seconds
+1|child_node_disconnect|t|2026-09-26 19:44:02.108351+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-26 18:52:42.727739+08|standby node "node2" (ID: 2) has reconnected after 6 seconds
+1|child_node_disconnect|t|2026-09-26 18:52:36.741277+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-26 04:14:49.498979+08|standby node "node2" (ID: 2) has reconnected after 6 seconds
+1|child_node_disconnect|t|2026-09-26 03:54:41.300687+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-25 23:40:18.002718+08|standby node "node2" (ID: 2) has reconnected after 26 seconds
+1|child_node_disconnect|t|2026-09-25 23:06:14.125264+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-25 19:45:41.899649+08|standby node "node2" (ID: 2) has reconnected after 6 seconds
+1|child_node_disconnect|t|2026-09-25 19:31:17.001081+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-25 18:24:12.996426+08|standby node "node2" (ID: 2) has reconnected after 8 seconds
+1|child_node_disconnect|t|2026-09-25 18:24:04.553428+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-24 00:36:38.961314+08|standby node "node2" (ID: 2) has reconnected after 6 seconds
+1|child_node_disconnect|t|2026-09-24 00:36:33.142220+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-24 00:35:09.356609+08|standby node "node2" (ID: 2) has reconnected after 6 seconds
+1|child_node_disconnect|t|2026-09-24 00:35:03.523900+08|standby node "node2" (ID: 2) has disconnected
+1|child_node_reconnect|t|2026-09-23 21:09:03.747278+08|standby node "node2" (ID: 2) has reconnected after 5 seconds
+1|child_node_disconnect|t|2026-09-23 21:08:58.521472+08|standby node "node2" (ID: 2) has disconnected
+(30 rows)
+EXIT_CODE=0

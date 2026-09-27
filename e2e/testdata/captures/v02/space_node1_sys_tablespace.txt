@@ -1,0 +1,7 @@
+-- system@test on kes-node1: select oid, spcname, pg_tablespace_location(oid) as location, pg_tablespace_size(oid) as bytes, spcoptions from sys_tablespace order by spcname
+oid|spcname|location|bytes|spcoptions
+1663|sys_default||430749403|<NULL>
+1664|sys_global||753040|<NULL>
+1986|sysaudit||24699|<NULL>
+(3 rows)
+EXIT_CODE=0

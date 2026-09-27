@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select sys_is_in_recovery() as in_recovery, case when not sys_is_in_recovery() then sys_current_wal_lsn() end as current_lsn, sys_last_wal_receive_lsn() as receive_lsn, sys_last_wal_replay_lsn() as replay_lsn, sys_last_xact_replay_timestamp() as replay_ts, case when sys_is_in_recovery() then sys_is_wal_replay_paused() end as paused, now() as now
+in_recovery|current_lsn|receive_lsn|replay_lsn|replay_ts|paused|now
+f|0/A43590F8|<NULL>|<NULL>|<NULL>|<NULL>|2026-09-27 21:23:10.504235+08
+(1 row)
+EXIT_CODE=0

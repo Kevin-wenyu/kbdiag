@@ -1,0 +1,5 @@
+-- kbdiag_ro@esrep on kes-node1: select * from repmgr.nodes order by node_id
+ERROR:  permission denied for schema repmgr
+LINE 1: select * from repmgr.nodes order by node_id
+                      ^
+EXIT_CODE=1

@@ -1,0 +1,4 @@
+-- kbdiag_ro@test on kes-node2: select pid, backend_type, state, query, xact_start, wait_event_type, wait_event from sys_stat_activity where backend_type like 'autovacuum%'
+pid|backend_type|state|query|xact_start|wait_event_type|wait_event
+(0 rows)
+EXIT_CODE=0

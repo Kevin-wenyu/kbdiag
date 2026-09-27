@@ -1,0 +1,5 @@
+-- system@test on kes-node1: select pid, backend_type, state, query, xact_start, wait_event_type, wait_event from sys_stat_activity where backend_type like 'autovacuum%'
+pid|backend_type|state|query|xact_start|wait_event_type|wait_event
+3274|autovacuum launcher|<NULL>||<NULL>|Activity|AutoVacuumMain
+(1 row)
+EXIT_CODE=0

@@ -1,0 +1,3 @@
+-- kbdiag_ro@test on kes-node1: select count(*) filter (where name like '%.ready') as ready, count(*) filter (where name like '%.done') as done from sys_ls_archive_statusdir()
+ERROR:  permission denied for function sys_ls_archive_statusdir
+EXIT_CODE=1

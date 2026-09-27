@@ -1,0 +1,11 @@
+-- system@esrep on kes-node1: select table_name, table_type from information_schema.tables where table_schema = 'repmgr' order by 1
+table_name|table_type
+conf|BASE TABLE
+events|BASE TABLE
+monitoring_history|BASE TABLE
+nodes|BASE TABLE
+replication_status|VIEW
+show_nodes|VIEW
+voting_term|BASE TABLE
+(7 rows)
+EXIT_CODE=0

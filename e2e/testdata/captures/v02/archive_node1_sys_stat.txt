@@ -1,0 +1,5 @@
+-- system@test on kes-node1: select *, now() as now from sys_stat_archiver
+archived_count|last_archived_wal|last_archived_time|failed_count|last_failed_wal|last_failed_time|stats_reset|now
+35|0000000300000000000000A2|2026-09-16 13:49:51.948055+08|17961|0000000300000000000000A3|2026-09-27 21:22:07.382944+08|2026-09-15 23:12:34.303749+08|2026-09-27 21:22:49.900625+08
+(1 row)
+EXIT_CODE=0

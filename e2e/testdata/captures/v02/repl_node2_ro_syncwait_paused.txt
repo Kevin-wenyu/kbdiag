@@ -1,0 +1,4 @@
+-- kbdiag_ro@test on kes-node2: select pid, application_name, state, wait_event_type, wait_event, now() - xact_start as xact_age, query from sys_stat_activity where wait_event = 'SyncRep' or application_name = 'kbdiag_inj_syncwait'
+pid|application_name|state|wait_event_type|wait_event|xact_age|query
+(0 rows)
+EXIT_CODE=0

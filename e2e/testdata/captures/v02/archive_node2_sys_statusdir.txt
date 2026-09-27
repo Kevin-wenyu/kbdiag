@@ -1,0 +1,5 @@
+-- system@test on kes-node2: select count(*) filter (where name like '%.ready') as ready, count(*) filter (where name like '%.done') as done from sys_ls_archive_statusdir()
+ready|done
+0|175
+(1 row)
+EXIT_CODE=0

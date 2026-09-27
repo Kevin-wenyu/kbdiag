@@ -1,0 +1,78 @@
+-- system@test on kes-node1: select * from sys_file_settings order by seqno
+sourcefile|sourceline|seqno|name|setting|applied|error
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|59|1|listen_addresses|*|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|63|2|port|54321|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|64|3|max_connections|100|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|91|4|password_encryption|scram-sha-256|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|121|5|shared_buffers|128MB|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|133|6|max_stack_depth|3MB|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|140|7|dynamic_shared_memory_type|posix|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|224|8|max_wal_size|1GB|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|225|9|min_wal_size|80MB|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|232|10|archive_mode|always|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|234|11|archive_command|exit 0|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|323|12|wal_receiver_status_interval|2s|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|426|13|logging_collector|on|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|432|14|log_directory|sys_log|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|540|15|log_timezone|Asia/Shanghai|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|654|16|datestyle|iso, mdy|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|655|17|timezone|Asia/Shanghai|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|669|18|lc_messages|C|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|671|19|lc_monetary|en_US.UTF-8|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|672|20|lc_numeric|en_US.UTF-8|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|673|21|lc_time|en_US.UTF-8|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|676|22|default_text_search_config|pg_catalog.english|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|766|23|shared_preload_libraries|repmgr, synonym, plsql, force_view, kdb_flashback,plugin_debugger, plsql_plugin_debugger, plsql_plprofiler, kdb_ora_expr, sepapower, dblink, sys_kwr, sys_spacequota, sys_stat_statements, backtrace, kdb_utils_function, auto_bmr, sys_squeeze, src_restrict|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|767|24|ora_input_emptystr_isnull|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.conf|768|25|ora_integer_div_returnfloat|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|1|26|listen_addresses|*|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|2|27|port|54321|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|3|28|full_page_writes|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|4|29|wal_log_hints|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|5|30|max_wal_senders|32|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|6|31|wal_keep_segments|512|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|7|32|max_connections|100|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|8|33|wal_level|replica|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|9|34|archive_mode|always|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|10|35|archive_command|export TZ=Asia/Shanghai;/home/kingbase/cluster/install/kingbase/bin/sys_rman --config /rman/kbbr_repo/sys_rman.conf --stanza=kingbase archive-push %p|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|11|36|control_file_copy|/home/kingbase/cluster/install/kingbase/copy_file|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|12|37|max_replication_slots|32|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|13|38|hot_standby|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|14|39|hot_standby_feedback|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|15|40|logging_collector|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|16|41|log_destination|csvlog|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|17|42|log_checkpoints|on|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|18|43|log_replication_commands|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|19|44|wal_compression|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|20|45|synchronous_commit|remote_apply|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|21|46|max_prepared_transactions|100|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|22|47|shared_buffers|512MB|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|23|48|fsync|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|24|49|timezone|PRC|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|25|50|tcp_keepalives_idle|2|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|26|51|tcp_keepalives_interval|2|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|27|52|tcp_keepalives_count|3|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|28|53|tcp_user_timeout|9000|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|29|54|wal_sender_timeout|30000|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|30|55|wal_receiver_timeout|30000|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|32|56|log_connections|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|33|57|log_disconnections|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|36|58|log_statement|ddl|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|37|59|log_lock_waits|on|f|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|38|60|log_checkpoints|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|39|61|log_lock_waits|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|40|62|log_autovacuum_min_duration|0|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|41|63|log_temp_files|0|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|42|64|log_line_prefix|%t [%p]: [%l-1] [%x] user=%u,db=%d,app=%a,client=%h|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|43|65|log_filename|kingbase-%d.log|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|44|66|log_destination|stderr|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|45|67|log_truncate_on_rotation|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|46|68|log_rotation_age|1d|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/es_rep.conf|47|69|log_min_duration_statement|1000|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|3|70|primary_conninfo|user=esrep connect_timeout=10 host=192.168.105.11 port=54321 keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000 application_name=node1|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|4|71|primary_slot_name|repmgr_slot_1|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|5|72|sys_stat_statements.track|none|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|6|73|track_real_stats|on|t|<NULL>
+/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|7|74|synchronous_standby_names|ANY 1( node2)|t|<NULL>
+(74 rows)
+EXIT_CODE=0

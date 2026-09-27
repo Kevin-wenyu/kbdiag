@@ -1,0 +1,6 @@
+-- system@test on kes-node1: select c.oid::regclass::text as rel, c.reloptions, c.reltuples from sys_class c where c.reloptions is not null order by 1
+rel|reloptions|reltuples
+pg_stats|{security_barrier=true}|0
+pg_stats_ext|{security_barrier=true}|0
+(2 rows)
+EXIT_CODE=0

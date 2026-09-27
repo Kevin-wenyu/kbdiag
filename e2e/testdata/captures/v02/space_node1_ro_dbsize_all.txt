@@ -1,0 +1,11 @@
+-- kbdiag_ro@test on kes-node1: select datname, pg_database_size(oid) as bytes from sys_database order by datname
+datname|bytes
+esrep|15622195
+kingbase|15024179
+mydb|15114291
+security|14844419
+template0|14795267
+template1|14795267
+test|340459571
+(7 rows)
+EXIT_CODE=0

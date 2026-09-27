@@ -1,0 +1,85 @@
+-- system@test on kes-node2: select name, setting, unit, source, sourcefile, sourceline, boot_val, reset_val, context, pending_restart from sys_settings where source <> 'default' order by name
+name|setting|unit|source|sourcefile|sourceline|boot_val|reset_val|context|pending_restart
+amm|0|<NULL>|override|<NULL>|<NULL>|0|0|internal|f
+application_name|ksql|<NULL>|client|<NULL>|<NULL>||ksql|user|f
+archive_command|export TZ=Asia/Shanghai;/home/kingbase/cluster/install/kingbase/bin/sys_rman --config /rman/kbbr_repo/sys_rman.conf --stanza=kingbase archive-push %p|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|10|<NULL>|export TZ=Asia/Shanghai;/home/kingbase/cluster/install/kingbase/bin/sys_rman --config /rman/kbbr_repo/sys_rman.conf --stanza=kingbase archive-push %p|sighup|f
+archive_mode|always|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|9|off|always|kingbase|f
+block_size|8192|<NULL>|override|<NULL>|<NULL>|8192|8192|internal|f
+config_file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|<NULL>|override|<NULL>|<NULL>|<NULL>|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|kingbase|f
+control_file_copy|/home/kingbase/cluster/install/kingbase/copy_file|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|11|<NULL>|/home/kingbase/cluster/install/kingbase/copy_file|kingbase|f
+database_mode|oracle|<NULL>|override|<NULL>|<NULL>|db_unknown|oracle|internal|f
+data_checksums|on|<NULL>|override|<NULL>|<NULL>|off|on|internal|f
+data_directory|/home/kingbase/cluster/install/kingbase/data|<NULL>|override|<NULL>|<NULL>|<NULL>|/home/kingbase/cluster/install/kingbase/data|kingbase|f
+DateStyle|ISO, MDY|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|654|ISO, MDY|ISO, MDY|user|f
+default_text_search_config|pg_catalog.english|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|676|pg_catalog.simple|pg_catalog.english|user|f
+dynamic_shared_memory_type|posix|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|140|posix|posix|kingbase|f
+fsync|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|23|on|on|sighup|f
+full_page_writes|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|3|on|on|sighup|f
+hba_file|/home/kingbase/cluster/install/kingbase/data/sys_hba.conf|<NULL>|override|<NULL>|<NULL>|<NULL>|/home/kingbase/cluster/install/kingbase/data/sys_hba.conf|kingbase|f
+hot_standby|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|13|on|on|kingbase|f
+hot_standby_feedback|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|14|off|on|sighup|f
+ident_file|/home/kingbase/cluster/install/kingbase/data/sys_ident.conf|<NULL>|override|<NULL>|<NULL>|<NULL>|/home/kingbase/cluster/install/kingbase/data/sys_ident.conf|kingbase|f
+lc_collate|en_US.UTF-8|<NULL>|override|<NULL>|<NULL>|C|en_US.UTF-8|internal|f
+lc_ctype|en_US.UTF-8|<NULL>|override|<NULL>|<NULL>|C|en_US.UTF-8|internal|f
+lc_messages|C|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|669||C|superuser|f
+lc_monetary|en_US.UTF-8|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|671|C|en_US.UTF-8|user|f
+lc_numeric|en_US.UTF-8|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|672|C|en_US.UTF-8|user|f
+lc_time|en_US.UTF-8|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|673|C|en_US.UTF-8|user|f
+listen_addresses|*|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|1|localhost|*|kingbase|f
+log_autovacuum_min_duration|0|ms|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|40|-1|0|sighup|f
+log_checkpoints|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|38|off|on|sighup|f
+log_connections|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|32|off|on|superuser-backend|f
+log_destination|stderr|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|44|stderr|stderr|sighup|f
+log_directory|sys_log|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|432|sys_log|sys_log|sighup|f
+log_disconnections|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|33|off|on|superuser-backend|f
+log_filename|kingbase-%d.log|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|43|kingbase-%Y-%m-%d_%H%M%S.log|kingbase-%d.log|sighup|f
+logging_collector|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|15|off|on|kingbase|f
+log_line_prefix|%t [%p]: [%l-1] [%x] user=%u,db=%d,app=%a,client=%h|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|42|%m [%p] |%t [%p]: [%l-1] [%x] user=%u,db=%d,app=%a,client=%h|sighup|f
+log_lock_waits|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|39|off|on|superuser|f
+log_min_duration_statement|1000|ms|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|47|-1|1000|superuser|f
+log_replication_commands|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|18|off|on|superuser|f
+log_rotation_age|1440|min|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|46|1440|1440|sighup|f
+log_statement|ddl|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|36|none|ddl|superuser|f
+log_temp_files|0|kB|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|41|-1|0|superuser|f
+log_timezone|Asia/Shanghai|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|540|GMT|Asia/Shanghai|sighup|f
+log_truncate_on_rotation|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|45|off|on|sighup|f
+max_connections|100|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|7|100|100|kingbase|f
+max_prepared_transactions|100|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|21|0|100|kingbase|f
+max_replication_slots|32|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|12|10|32|kingbase|f
+max_stack_depth|3072|kB|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|133|500|3072|superuser|f
+max_wal_senders|32|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|5|10|32|kingbase|f
+max_wal_size|1024|MB|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|224|1024|1024|sighup|f
+min_wal_size|80|MB|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|225|80|80|sighup|f
+ora_input_emptystr_isnull|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|767|on|on|user|f
+ora_integer_div_returnfloat|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|768|on|on|user|f
+password_encryption|scram-sha-256|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|91|md5|scram-sha-256|user|f
+port|54321|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|2|54321|54321|kingbase|f
+primary_conninfo|user=esrep connect_timeout=10 host=192.168.105.10 port=54321 keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000 application_name=node2|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|6||user=esrep connect_timeout=10 host=192.168.105.10 port=54321 keepalives=1 keepalives_idle=2 keepalives_interval=2 keepalives_count=3 tcp_user_timeout=9000 application_name=node2|kingbase|f
+primary_slot_name|repmgr_slot_2|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|7||repmgr_slot_2|kingbase|f
+segment_size|131072|8kB|override|<NULL>|<NULL>|131072|131072|internal|f
+server_encoding|UTF8|<NULL>|override|<NULL>|<NULL>|SQL_ASCII|UTF8|internal|f
+shared_buffers|65536|8kB|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|22|1024|65536|kingbase|f
+shared_preload_libraries|repmgr, synonym, plsql, force_view, kdb_flashback,plugin_debugger, plsql_plugin_debugger, plsql_plprofiler, kdb_ora_expr, sepapower, dblink, sys_kwr, sys_spacequota, sys_stat_statements, backtrace, kdb_utils_function, auto_bmr, sys_squeeze, src_restrict|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|766||repmgr, synonym, plsql, force_view, kdb_flashback,plugin_debugger, plsql_plugin_debugger, plsql_plprofiler, kdb_ora_expr, sepapower, dblink, sys_kwr, sys_spacequota, sys_stat_statements, backtrace, kdb_utils_function, auto_bmr, sys_squeeze, src_restrict|kingbase|f
+synchronous_commit|remote_apply|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|20|on|remote_apply|user|f
+synchronous_standby_names|<NULL>|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|5|||sighup|f
+sys_stat_statements.track|none|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|3|none|none|superuser|f
+tcp_keepalives_count|0|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|27|0|3|user|f
+tcp_keepalives_idle|0|s|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|25|0|2|user|f
+tcp_keepalives_interval|0|s|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|26|0|2|user|f
+tcp_user_timeout|0|ms|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|28|0|9000|user|f
+TimeZone|PRC|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|24|GMT|PRC|user|f
+track_real_stats|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.auto.conf|4|off|on|superuser|f
+transaction_deferrable|off|<NULL>|override|<NULL>|<NULL>|off|off|user|f
+transaction_isolation|read committed|<NULL>|override|<NULL>|<NULL>|read committed|read committed|user|f
+transaction_read_only|on|<NULL>|override|<NULL>|<NULL>|off|off|user|f
+wal_buffers|2048|8kB|override|<NULL>|<NULL>|-1|2048|kingbase|f
+wal_compression|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|19|off|on|superuser|f
+wal_keep_segments|512|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|6|0|512|sighup|f
+wal_level|replica|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|8|replica|replica|sighup|f
+wal_log_hints|on|<NULL>|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|4|off|on|kingbase|f
+wal_receiver_status_interval|2|s|configuration file|/home/kingbase/cluster/install/kingbase/data/kingbase.conf|323|2|2|sighup|f
+wal_receiver_timeout|30000|ms|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|30|60000|30000|sighup|f
+wal_segment_size|16777216|B|override|<NULL>|<NULL>|16777216|16777216|internal|f
+wal_sender_timeout|30000|ms|configuration file|/home/kingbase/cluster/install/kingbase/data/es_rep.conf|29|60000|30000|user|f
+(81 rows)
+EXIT_CODE=0

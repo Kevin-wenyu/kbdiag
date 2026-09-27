@@ -1,0 +1,3 @@
+-- kbdiag_ro@test on kes-node2: select count(*) as files, sum(size) as bytes, min(modification) as oldest, max(modification) as newest from sys_ls_waldir()
+ERROR:  permission denied for function sys_ls_waldir
+EXIT_CODE=1

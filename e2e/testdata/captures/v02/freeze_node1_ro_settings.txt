@@ -1,0 +1,13 @@
+-- kbdiag_ro@test on kes-node1: select name, setting, unit, source from sys_settings where name like '%freeze%' or name like '%wraparound%' or name in ('autovacuum','autovacuum_max_workers','autovacuum_naptime') order by name
+name|setting|unit|source
+autovacuum|on|<NULL>|default
+autovacuum_freeze_max_age|200000000|<NULL>|default
+autovacuum_max_workers|3|<NULL>|default
+autovacuum_multixact_freeze_max_age|400000000|<NULL>|default
+autovacuum_naptime|60|s|default
+vacuum_freeze_min_age|50000000|<NULL>|default
+vacuum_freeze_table_age|150000000|<NULL>|default
+vacuum_multixact_freeze_min_age|5000000|<NULL>|default
+vacuum_multixact_freeze_table_age|150000000|<NULL>|default
+(9 rows)
+EXIT_CODE=0

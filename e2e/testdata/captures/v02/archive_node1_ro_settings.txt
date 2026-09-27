@@ -1,0 +1,9 @@
+-- kbdiag_ro@test on kes-node1: select name, setting, source from sys_settings where name like 'archive%' order by name
+name|setting|source
+archive_cleanup_command|<NULL>|default
+archive_command|export TZ=Asia/Shanghai;/home/kingbase/cluster/install/kingbase/bin/sys_rman --config /rman/kbbr_repo/sys_rman.conf --stanza=kingbase archive-push %p|configuration file
+archive_dest|<NULL>|default
+archive_mode|always|configuration file
+archive_timeout|0|default
+(5 rows)
+EXIT_CODE=0

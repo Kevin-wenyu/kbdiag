@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select next_xid, oldest_xid, oldest_xid_dbid, oldest_active_xid, next_multixact_id, oldest_multi_xid, checkpoint_time, age(oldest_xid) as oldest_xid_age from sys_control_checkpoint()
+next_xid|oldest_xid|oldest_xid_dbid|oldest_active_xid|next_multixact_id|oldest_multi_xid|checkpoint_time|oldest_xid_age
+0:6442|1078|1|6442|1|1|2026-09-27 21:22:33+08|5364
+(1 row)
+EXIT_CODE=0
