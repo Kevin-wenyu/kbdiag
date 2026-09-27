@@ -514,3 +514,96 @@ DS：10、11（慢 SQL：累计视角）；12（累计值和当前值分开：�
 | 28 | 同步备库不够数 | repl | `slot.sh` 暂停 walreceiver |
 | 29 | 空间被哪些对象占了 | top-objects | 实验库现成的大表（orders 119 MB） |
 | 30 | 单表体检 | table | 建测试表（同阶段 0 的 `kbdiag_inj_tbl`） |
+
+### B.12 progress（D5，后备队列阶段 14）
+
+| # | DBA 想问 | 现在能不能答 | progress 怎么答 |
+|---|---|---|---|
+| PG1 | 那个跑了很久的 VACUUM / CREATE INDEX / CLUSTER 到哪一步了，还要多久 | vacuum 只列 vacuum；sessions 只给 SQL 和时长 | 一张表：pid、命令、库、对象、阶段、已做/总量（块或缓冲）、百分比、跑了多久 |
+| PG2 | checkpoint 在跑吗、写到哪了 | 不能 | KES 特有的 `sys_stat_progress_checkpoint` 一并列出 |
+| PG3 | CREATE INDEX CONCURRENTLY 卡在哪 | 不能 | 阶段写着 waiting for ... 时，列出在等的 locker 数（看是谁挡：`kbdiag locks`） |
+
+不归 progress：ANALYZE 和 basebackup 的进度（V8R6 没有这两个视图，阶段 0 实采）；vacuum 该不该跑 → `vacuum`；谁挡着 DDL → `locks`。
+
+参数：无。
+
+判定：只展示（多久算慢没有客观线）。
+
+probe：`progress.list`，一条 SQL 把四个视图并成同一组列：`pid`、`command`（VACUUM、autovacuum 标出来；CREATE INDEX [CONCURRENTLY]、REINDEX；CLUSTER、VACUUM FULL；CHECKPOINT）、`datname`、`relation`（当前库给名字，别的库给 oid）、`phase`、`done`、`total`、`unit`（blocks/buffers）、`running_s`、`waiting_lockers`。只展示；看不到别人进度的（phase 为 NULL）记 `redacted[]`、UNKNOWN。kbdiag_ro 能查这几个视图（实采，当时都是 0 行）。有数据的实采只有一行 CREATE INDEX（`progress_node1_sys_index_running`）。
+
+DS：15 相关（长操作）；新增 DS-31（长操作进度）。L6：在 `public.orders` 上 CREATE INDEX（阶段 0 的做法），VM 上可以造，建完删索引。
+
+拍板点：无。VM 待验：checkpoint 视图各列的类型（KES 特有，只实采到列名）。
+
+### B.13 checkpoint（H3，阶段 15）
+
+| # | DBA 想问 | 现在能不能答 | checkpoint 怎么答 |
+|---|---|---|---|
+| CK1 | checkpoint 是定时触发还是被 WAL 量逼出来的 | 不能 | `checkpoints_timed` 和 `checkpoints_req` 及其比例（自统计重置以来） |
+| CK2 | 最近一次 checkpoint 是什么时候、redo 在哪 | 不能 | `sys_control_checkpoint()`：时间、redo LSN、redo WAL 文件 |
+| CK3 | 谁在写脏页：checkpointer、bgwriter 还是后端自己 | 不能 | `buffers_checkpoint`、`buffers_clean`、`buffers_backend` 各占多少，`buffers_backend_fsync`，`maxwritten_clean` |
+| CK4 | 相关参数 | params 能看但不聚焦 | `checkpoint_timeout`、`max_wal_size`、`checkpoint_completion_target`、`checkpoint_warning`、`log_checkpoints` |
+
+不归 checkpoint：WAL 目录多大、谁留着 → `wal`/`space`；checkpoint 进行中的进度 → `progress`；日志里的 checkpoint 记录 → 待排（K2）。
+
+参数：无。
+
+判定：只展示。`checkpoints_req` 占多数说明 `max_wal_size` 相对写入量小，但多少算多没有客观线（服务器自己的 `checkpoint_warning` 看的是两次 checkpoint 的间隔，累计计数算不出）；`buffers_backend_fsync > 0` 是 checkpointer 的 fsync 队列满过（PG 文档说应当几乎总是 0），列为拍板点，先只展示。备库上的计数是 restartpoint，文本注明。
+
+probe：`checkpoint.stats`（`sys_stat_bgwriter` 一行加 `stats_reset` 的年龄）、`checkpoint.last`（`sys_control_checkpoint()` 的 checkpoint 时间、年龄、redo LSN、redo WAL 文件）、`checkpoint.settings`。kbdiag_ro 都能看（实采）。
+
+DS：13（IO 等待：checkpoint 写入）；新增 DS-32（checkpoint 过频）。L6：只能看阴性（实验环境 `checkpoints_req` 是 0）。
+
+拍板点：`buffers_backend_fsync > 0` 要不要 WARN。
+
+### B.14 wal（H1，阶段 16）
+
+| # | DBA 想问 | 现在能不能答 | wal 怎么答 |
+|---|---|---|---|
+| WL1 | 现在写到哪了 | 不能 | 当前 LSN（备库是回放位置） |
+| WL2 | WAL 目录多大 | space 有 | 复用 `space.wal`（同一 probe） |
+| WL3 | 是谁让 WAL 留着：槽、`wal_keep_segments`、归档没跟上 | 要分别跑 slots、archive | 一屏列出：每个槽保留多少（复用 `slot.list`）、`wal_keep_segments` 保多少、`.ready` 有几个（复用 `archive.ready`）、`max_wal_size` |
+| WL4 | WAL 生成得多快 | 不能 | 不归 wal 这一版：要隔一段时间采两次，单次查询给不了（`wal --interval` 待排） |
+
+不归 wal：槽是否活跃的判定 → `slots`；归档失败的判定 → `archive`；checkpoint → `checkpoint`。
+
+参数：无。
+
+判定：只展示；槽、归档各自的判定在各自命令里，这里不重复报（避免同一个问题三条命令各报一次）。文本在"留着的原因"里指过去。实采：`sys_replication_slots` 没有 `wal_status`/`safe_wal_size`，参数里没有 `max_slot_wal_keep_size`（PG12 以前），所以说不出"槽会不会被作废"。
+
+probe：`wal.position`（`in_recovery`、`lsn`；备库上 `sys_walfile_name()` 报错，不取文件名）；复用 `space.wal`、`slot.list`、`archive.ready`。kbdiag_ro 调不了 `sys_ls_waldir`，`space.wal` skipped，UNKNOWN。
+
+DS：16（WAL 增长）、22（复制槽堵塞）。
+
+拍板点：无。
+
+### B.15 seq（F7，阶段 17）
+
+| # | DBA 想问 | 现在能不能答 | seq 怎么答 |
+|---|---|---|---|
+| SQ1 | 有没有序列快用完 | 不能 | 当前库每个序列：类型、当前值、上限、还能取多少次（按步长和方向算）、已用百分比，用得多的在前 |
+| SQ2 | 哪些是 int / smallint 的 | 不能 | 类型列，int/smallint 标出来（上限 21 亿 / 3 万） |
+| SQ3 | 会循环的呢 | 不能 | `cycle` 的写"cycles"，不算用完 |
+
+不归 seq：序列背后那一列是 int 而序列是 bigint 的错配（列先溢出）：要查 `sys_depend` 和列类型，没有实采，列为拍板点；表的其他信息 → `table`。
+
+参数：`--limit`（默认 20）。
+
+判定：
+- `seq.exhausted` **FAIL**：不循环的序列已经取不出下一个值（剩余 < 1 步）：`nextval` 报错，插入失败，业务已经受影响。客观线是序列自己的上/下限。
+- 快用完没有客观线（digoal 的 10 万/1 万/1000 是经验值），只展示百分比，列为拍板点。
+- 从没调用过的（`last_value` 为 NULL）不算。kbdiag_ro 看不到 `last_value`（实采全是 NULL）→ `redacted[]`、UNKNOWN。
+
+probe：`seq.list`（`sys_sequences` 全列，外加剩余次数在 rule 里算）。备库上 `last_value` 可能超前（序列按 WAL 预取），照常展示，注明。
+
+DS：新增 DS-33（序列耗尽）。L6：建一个 `maxvalue 10` 的序列取到头（写操作但只动测试对象），可以写注入脚本。
+
+拍板点：快用完要不要 WARN（线怎么定）；列类型错配要不要做。
+
+### B.16 新增 DS 场景（后备队列）
+
+| DS | 场景 | 命令 | L6 怎么造 |
+|---|---|---|---|
+| 31 | 长操作进度 | progress | 在大表上 CREATE INDEX |
+| 32 | checkpoint 过频 | checkpoint | 造不出来（要大量写入）；只看阴性 |
+| 33 | 序列耗尽 | seq | 建 `maxvalue 10` 的测试序列取到头 |

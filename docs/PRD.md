@@ -607,6 +607,9 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | 28 | 同步备库不够数 | v0.2 `repl`；KES 断开同步备库时提交是否卡住未验证 |
 | 29 | 空间被哪些对象占了 | v0.2 `top-objects` |
 | 30 | 单表体检 | v0.2 `table <t>`；复用 17、19 的判定 |
+| 31 | 长操作进度 | v0.2 `progress`（VACUUM、CREATE INDEX、CLUSTER、CHECKPOINT） |
+| 32 | checkpoint 过频 | v0.2 `checkpoint`；只展示 |
+| 33 | 序列耗尽 | v0.2 `seq`；取不出下一个值时 FAIL |
 
 | GAP | 旧版缺口 |
 |---|---|
