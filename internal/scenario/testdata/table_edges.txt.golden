@@ -2,6 +2,7 @@ table  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T22
 
 [WARN] freeze.table_age  table app.Q\x1b[2J is 250000000 xids old, past autovacuum_freeze_max_age 200000000 (1896483647 xids left before new transaction IDs are refused): the anti-wraparound autovacuum is due or cannot finish
   verify: kbdiag txn  # the oldest transaction or 2PC holding back freezing
+  verify: kbdiag slots  # a replication slot's xmin holds it back too
   fix: VACUUM (FREEZE, VERBOSE) <table>  # the name has control characters and is shown escaped: use it as you gave it; on the primary, connected to database test
 
 [WARN] vacuum.table_disabled  table app.Q\x1b[2J has 600000 dead tuples, past its autovacuum threshold 200050, but autovacuum is off for it (autovacuum_enabled=off): nothing will clean it

@@ -66,11 +66,11 @@ func TestFreezeNext(t *testing.T) {
 	for _, n := range r.Findings[0].Next {
 		cmds = append(cmds, n.Command+n.SQL)
 	}
-	if strings.Join(cmds, "|") != "kbdiag txn|kbdiag -d a freeze|VACUUM (FREEZE, VERBOSE) <table>" {
+	if strings.Join(cmds, "|") != "kbdiag txn|kbdiag slots|kbdiag -d a freeze|VACUUM (FREEZE, VERBOSE) <table>" {
 		t.Errorf("next = %v", cmds)
 	}
-	if !strings.Contains(r.Findings[0].Next[2].Note, "on the primary") {
-		t.Errorf("a standby cannot vacuum: %q", r.Findings[0].Next[2].Note)
+	if !strings.Contains(r.Findings[0].Next[3].Note, "on the primary") {
+		t.Errorf("a standby cannot vacuum: %q", r.Findings[0].Next[3].Note)
 	}
 	// template0 takes no connections: no -d step
 	for _, n := range r.Findings[1].Next {

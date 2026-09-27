@@ -64,6 +64,51 @@ func TestNextStepsParse(t *testing.T) {
 	}
 }
 
+// mention is any "kbdiag <command> [--flag ...]" inside a string literal:
+// finding notes and text hints ("kbdiag locks shows who holds it") as well
+// as next steps. -d <db> may come first.
+var mention = regexp.MustCompile(`kbdiag (?:-d \S+ )?([a-z][a-z-]*)((?: --[a-z-]+)*)`)
+
+// Every command and flag named in the rule, scenario and report code exists
+// (stage 12 of plan 2026-09-27: text hints were not covered before).
+func TestMentionedCommandsExist(t *testing.T) {
+	root := newRoot(&bytes.Buffer{}, &bytes.Buffer{})
+	found := 0
+	for _, dir := range []string{"../../internal/rule", "../../internal/scenario", "../../internal/report"} {
+		m, err := filepath.Glob(filepath.Join(dir, "*.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range m {
+			if strings.HasSuffix(f, "_test.go") {
+				continue
+			}
+			src, err := os.ReadFile(f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, lit := range regexp.MustCompile("\"(?:[^\"\\\n]|\\.)*\"").FindAllString(string(src), -1) {
+				for _, x := range mention.FindAllStringSubmatch(lit, -1) {
+					found++
+					cmd, _, err := root.Find([]string{x[1]})
+					if err != nil || cmd == root || cmd.Name() != x[1] {
+						t.Errorf("%s: %q names no command", f, x[0])
+						continue
+					}
+					for _, fl := range strings.Fields(x[2]) {
+						if cmd.Flag(strings.TrimPrefix(fl, "--")) == nil {
+							t.Errorf("%s: %q: %s has no flag %s", f, x[0], x[1], fl)
+						}
+					}
+				}
+			}
+		}
+	}
+	if found < 20 {
+		t.Fatalf("found %d mentions; the pattern no longer matches", found)
+	}
+}
+
 // commandFlags lists a command's own flags as the README spells them.
 func commandFlags(c *cobra.Command) []string {
 	var out []string
@@ -95,11 +140,11 @@ func TestDocsListTheRealCommands(t *testing.T) {
 	flag := regexp.MustCompile("`(--[a-z-]+)")
 	tables := 0
 	for _, part := range strings.Split(string(readme), "\n## ") {
+		if !strings.HasPrefix(part, "Commands\n") && !strings.HasPrefix(part, "命令\n") {
+			continue // connection flags, exit codes: not command tables
+		}
 		got := map[string][]string{}
 		for _, m := range row.FindAllStringSubmatch(part, -1) {
-			if _, ok := want[m[1]]; !ok {
-				continue // a flag table row, not a command
-			}
 			var flags []string
 			for _, f := range flag.FindAllStringSubmatch(m[2], -1) {
 				flags = append(flags, f[1])

@@ -73,7 +73,8 @@ func ageFinding(id, what string, xidAge, mxidAge int32, lim facts.FreezeLimit, l
 }
 
 func freezeNext(db string, allowConn bool, role string, stopped bool) []Next {
-	next := []Next{{Kind: "verify", Command: "kbdiag txn", Note: "the oldest transaction or 2PC holding back freezing"}}
+	next := []Next{{Kind: "verify", Command: "kbdiag txn", Note: "the oldest transaction or 2PC holding back freezing"},
+		{Kind: "verify", Command: "kbdiag slots", Note: "a replication slot's xmin holds it back too"}}
 	if !allowConn { // template0: autovacuum freezes it; nobody can connect to
 		return next
 	}

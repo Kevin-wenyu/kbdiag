@@ -3,6 +3,7 @@ vacuum  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T2
 [WARN] vacuum.table_disabled  table public.kbdiag_inj_dead has 5000 dead tuples, past its autovacuum threshold 2050, but autovacuum is off for it (autovacuum_enabled=off): nothing will clean it
   fix: VACUUM public.kbdiag_inj_dead  # connected to database test; turn autovacuum back on with ALTER TABLE ... RESET (autovacuum_enabled) unless it was turned off on purpose
   verify: kbdiag txn  # if dead tuples remain after VACUUM: the oldest transaction holding back the horizon
+  verify: kbdiag slots  # or a replication slot's xmin
 
 settings
   autovacuum    on  (3 workers, naptime 1m 0s)

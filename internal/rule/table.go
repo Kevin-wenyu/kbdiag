@@ -31,6 +31,7 @@ func Table(i facts.TableInfos, s facts.TableStats, l facts.FreezeLimits, v facts
 		if ok {
 			f.Evidence = []Evidence{{ProbeID: facts.TableInfoID, Fields: map[string]any{"schemaname": t.Schemaname, "relname": t.Relname, "xid_age": *t.XIDAge, "mxid_age": t.MXIDAge}}}
 			f.Next = []Next{{Kind: "verify", Command: "kbdiag txn", Note: "the oldest transaction or 2PC holding back freezing"},
+				{Kind: "verify", Command: "kbdiag slots", Note: "a replication slot's xmin holds it back too"},
 				tableFix("VACUUM (FREEZE, VERBOSE)", t, "on the primary, connected to database "+db)}
 			fs = append(fs, f)
 		}

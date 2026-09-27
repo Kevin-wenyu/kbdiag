@@ -262,3 +262,50 @@ func TestExecTime(t *testing.T) {
 		}
 	}
 }
+
+func TestV02Formatters(t *testing.T) {
+	i := func(v int64) *int64 { return &v }
+	for _, c := range []struct {
+		read, hit *int64
+		want      string
+	}{
+		{nil, i(1), "-"}, {i(0), i(0), "0 read, 0 hit"}, {i(1), i(9999), "1 read, 9999 hit (99.9% hit)"}, {i(0), i(7), "0 read, 7 hit (100.0% hit)"},
+		{i(1), i(999), "1 read, 999 hit (99.9% hit)"}, {i(5), i(0), "5 read, 0 hit (0.0% hit)"},
+	} {
+		if got := blocks(c.read, c.hit); got != c.want {
+			t.Errorf("blocks = %q, want %q", got, c.want)
+		}
+	}
+	var nilInt *int64
+	for v, want := range map[any]string{nil: "-", nilInt: "-", i(0): "0 bytes", i(10239): "10239 bytes", i(10240): "10 kB", i(3 << 40): "3072 GB", int64(5 << 50): "5120 TB"} {
+		if got := bytesCell(v); got != want {
+			t.Errorf("bytesCell(%v) = %q, want %q", v, got, want)
+		}
+	}
+	e, x := "", "x"
+	if paramValue(&e) != "''" || paramValue(&x) != "x" || paramValue(nil) != "-" {
+		t.Error("paramValue")
+	}
+	for k, want := range map[string]string{"r": "table", "p": "partitioned", "m": "matview", "t": "toast", "z": "z"} {
+		if got := relkind(k); got != want {
+			t.Errorf("relkind(%q) = %q", k, got)
+		}
+	}
+	for s, want := range map[*int64]string{nil: "-", i(-5): "0 bytes", i(5 << 20): "5120 kB"} {
+		if got := behind(s); got != want {
+			t.Errorf("behind = %q, want %q", got, want)
+		}
+	}
+}
+
+// A nil header prints rows only, and rows may be shorter than the widest.
+func TestWriteTableNoHeader(t *testing.T) {
+	var b bytes.Buffer
+	if err := writeTable(&b, "  ", nil, [][]string{{"archived", "35", "last A", "1d ago"}, {"failed", "0"}}); err != nil {
+		t.Fatal(err)
+	}
+	want := "  archived  35  last A  1d ago\n  failed    0\n"
+	if b.String() != want {
+		t.Errorf("got %q, want %q", b.String(), want)
+	}
+}

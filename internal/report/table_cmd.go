@@ -3,6 +3,7 @@ package report
 import (
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 
@@ -142,15 +143,15 @@ func (t *tableView) writeStats(w io.Writer, x facts.TableInfo, s facts.TableStat
 	})
 }
 
-// blocks is "read, hit (hit %)"; the ratio keeps one decimal so a few
-// reads do not round to 100%.
+// blocks is "read, hit (hit %)"; the ratio keeps one decimal, rounded
+// down, so a few reads never show as 100%.
 func blocks(read, hit *int64) string {
 	if read == nil || hit == nil {
 		return "-"
 	}
 	s := fmt.Sprintf("%d read, %d hit", *read, *hit)
 	if *read+*hit > 0 {
-		s += fmt.Sprintf(" (%.1f%% hit)", float64(*hit)*100/float64(*read+*hit))
+		s += fmt.Sprintf(" (%.1f%% hit)", math.Floor(float64(*hit)*1000/float64(*read+*hit))/10)
 	}
 	return s
 }

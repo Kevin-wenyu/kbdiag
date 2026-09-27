@@ -149,6 +149,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **纯展示的命令**（没有判定的：space、top-objects、top 等）任何一个 probe 没采到、或有列看不到，verdict 就是 UNKNOWN（`rule.Display`）：OK 只表示"都采到了"，不表示数值好。有判定的命令照旧，只有判定的输入没采到才 UNKNOWN，只展示的 probe（像 `inst.disk`）不影响。
 - 新命令的列表默认 20 行；列契约登记在 PRD §5.2（不再逐条写 JSON 示例）。
 - 云会话写的部分只过了 L1/L2，VM 验证在计划的阶段 13。
+- **文本里提到的每条 `kbdiag …` 都要存在**（`TestMentionedCommandsExist` 扫 rule/scenario/report 的全部字符串，不只是 next 的 Command）：提示写错了读者照着敲就是用法错误。
 
 ### space（2026-09-27）
 

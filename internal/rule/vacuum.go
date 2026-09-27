@@ -50,6 +50,7 @@ func Vacuum(t facts.VacuumTables, s facts.VacuumSettings, role, db string) Resul
 				Next: []Next{
 					fix,
 					{Kind: "verify", Command: "kbdiag txn", Note: "if dead tuples remain after VACUUM: the oldest transaction holding back the horizon"},
+					{Kind: "verify", Command: "kbdiag slots", Note: "or a replication slot's xmin"},
 				},
 			})
 		}

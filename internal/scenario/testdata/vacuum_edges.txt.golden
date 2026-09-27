@@ -6,6 +6,7 @@ vacuum  WARN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@local, 2026-09-2
 [WARN] vacuum.table_disabled  table public.x\x1b[2J has 60 dead tuples, past its autovacuum threshold 50, but autovacuum is off for it (autovacuum_enabled=off): nothing will clean it
   verify: kbdiag vacuum --json  # the table name has control characters and the text shows it escaped: take the raw name from the JSON before running VACUUM
   verify: kbdiag txn  # if dead tuples remain after VACUUM: the oldest transaction holding back the horizon
+  verify: kbdiag slots  # or a replication slot's xmin
 
 settings
   autovacuum    off  (3 workers, naptime 1m 0s)
