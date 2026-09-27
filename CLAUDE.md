@@ -256,7 +256,8 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 - **只展示**：哪条 SQL 算太贵没有客观线。每条给出占全部执行时间的比例，这是"数据库的时间花在哪"的直接答案。
 - **标明是累计值**（修 GAP-5 的文案部分）：从上次重置算起，而这个版本没有 `sys_stat_statements_info`，重置时间拿不到，标题直说。
-- **没在收集时 skipped 写明开关、UNKNOWN**，不给空表加 OK：实验环境就是 `track=none`。没装在当前库、没加载进 `shared_preload_libraries` 各有各的提示。
+- **没在收集时 skipped 写明开关、UNKNOWN**，不给空表加 OK：实验环境就是 `track=none`。没装在当前库、没加载进 `shared_preload_libraries` 各有各的提示。但本连接的 `track=none` 不等于没有数据（角色、库可以自己设，`save=on` 留着旧数据），所以照样读，一行都没有才 skipped。
+- **按 `sys_extension` 找到的 schema 读视图**，不走 search_path：别人在 `public` 或同名 schema 里放一个同名视图，就能让 kbdiag 报假数据。
 - **`--by` 是排序，不是过滤**：场景 TP2（单次最慢、调用最多、读盘最多、临时文件最多）要它；时间单位按 SQL 的量级显示（0.09 ms、503 ms、1.75 s）。
 - `top --interval`（最近 N 秒）不做，待排。
 

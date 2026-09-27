@@ -1,6 +1,7 @@
 top  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
 
 statements: 8, by blocks read from outside shared buffers  (cumulative since the last reset, whose time is not recorded; read and temp are blocks)
+  track=none for this connection: these were collected earlier, or for roles and databases that set track themselves
   total   share  calls    mean     rows     read     temp  user    database     query
   1h 2m   99.9%  1000000  3.70 ms  1000000  9000000  0     app     prod\x1b[2J  select * from big\u202e where id = $1
   1.75 s  0.0%   1        1.75 s   200000   2        342   system  test         insert into public.kbdiag_inj_top select g, md5(g::text) ...

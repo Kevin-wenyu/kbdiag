@@ -13,7 +13,8 @@ import (
 // system and dbid 13778 is test (space_node1_sys_dbsize).
 func topFacts(t *testing.T, user string) facts.SQLTop {
 	t.Helper()
-	top := facts.SQLTop{Status: facts.StatusOK}
+	// kbdiag's own connection sees the server's track=none, as it would have
+	top := facts.SQLTop{Status: facts.StatusOK, Track: "none"}
 	for _, m := range loadKsql(t, "top_node1_"+user+"_stmts_tracked").rows {
 		ms := func(k string) float64 { return *kF64(t, m[k]) / 1000 }
 		top.Rows = append(top.Rows, facts.Statement{QueryID: kI64(t, m["queryid"]), Username: str("system"), Datname: str("test"), Calls: *kI64(t, m["calls"]),
@@ -62,7 +63,9 @@ func TestTopTextEdges(t *testing.T) {
 			assertGolden(t, "top_by_"+by, Top(c, top, TopOptions{Limit: 3, By: by}))
 		})
 	}
-	rep := Top(c, facts.SQLTop{Status: facts.StatusOK}, TopOptions{Limit: 20, By: "time"})
+	top.Track = "all"
+	assertGolden(t, "top_track_all", Top(c, top, TopOptions{Limit: 2, By: "time"}))
+	rep := Top(c, facts.SQLTop{Status: facts.StatusOK, Track: "top"}, TopOptions{Limit: 20, By: "time"})
 	if rep.Verdict != rule.VerdictOK {
 		t.Errorf("empty: %s", rep.Verdict)
 	}

@@ -28,6 +28,12 @@ func (v *topView) write(w io.Writer) error {
 		return nil
 	}
 	fmt.Fprintf(w, "\nstatements: %d, by %s  (cumulative since the last reset, whose time is not recorded; read and temp are blocks)\n", len(v.t.Rows), v.by)
+	switch v.t.Track {
+	case "all":
+		fmt.Fprintln(w, "  track=all: statements run inside functions count again inside their callers, so shares add up to more than 100%")
+	case "none":
+		fmt.Fprintln(w, "  track=none for this connection: these were collected earlier, or for roles and databases that set track themselves")
+	}
 	shown := v.t.Rows
 	if v.limit > 0 && len(shown) > v.limit {
 		shown = shown[:v.limit]
@@ -61,13 +67,14 @@ func (v *topView) write(w io.Writer) error {
 
 // execTime shows statement times the way they are read: 0.09 ms, 503 ms,
 // 1.75 s, then the two-unit durations past a minute.
+// The unit is picked after rounding, so 0.9996 s reads 1.00 s, not 1000 ms.
 func execTime(s float64) string {
-	ms := s * 1000
+	ms := math.Round(s*1e5) / 100 // to 0.01 ms
 	switch {
-	case s >= 60:
+	case math.Round(s*100)/100 >= 60:
 		return duration(s)
-	case s >= 1:
-		return fmt.Sprintf("%.2f s", s)
+	case math.Round(ms) >= 1000:
+		return fmt.Sprintf("%.2f s", math.Round(s*100)/100)
 	case ms >= 10:
 		return fmt.Sprintf("%.0f ms", math.Round(ms))
 	}

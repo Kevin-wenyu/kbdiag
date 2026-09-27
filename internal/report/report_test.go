@@ -251,3 +251,14 @@ func FuzzEscapeControl(f *testing.F) {
 		}
 	})
 }
+
+func TestExecTime(t *testing.T) {
+	for s, want := range map[float64]string{
+		0: "0.00 ms", 0.0000898: "0.09 ms", 0.006562: "6.56 ms", 0.009996: "10 ms", 0.0099949: "9.99 ms", 0.5025: "503 ms",
+		0.9994: "999 ms", 0.9996: "1.00 s", 1.75236: "1.75 s", 59.994: "59.99 s", 59.996: "1m 0s", 3725.5: "1h 2m",
+	} {
+		if got := execTime(s); got != want {
+			t.Errorf("execTime(%v) = %q, want %q", s, got, want)
+		}
+	}
+}

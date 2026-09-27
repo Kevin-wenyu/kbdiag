@@ -16,7 +16,7 @@ func TestTopCollecting(t *testing.T) {
 		st     facts.Status
 		reason string
 	}{
-		{"lab: installed, track none (stage 0)", true, s("none"), facts.StatusSkipped, "sys_stat_statements.track=none"},
+		{"lab: installed, track none: still read (stage 0)", true, s("none"), facts.StatusOK, ""},
 		{"collecting", true, s("top"), facts.StatusOK, ""},
 		{"all", true, s("all"), facts.StatusOK, ""},
 		{"not installed in this database", false, s("top"), facts.StatusSkipped, "not installed in database test"},
@@ -30,5 +30,16 @@ func TestTopCollecting(t *testing.T) {
 				t.Errorf("st=%s reason=%q", st, reason)
 			}
 		})
+	}
+}
+
+func TestTopEmpty(t *testing.T) {
+	if st, reason := topEmpty("none"); st != facts.StatusSkipped || !strings.Contains(reason, "track=none") {
+		t.Errorf("none: %s %q", st, reason)
+	}
+	for _, track := range []string{"top", "all"} {
+		if st, _ := topEmpty(track); st != facts.StatusOK {
+			t.Errorf("%s: %s", track, st)
+		}
 	}
 }

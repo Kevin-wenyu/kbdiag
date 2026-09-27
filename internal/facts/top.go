@@ -35,6 +35,9 @@ type SQLTop struct {
 	Status Status
 	Reason string
 	Rows   []Statement
+	// Track is sys_stat_statements.track as this connection sees it (a role
+	// or database may set another); not in the JSON.
+	Track string
 }
 
 // Redacted reports statements whose text and queryid are hidden.

@@ -22,6 +22,13 @@ type TopOptions struct {
 	By    string
 }
 
+func orEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
 // Top only shows: which statement is too costly has no objective line. The
 // rows are sorted by --by before --limit cuts them; ties go by total time.
 func Top(c facts.Context, t facts.SQLTop, o TopOptions) *report.Report {
@@ -39,11 +46,23 @@ func Top(c facts.Context, t facts.SQLTop, o TopOptions) *report.Report {
 		}
 		return s.TotalExecS
 	}
+	// ties: total time, then calls, queryid (NULL last) and the text, so
+	// the order does not depend on the view's hash order
 	sort.SliceStable(rs, func(i, j int) bool {
-		if a, b := key(rs[i]), key(rs[j]); a != b {
-			return a > b
+		a, b := rs[i], rs[j]
+		switch {
+		case key(a) != key(b):
+			return key(a) > key(b)
+		case a.TotalExecS != b.TotalExecS:
+			return a.TotalExecS > b.TotalExecS
+		case a.Calls != b.Calls:
+			return a.Calls > b.Calls
+		case (a.QueryID == nil) != (b.QueryID == nil):
+			return a.QueryID != nil
+		case a.QueryID != nil && *a.QueryID != *b.QueryID:
+			return *a.QueryID < *b.QueryID
 		}
-		return rs[i].TotalExecS > rs[j].TotalExecS
+		return orEmpty(a.Query) < orEmpty(b.Query)
 	})
 	t.Rows = rs
 	rep := report.New("top", c, rule.Display(len(t.Redacted()) > 0, t.Status))

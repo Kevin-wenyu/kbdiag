@@ -480,7 +480,7 @@ DS：新增 DS-30（单表体检：某张表慢或大）；关联 17、19。
 | # | DBA 想问 | 现在能不能答 | top 怎么答 |
 |---|---|---|---|
 | TP1 | 哪些 SQL 累计耗时最多（数据库的时间花在哪） | 不能（sessions/waits 只看此刻） | `sys_stat_statements` 按总执行时间排，给次数、总/平均时间、行数、块读/命中、临时块 |
-| TP2 | 哪些 SQL 单次最慢 / 调用最多 / 读盘最多 / 写临时文件最多 | 不能 | `--by time|mean|calls|io|temp` 换排序（只影响排序和显示，JSON 行都在） |
+| TP2 | 哪些 SQL 单次最慢 / 调用最多 / 读盘最多 / 写临时文件最多 | 不能 | `--by time|mean|calls|io|temp` 换排序（JSON 行同样按它排、受 `--limit` 截断，同其他列表命令；阶段 11 审查统一） |
 | TP3 | 统计开着吗、从什么时候开始算的 | 不能 | 扩展装没装（当前库）、`sys_stat_statements.track` 是不是 none；起点：`sys_stat_statements_info` 不存在（实采），只能写"since the last reset (time unknown)" |
 | TP4 | 最近这一分钟谁最耗 | 不能 | 不归 top：`top --interval`（待排） |
 

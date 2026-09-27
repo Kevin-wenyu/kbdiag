@@ -1,6 +1,7 @@
 top  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
 
 statements: 7, by total execution time  (cumulative since the last reset, whose time is not recorded; read and temp are blocks)
+  track=none for this connection: these were collected earlier, or for roles and databases that set track themselves
   total    share  calls  mean     rows    read  temp  user    database  query
   1.75 s   59.4%  1      1.75 s   200000  2     342   system  test      insert into public.kbdiag_inj_top select g, md5(g::text) ...
   503 ms   17.0%  1      503 ms   1       0     0     system  test      select pg_sleep($1)
