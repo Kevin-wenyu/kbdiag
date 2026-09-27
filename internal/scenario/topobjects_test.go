@@ -39,9 +39,11 @@ func TestTopObjectsText(t *testing.T) {
 func TestTopObjectsTextEdges(t *testing.T) {
 	c := v02Context("primary", "system", "local")
 	c.Database = "test"
+	// the probe orders by total size; the partitioned parent (0) comes last
 	big := facts.ObjectTables{Status: facts.StatusOK, Rows: []facts.ObjectTable{
-		{Schemaname: "public", Relname: "events\x1b[2J", Relkind: "p", TotalBytes: 3 << 40},
+		{Schemaname: "public", Relname: "events_2026", Relkind: "r", TotalBytes: 3 << 40, TableBytes: 3<<40 - 1<<30, IndexBytes: 1 << 30},
 		{Schemaname: "app", Relname: "log", Relkind: "m", TotalBytes: 5 << 30, TableBytes: 4 << 30, IndexBytes: 1 << 30, ToastBytes: i64(0), Reltuples: 12_000_000_000},
+		{Schemaname: "public", Relname: "events\x1b[2J", Relkind: "p"},
 	}}
 	rep := TopObjects(c, big, facts.ObjectIndexes{Status: facts.StatusSkipped, Reason: "timeout 55P03: canceling statement due to lock timeout"}, TopObjectsOptions{Limit: 20})
 	assertGolden(t, "topobjects_edges", rep)

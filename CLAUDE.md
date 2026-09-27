@@ -235,7 +235,8 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 - **只展示**：多大算大没有客观线。
 - **用精确大小，不用 relpages 估算**（和 freeze 相反）：这条命令就是回答"现在谁占了空间"，批量导入后没 analyze 的表 relpages 还是旧的。代价是大小函数要加 AccessShareLock，碰上 VACUUM FULL 这类独占锁时整条 probe 在 lock_timeout 上 skipped（写明原因，不给部分结果）。
-- 总大小拆成堆、索引、TOAST 三列：大是因为数据、索引还是大字段，处理办法不同。TOAST 表和它的索引不单列，算在父表里。
+- 总大小拆成堆、索引、TOAST 三列，加起来等于总数（堆用 `pg_table_size` 减 TOAST，含 FSM/VM）：大是因为数据、索引还是大字段，处理办法不同。TOAST 表和它的索引不单列，算在父表里。
+- 查询期间被删掉的表读成 NULL，外层过滤掉：ETL 反复建删临时表时整条 probe 不会因此失败。
 - 命令名带连字符，README/PRD 的一致性测试的正则跟着改成 `[a-z-]+`。
 
 ### 三层深度（看 / 查 / 断）

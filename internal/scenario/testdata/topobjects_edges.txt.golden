@@ -1,8 +1,11 @@
 top-objects  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
 
-tables in test: 2, largest first  (total = heap + indexes + TOAST)
+tables in test: 3, largest first  (total = heap + indexes + TOAST)
   table                 kind         total    heap     indexes  toast    rows (est.)
-  public.events\x1b[2J  partitioned  3072 GB  0 bytes  0 bytes  -        0
+  public.events_2026    table        3072 GB  3071 GB  1024 MB  -        0
   app.log               matview      5120 MB  4096 MB  1024 MB  0 bytes  12000000000
+  public.events\x1b[2J  partitioned  0 bytes  0 bytes  0 bytes  -        0
+  a partitioned table holds nothing itself: its partitions are listed on their own
 
 indexes in test: skipped  (timeout 55P03: canceling statement due to lock timeout)
+  a relation is locked exclusively (VACUUM FULL, TRUNCATE, ALTER TABLE ...): kbdiag locks shows who holds it

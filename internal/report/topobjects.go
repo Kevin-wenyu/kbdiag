@@ -3,6 +3,7 @@ package report
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
 )
@@ -18,6 +19,7 @@ func (r *Report) writeTopObjects(w io.Writer) error {
 	p := r.Data[facts.ObjectTablesID]
 	if p.Status != facts.StatusOK {
 		writeNotOKAs(w, "tables"+in, p.Status, reasonOf(p))
+		lockHint(w, p)
 	} else {
 		fmt.Fprintf(w, "\ntables%s: %d, largest first  (total = heap + indexes + TOAST)\n", in, len(p.Rows)+p.Truncated)
 		var rows [][]string
@@ -31,10 +33,17 @@ func (r *Report) writeTopObjects(w io.Writer) error {
 			}
 		}
 		writeTruncated(w, p.Truncated)
+		for _, row := range p.rows() {
+			if cell(row["relkind"]) == "p" {
+				fmt.Fprintln(w, "  a partitioned table holds nothing itself: its partitions are listed on their own")
+				break
+			}
+		}
 	}
 	p = r.Data[facts.ObjectIndexesID]
 	if p.Status != facts.StatusOK {
 		writeNotOKAs(w, "indexes"+in, p.Status, reasonOf(p))
+		lockHint(w, p)
 		return nil
 	}
 	fmt.Fprintf(w, "\nindexes%s: %d, largest first\n", in, len(p.Rows)+p.Truncated)
@@ -57,4 +66,12 @@ func bytesCell(v any) string {
 		return size(b)
 	}
 	return "-"
+}
+
+// lockHint points at locks when a size function waited out lock_timeout:
+// some relation is held under an exclusive lock.
+func lockHint(w io.Writer, p Probe) {
+	if strings.Contains(reasonOf(p), "55P03") {
+		fmt.Fprintln(w, "  a relation is locked exclusively (VACUUM FULL, TRUNCATE, ALTER TABLE ...): kbdiag locks shows who holds it")
+	}
 }

@@ -16,29 +16,38 @@ import (
 // pg_indexes_size; size functions only have the pg_ prefix in KES). Stage 0
 // capture (topobj_*_rels): kbdiag_ro reads the same sizes as system; the
 // standby's match the primary's; reltuples is float4 (ksql shows 1e+06)
-// and is cast. The size functions take AccessShareLock on each relation, so
+// and is cast. The heap is pg_table_size less TOAST, so it includes the
+// free space and visibility maps and the three parts add up to the total.
+// A relation dropped while the query runs reads NULL (try_relation_open)
+// and is left out. The size functions take AccessShareLock on each relation, so
 // a relation held under AccessExclusiveLock (VACUUM FULL, TRUNCATE, most
 // ALTER TABLE) stops the probe at lock_timeout: it is then skipped with
 // that reason, never shown partly. Not run on a VM yet.
 const objectTablesSQL = `
-select n.nspname::text, c.relname::text, c.relkind::text,
-       pg_total_relation_size(c.oid), pg_relation_size(c.oid), pg_indexes_size(c.oid),
-       case when c.reltoastrelid <> 0 then pg_total_relation_size(c.reltoastrelid) end,
-       c.reltuples::bigint
-from sys_class c join sys_namespace n on n.oid = c.relnamespace
-where c.relkind in ('r', 'p', 'm')
+select * from (
+  select n.nspname::text, c.relname::text, c.relkind::text,
+         pg_total_relation_size(c.oid) as total,
+         pg_table_size(c.oid) - coalesce(case when c.reltoastrelid <> 0 then pg_total_relation_size(c.reltoastrelid) end, 0),
+         pg_indexes_size(c.oid),
+         case when c.reltoastrelid <> 0 then pg_total_relation_size(c.reltoastrelid) end,
+         c.reltuples::bigint
+  from sys_class c join sys_namespace n on n.oid = c.relnamespace
+  where c.relkind in ('r', 'p', 'm')) x
+where total is not null
 order by 4 desc, 1, 2`
 
 // objectIndexesSQL is object.indexes: every index of the current database
 // but TOAST's (counted in their table's TOAST size), largest first (stage 0
 // capture topobj_*_idx). Same lock caveat as object.tables.
 const objectIndexesSQL = `
-select n.nspname::text, c.relname::text, t.relname::text, pg_relation_size(c.oid)
-from sys_index i
-join sys_class c on c.oid = i.indexrelid
-join sys_class t on t.oid = i.indrelid
-join sys_namespace n on n.oid = c.relnamespace
-where n.nspname <> 'pg_toast'
+select * from (
+  select n.nspname::text, c.relname::text, t.relname::text, pg_relation_size(c.oid) as bytes
+  from sys_index i
+  join sys_class c on c.oid = i.indexrelid
+  join sys_class t on t.oid = i.indrelid
+  join sys_namespace n on n.oid = c.relnamespace
+  where t.relkind <> 't') x
+where bytes is not null
 order by 4 desc, 1, 2`
 
 func ObjectTables(ctx context.Context, x *pgx.Conn) facts.ObjectTables {

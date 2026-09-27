@@ -18,7 +18,7 @@ type ObjectTable struct {
 	Relname    string
 	Relkind    string
 	TotalBytes int64 // heap + indexes + TOAST
-	TableBytes int64 // the main fork
+	TableBytes int64 // the heap with its free space and visibility maps
 	IndexBytes int64
 	ToastBytes *int64 // NULL without a TOAST table
 	Reltuples  int64  // the planner's estimate
