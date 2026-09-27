@@ -1,15 +1,16 @@
 checkpoint  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T22:50:00+08:00)
 
-last restartpoint
+checkpoint record the last restartpoint started from (written by the primary)
   time  2026-09-27 22:47:34  (2m 26s ago)
   redo  0/A5DCFF18  (0000000300000000000000A5)
 
-since the statistics reset 2026-09-23 15:44:59 (4d 7h ago); on a standby these are restartpoints
-  checkpoints       15917: 15917 timed, 0 requested (0% forced by WAL volume or by hand)
-  write, sync time  2m 31s, 184 ms
-  buffers written   4983: checkpointer 1497 (30%), bgwriter 0 (0%), backends 3486 (70%)
-  backend fsyncs    9
-  bgwriter stopped  0 times at bgwriter_lru_maxpages
+since the statistics reset 2026-09-23 15:44:59 (4d 7h ago)
+  checkpoints        15917 timed, 0 requested restartpoint attempts (a standby counts every try, one every 15s while no new checkpoint record has arrived)
+  write, sync time   2m 31s, 184 ms
+  buffers written    4983: checkpointer 1497 (30%), bgwriter 0 (0%), backends and others 3486 (70%)
+  buffers allocated  3862
+  backend fsyncs     9
+  bgwriter stopped   0 times at bgwriter_lru_maxpages
 
 settings
   checkpoint_timeout            5m 0s

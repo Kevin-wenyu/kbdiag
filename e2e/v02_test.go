@@ -489,6 +489,16 @@ func TestCheckpoint(t *testing.T) {
 	if got := num(t, st["checkpoints_timed"]); got > want || got < want-2 {
 		t.Errorf("checkpoints_timed %v, ksql %v", got, want)
 	}
+	// the conversions, checked against the server's own
+	// ksql runs after kbdiag: its total can only be the same or larger
+	wms, _ := strconv.ParseFloat(ksql(t, "select checkpoint_write_time from sys_stat_bgwriter"), 64)
+	if got := num(t, st["checkpoint_write_s"]) * 1000; got > wms+1 || got < wms-600_000 {
+		t.Errorf("checkpoint_write_s %v, ksql %v ms", st["checkpoint_write_s"], wms)
+	}
+	set := r.Data["checkpoint.settings"].rowsOf()[0]
+	if want := ksql(t, "select pg_size_bytes(current_setting('max_wal_size'))"); str(set["max_wal_size_bytes"]) != want {
+		t.Errorf("max_wal_size_bytes %v, ksql %s", set["max_wal_size_bytes"], want)
+	}
 	last := okProbe(t, r, "checkpoint.last", checkpointLastColumns).rowsOf()[0]
 	if last["redo_lsn"] == nil || last["redo_wal_file"] == nil {
 		t.Errorf("last = %v", last)

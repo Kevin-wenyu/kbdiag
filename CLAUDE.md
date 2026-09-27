@@ -277,8 +277,9 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 场景表见计划附录 B.13。
 
 - **只展示**：服务器自己的"checkpoint 太频繁"看的是两次 checkpoint 的间隔（`checkpoint_warning`），累计计数算不出间隔；被请求的占比只给数，不下结论。
-- **脏页是谁写的**分三方给比例：后端自己写得多，说明 checkpointer 和 bgwriter 跟不上。`buffers_backend_fsync > 0` 是否报 WARN 留给用户定（PG 文档说应当几乎总是 0，node2 实采是 9）。
-- 备库上计数是 restartpoint，文本写明。
+- **脏页是谁写的**分三方给比例，但第三方写成"backends and others"：PG12 的 `buffers_backend` 还算关系扩展、VACUUM/COPY 的环形缓冲和备库的 startup 进程，空闲节点上也能占六七成（实采 65%、70%），不能读成"checkpointer 跟不上"（阶段 15 审查纠正）。`buffers_backend_fsync > 0` 是否报 WARN 留给用户定：它表示 fsync 请求没能交给 checkpointer，队列满或 checkpointer 当时没在跑都会（node2 被 kbha 拉起过，实采 9）。
+- **备库上不是 restartpoint 计数**：PG12 的 checkpointer 每次尝试都加一，没有新的 checkpoint 记录时每 15 秒试一次（node2 4 天多 15917 次），文本写"restartpoint attempts"、不给比例；控制文件里的时间是主库写那条 checkpoint 记录的时间，标题写明。
+- "requested"不只是 WAL 量：还有手工 CHECKPOINT、基础备份（包括 repmgr clone）、promote、建删库。
 
 ### wal（2026-09-27）
 

@@ -24,12 +24,15 @@ func (r *Report) SetCheckpoint(s facts.CheckpointStats, l facts.CheckpointLast, 
 }
 
 func (v *checkpointView) write(r *Report, w io.Writer) error {
-	what := "checkpoint"
-	if r.Context.Role == "standby" {
-		what = "restartpoint" // a standby's checkpoints
+	standby := r.Context.Role == "standby"
+	// a standby's control file holds the primary's checkpoint record its
+	// last restartpoint started from: its time is the primary's
+	title := "last checkpoint"
+	if standby {
+		title = "checkpoint record the last restartpoint started from (written by the primary)"
 	}
 	if v.l.Status != facts.StatusOK || len(v.l.Rows) == 0 {
-		writeNotOKAs(w, "last "+what, v.l.Status, v.l.Reason)
+		writeNotOKAs(w, title, v.l.Status, v.l.Reason)
 	} else {
 		l := v.l.Rows[0]
 		at := "-"
@@ -43,7 +46,7 @@ func (v *checkpointView) write(r *Report, w io.Writer) error {
 		if l.RedoWALFile != nil {
 			redo += "  (" + escapeControl(*l.RedoWALFile) + ")"
 		}
-		fmt.Fprintf(w, "\nlast %s\n", what)
+		fmt.Fprintf(w, "\n%s\n", title)
 		writeKV(w, 0, [][2]string{{"time", at}, {"redo", redo}})
 	}
 	if v.s.Status != facts.StatusOK || len(v.s.Rows) == 0 {
@@ -57,17 +60,25 @@ func (v *checkpointView) write(r *Report, w io.Writer) error {
 				since += " (" + duration(*b.StatsResetAgeS) + " ago)"
 			}
 		}
-		if what == "restartpoint" {
-			since += "; on a standby these are restartpoints"
-		}
 		total := b.CheckpointsTimed + b.CheckpointsReq
 		written := b.BuffersCheckpoint + b.BuffersClean + b.BuffersBackend
+		// requested: WAL volume, CHECKPOINT, base backups, promotion,
+		// CREATE/DROP DATABASE. A standby counts every restartpoint attempt,
+		// one every 15s while no new checkpoint record has arrived, so its
+		// counts are not restartpoints and have no meaningful share.
+		checkpoints := fmt.Sprintf("%d: %d timed, %d requested (%s; requested covers WAL volume, CHECKPOINT, base backups, promotion)", total, b.CheckpointsTimed, b.CheckpointsReq, pct(b.CheckpointsReq, total))
+		if standby {
+			checkpoints = fmt.Sprintf("%d timed, %d requested restartpoint attempts (a standby counts every try, one every 15s while no new checkpoint record has arrived)", b.CheckpointsTimed, b.CheckpointsReq)
+		}
 		fmt.Fprintf(w, "\n%s\n", since)
 		writeKV(w, 0, [][2]string{
-			{"checkpoints", fmt.Sprintf("%d: %d timed, %d requested (%s forced by WAL volume or by hand)", total, b.CheckpointsTimed, b.CheckpointsReq, pct(b.CheckpointsReq, total))},
+			{"checkpoints", checkpoints},
 			{"write, sync time", execTime(b.CheckpointWriteS) + ", " + execTime(b.CheckpointSyncS)},
-			{"buffers written", fmt.Sprintf("%d: checkpointer %d (%s), bgwriter %d (%s), backends %d (%s)", written,
+			// the third share includes relation extension, VACUUM and COPY
+			// ring buffers and a standby's startup: large on an idle node too
+			{"buffers written", fmt.Sprintf("%d: checkpointer %d (%s), bgwriter %d (%s), backends and others %d (%s)", written,
 				b.BuffersCheckpoint, pct(b.BuffersCheckpoint, written), b.BuffersClean, pct(b.BuffersClean, written), b.BuffersBackend, pct(b.BuffersBackend, written))},
+			{"buffers allocated", fmt.Sprint(b.BuffersAlloc)},
 			{"backend fsyncs", fmt.Sprint(b.BuffersBackendFsync)},
 			{"bgwriter stopped", fmt.Sprintf("%d times at bgwriter_lru_maxpages", b.MaxwrittenClean)},
 		})

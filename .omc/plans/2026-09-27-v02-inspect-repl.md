@@ -552,7 +552,7 @@ DS：15 相关（长操作）；新增 DS-31（长操作进度）。L6：在 `pu
 
 参数：无。
 
-判定：只展示。`checkpoints_req` 占多数说明 `max_wal_size` 相对写入量小，但多少算多没有客观线（服务器自己的 `checkpoint_warning` 看的是两次 checkpoint 的间隔，累计计数算不出）；`buffers_backend_fsync > 0` 是 checkpointer 的 fsync 队列满过（PG 文档说应当几乎总是 0），列为拍板点，先只展示。备库上的计数是 restartpoint，文本注明。
+判定：只展示。`checkpoints_req` 占多数说明 `max_wal_size` 相对写入量小，但多少算多没有客观线（服务器自己的 `checkpoint_warning` 看的是两次 checkpoint 的间隔，累计计数算不出）；`buffers_backend_fsync > 0` 表示 fsync 请求没能交给 checkpointer（队列满，或 checkpointer 没在跑），列为拍板点，先只展示。备库上的计数是 restartpoint 的尝试次数（阶段 15 审查纠正），文本注明、不给比例。
 
 probe：`checkpoint.stats`（`sys_stat_bgwriter` 一行加 `stats_reset` 的年龄）、`checkpoint.last`（`sys_control_checkpoint()` 的 checkpoint 时间、年龄、redo LSN、redo WAL 文件）、`checkpoint.settings`。kbdiag_ro 都能看（实采）。
 

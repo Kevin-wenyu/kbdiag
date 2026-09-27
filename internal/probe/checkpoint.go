@@ -27,14 +27,20 @@ select checkpoint_time, round(extract(epoch from now() - checkpoint_time)::numer
        checkpoint_lsn::text, redo_lsn::text, redo_wal_file
 from sys_control_checkpoint()`
 
-// checkpointSettingsSQL is checkpoint.settings (stage 0 capture
-// checkpoint_*_settings: checkpoint_timeout and checkpoint_warning in s,
-// max_wal_size in MB).
+// checkpointSettingsSQL is checkpoint.settings. Each setting is converted
+// by its own unit (stage 0 capture checkpoint_*_settings: the times in s,
+// max_wal_size in MB) rather than assuming it.
 const checkpointSettingsSQL = `
-select (select setting::bigint from sys_settings where name = 'checkpoint_timeout'),
-       (select setting::bigint from sys_settings where name = 'max_wal_size') * 1048576,
+with s as (
+  select name, setting::numeric * case unit when 'ms' then 0.001 when 's' then 1 when 'min' then 60 when 'h' then 3600
+                                            when 'B' then 1 when 'kB' then 1024 when '8kB' then 8192 when 'MB' then 1048576 when 'GB' then 1073741824
+                                            else 1 end as v
+  from sys_settings
+  where name in ('checkpoint_timeout', 'max_wal_size', 'checkpoint_warning'))
+select (select v from s where name = 'checkpoint_timeout')::bigint,
+       (select v from s where name = 'max_wal_size')::bigint,
        current_setting('checkpoint_completion_target')::float8,
-       (select setting::bigint from sys_settings where name = 'checkpoint_warning'),
+       (select v from s where name = 'checkpoint_warning')::bigint,
        current_setting('log_checkpoints')`
 
 func CheckpointStats(ctx context.Context, x *pgx.Conn) facts.CheckpointStats {
