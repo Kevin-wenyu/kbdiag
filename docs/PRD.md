@@ -62,6 +62,7 @@
 | `top-objects`（v0.2） | 当前库最大的表（含分区表、物化视图；总大小 = 堆 + 索引 + TOAST，三部分分列，给估算行数）和最大的索引（TOAST 的索引算在 TOAST 里，不单列）。只展示，不判；有 probe 没采到时 UNKNOWN（有表被 AccessExclusiveLock 锁着时大小函数会等到 lock_timeout）。`--limit` 两个列表各自裁 | `object.tables`、`object.indexes` | 正常（大小是本地文件；unlogged 表在备库上只有 init 分支，读成 0） |
 | `table <name>`（v0.2） | 一张表的全貌：大小（堆、索引、TOAST）、估算和实际的活/死元组、xid/multixact 年龄、reloptions；vacuum 和 analyze（触发线、最近手工/自动各多久前、次数、自上次 analyze 的修改数）；自统计重置以来的访问（顺序/索引扫描、写入、块的读和命中）；索引（大小、扫描次数、主键/唯一/无效、定义）。判定复用 freeze（`freeze.table_age`）和 vacuum（`vacuum.table_disabled`、`vacuum.disabled`）的规则，不另立。名字按 SQL 规则解析（`to_regclass`，不带引号的折成小写，按 search_path 找）；找不到或不是表时 UNKNOWN（退出码 3），stderr 写明；空名字是用法错误（64） | `table.info`、`table.size`、`table.stats`、`table.indexes`、`freeze.limits`、`vacuum.settings` | `table.stats` 为 `not_applicable`（统计是节点本地的），索引扫描次数为 NULL；年龄照判 |
 | `top`（v0.2） | 累计 Top SQL（`sys_stat_statements`）：总时间、占全部执行时间的比例、次数、平均时间、行数、读盘块、临时块、用户、库、SQL；`--by`（time、mean、calls、io、temp）换排序（不是过滤）。标题写明是累计值、重置时间没有记录。只展示，不判；没装、没加载时 `skipped` 写明开关；本连接看到 `track=none` 时照样读已有的行，一行都没有才 `skipped`（UNKNOWN）；看不到别人的 SQL 时 UNKNOWN；`track=all` 时文本注明比例会重复计算嵌套语句。`--limit` 裁文本和 JSON 的行（同其他列表命令），比例按全部行算 | `sql.top` | 正常（统计的是本节点的查询） |
+| `progress`（v0.2） | 正在跑的 VACUUM（标出 autovacuum）、CREATE INDEX、CLUSTER/VACUUM FULL 和 KES 的 CHECKPOINT：库、对象、阶段、已做/总量、百分比、跑了多久；CREATE INDEX CONCURRENTLY 还在等几个事务。V8R6 没有 ANALYZE 和 basebackup 的进度视图，文本写明。只展示；看不到别人的进度时 UNKNOWN | `progress.list` | 正常 |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
 
@@ -499,6 +500,7 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | `table.stats` | table | `n_live_tup`、`n_dead_tup`、`n_mod_since_analyze`、`last_vacuum_age_s`、`last_autovacuum_age_s`、`last_analyze_age_s`、`last_autoanalyze_age_s`、`vacuum_count`、`autovacuum_count`、`analyze_count`、`autoanalyze_count`、`seq_scan`、`seq_tup_read`、`idx_scan`、`idx_tup_fetch`、`n_tup_ins`、`n_tup_upd`、`n_tup_del`、`n_tup_hot_upd`、`heap_blks_read`、`heap_blks_hit`、`idx_blks_read`、`idx_blks_hit` |
 | `table.indexes` | table | `indexrelname`、`definition`、`bytes`、`is_unique`、`is_primary`、`is_valid`、`idx_scan`（备库上 NULL） |
 | `sql.top` | top | `queryid`、`username`、`datname`、`calls`、`total_exec_s`、`mean_exec_s`、`max_exec_s`（毫秒换成秒）、`rows`、`shared_blks_hit`、`shared_blks_read`、`temp_blks_written`、`query`（看不到时 `<insufficient privilege>`、queryid 为 NULL，记 `redacted[]`）；行按 `--by` 排 |
+| `progress.list` | progress | `pid`、`command`、`datname`、`relation`（当前库是名字，别的库是 oid）、`phase`（看不到时 NULL，记 `redacted[]`）、`done`、`total`、`unit`（blocks、tuples 或 buffers）、`running_s`、`waiting_lockers` |
 
 | finding.id | 级别 | 命令 | evidence 字段 |
 |---|---|---|---|

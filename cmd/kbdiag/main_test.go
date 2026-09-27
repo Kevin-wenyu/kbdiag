@@ -54,6 +54,8 @@ func TestExitCodesWithoutDatabase(t *testing.T) {
 		{"repl takes no argument", []string{"repl", "x"}, 64, false},
 		{"cluster takes no argument", []string{"cluster", "x"}, 64, false},
 		{"top-objects bad limit", []string{"top-objects", "--limit", "x"}, 64, false},
+		{"progress takes no argument", []string{"progress", "x"}, 64, false},
+		{"progress cannot connect", []string{"progress", "--host", sock}, 69, false},
 		{"freeze bad limit", []string{"freeze", "--limit", "x"}, 64, false},
 		{"vacuum cannot connect", []string{"vacuum", "--host", sock}, 69, false},
 		{"archive cannot connect", []string{"archive", "--host", sock}, 69, false},

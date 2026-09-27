@@ -99,7 +99,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
 		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout),
 		newCluster(g, stdout), newTopObjects(g, stdout), newTable(g, stdout, stderr),
-		newTop(g, stdout))
+		newTop(g, stdout), newProgress(g, stdout))
 	return root
 }
 
@@ -443,6 +443,20 @@ func newTop(g *globalFlags, stdout io.Writer) *cobra.Command {
 	limitFlagN(c, &o.Limit, 20)
 	c.Flags().StringVar(&o.By, "by", "time", "order: time (total), mean, calls, io (blocks read), temp (temp blocks written)")
 	return c
+}
+
+func newProgress(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "progress",
+		Short: "How far running VACUUM, CREATE INDEX, CLUSTER / VACUUM FULL and CHECKPOINT have got",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Progress(info, probe.ProgressList(ctx, x))
+			})
+		},
+	}
 }
 
 func limitFlag(c *cobra.Command, limit *int) { limitFlagN(c, limit, 50) }

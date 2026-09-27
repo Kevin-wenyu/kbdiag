@@ -457,3 +457,17 @@ func TestTop(t *testing.T) {
 	}
 	okProbe(t, r, "sql.top", topColumns)
 }
+
+var progressColumns = []string{"pid", "command", "datname", "relation", "phase", "done", "total", "unit", "running_s", "waiting_lockers"}
+
+func TestProgress(t *testing.T) {
+	r, code := kbdiag(t, nil, "progress")
+	okProbe(t, r, "progress.list", progressColumns)
+	if r.Verdict != "OK" || code != 0 {
+		t.Errorf("verdict=%s exit=%d", r.Verdict, code)
+	}
+	t.Run("kbdiag_ro may read the views", func(t *testing.T) {
+		r, _ := kbdiag(t, roEnv, append([]string{"progress"}, roArgs...)...)
+		okProbe(t, r, "progress.list", progressColumns)
+	})
+}
