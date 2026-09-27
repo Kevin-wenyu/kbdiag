@@ -96,7 +96,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 	root.AddCommand(newSessions(g, stdout), newSession(g, stdout, stderr), newLocks(g, stdout),
 		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
 		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
-		newArchive(g, stdout), newParams(g, stdout))
+		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout))
 	return root
 }
 
@@ -319,6 +319,20 @@ func newParams(g *globalFlags, stdout io.Writer) *cobra.Command {
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
 				return scenario.Params(info, probe.ParamsChanged(ctx, x))
+			})
+		},
+	}
+}
+
+func newRepl(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "repl",
+		Short: "Replication from this node's side: each standby's lag and the synchronous settings on a primary; receive and replay on a standby",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Repl(info, probe.ReplDownstreams(ctx, x), probe.ReplSync(ctx, x, info), probe.InstUpstream(ctx, x, info), probe.ReplReplay(ctx, x, info))
 			})
 		},
 	}

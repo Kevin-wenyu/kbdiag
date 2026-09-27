@@ -1,0 +1,16 @@
+repl  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] repl.sync_short  synchronous_standby_names 'FIRST 2 (node2, "Node 3", node4)' needs 2 synchronous standbys, but the server counts 1 as synchronous candidates: commits either wait or the server no longer waits for a standby, so the synchronous copy is not guaranteed
+  verify: kbdiag slots  # whether the missing standby's slot is inactive
+  verify: kbdiag status  # run on the missing standby: is it receiving WAL
+
+sync
+  synchronous_standby_names  FIRST 2 (node2, "Node 3", node4)  (the first 2 of node2, Node 3, node4 by priority must confirm)
+  synchronous_commit         on
+  synchronous now            1 (node2)
+
+downstreams: 3  (bytes behind this node's current WAL position)
+  name           address   state      sync       sent     flushed  replayed  replay lag  last reply
+  node2          10.0.0.2  streaming  sync       0 bytes  5120 kB  40 MB     12s         0s ago
+  Node 3         -         catchup    potential  3072 MB  3072 MB  3072 MB   -           1h 1m ago
+  backup\x1b[2J  -         streaming  async      0 bytes  -        -         -           -

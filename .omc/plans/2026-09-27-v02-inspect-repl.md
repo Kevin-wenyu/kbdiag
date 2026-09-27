@@ -182,6 +182,7 @@
 - 2026-09-27：阶段 4 vacuum 完成（云会话，`v02(vacuum)`）。下一步：阶段 5 archive
 - 2026-09-27：阶段 5 archive 完成（云会话，`v02(archive)`）。下一步：阶段 6 params
 - 2026-09-27：阶段 6 params 完成（云会话，`v02(params)`）。下一步：阶段 7 repl
+- 2026-09-27：阶段 7 repl 完成（云会话，`v02(repl)`）。下一步：阶段 8 cluster
 - 2026-09-27：用户追加范围（top-objects、table、top，阶段 9–11），收口改为阶段 12、本地 VM 收尾改为阶段 13；补采这三条；明确云会话一口气做到阶段 12
 
 ## 附录 B：场景表（阶段 1 写）
@@ -357,7 +358,7 @@ DS：新增 DS-27（参数改了没生效/待重启）。
 
 判定：
 - `inst.upstream`（复用 status 的规则，WARN）：备库没有接收进程或状态不是 streaming。
-- `repl.replay_paused` **WARN**：备库上回放被暂停（有人执行了 `sys_wal_replay_pause()`）。客观线是函数返回 true。查询照常，但备库越落越远，切换时要先回放完，所以 WARN。实采是 false（`repl_node2_*_lsn`），注入要调 `sys_wal_replay_pause()`，是写操作但不重启、不 sudo，撤注入 `sys_wal_replay_resume()`；脚本可以写，阶段 13 验证。
+- `repl.replay_paused` **WARN**：备库上回放被暂停（有人执行了 `sys_wal_replay_pause()`）。客观线是函数返回 true。查询照常，但备库越落越远，切换时要先回放完，所以 WARN。实采是 false（`repl_node2_*_lsn`），（阶段 7 审查：实验环境是 remote_apply，暂停回放会让主库所有提交一直等，**不注入**，只有 L1/L2。）
 - `repl.sync_short` **WARN**（主库）：`synchronous_standby_names` 非空，而 state=streaming 且在名单里的备库少于要求的个数。**实采发现**：备库 walreceiver 暂停、主库 `sys_stat_replication` 0 行时，主库上的同步提交没有卡住（`repl_node1_*_syncwait_paused` 0 行），怀疑 KES 或 repmgr 会把同步降级为异步，未验证。所以这条不能说"提交会卡住"（那是 FAIL），只能说"同步复制的保证已经没了：要么提交在等，要么已经降级"，WARN。
 - 延迟（字节和秒）**只展示**：没有服务器端的客观线（digoal 的 1 分钟/5 分钟是经验值）。**实采提醒**：空闲的主库上 `now() - sys_last_xact_replay_timestamp()` 能到 7 小时（`repl_node2_sys_lsn`：回放时间 13:59，采集 21:23，而 LSN 完全追平），所以文本在 received = replayed 时写"caught up"，不把这个时间差当成延迟。
 - 暂停的 walreceiver：只展示 `last_msg`（§1 规定）。

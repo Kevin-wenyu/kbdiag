@@ -1,0 +1,10 @@
+repl  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:23:05+08:00)
+
+sync
+  synchronous_standby_names  ANY 1( node2)  (any 1 of node2 must confirm)
+  synchronous_commit         remote_apply
+  synchronous now            1 (node2)
+
+downstreams: 1  (bytes behind this node's current WAL position)
+  name   address         state      sync    sent     flushed  replayed  replay lag  last reply
+  node2  192.168.105.11  streaming  quorum  0 bytes  0 bytes  0 bytes   -           1s ago

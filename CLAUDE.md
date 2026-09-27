@@ -206,6 +206,19 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **撤回的修复语句是把运行值写回**（`ALTER SYSTEM SET x = '<运行值>'` 再 reload）：PG12 的 reload 只在文件值等于运行值时清掉 pending 标志，只 `ALTER SYSTEM RESET` 会一直挂到重启（阶段 6 审查从 PG12 源码查出来的，注入脚本的 down 也照这个顺序）。
 - 看不全的两处在文本里写明：kbdiag 自己连接设的四个参数（来源 client）看不到配置值；按角色、按库的设置只看得到当前角色和库的。
 
+### repl（2026-09-27）
+
+场景表见计划附录 B.6。
+
+- **三条 WARN，没有 FAIL**：备库没在收 WAL（复用 status 的 `inst.upstream` 规则）、回放被暂停（`repl.replay_paused`）、同步备库不够数（`repl.sync_short`）。最后一条本想报 FAIL（提交会卡住），但阶段 0 实采看到备库断开后同步提交照样过去了（怀疑 KES 或 repmgr 自动降级，未验证），所以 symptom 只说"要么在等，要么已经不等了，同步副本没有保证"。
+- **延迟只展示**：没有服务器端的客观线；digoal 的 1 分钟/5 分钟是经验值。落后字节按本节点当前位置算，备库上按回放位置（同 slots）。
+- **最近回放的事务多久前不当成延迟**：空闲主库上它能到 7 小时，而 LSN 完全追平（阶段 0 实采）；收到 = 回放时文本写 caught up。
+- **暂停的 walreceiver 只展示 last_msg，不判**（用户未定；附录 B.6 的拍板点写了选项，建议用 `wal_receiver_timeout`）。
+- **有几个同步候选，数服务器给的 `sync_state`（sync/quorum）**，不自己按名单和 state 重算：服务器挑候选的规则（streaming 或 stopping、flush 有效、名字不分大小写）自己重做只会不一致。名单只用来解析要几个；解析不了的不猜，UNKNOWN。只在 `synchronous_commit` 让提交等备库时判（这个值是本连接的，按角色或库另设的看不到）。
+- **OK 不代表提交在流动**：remote_apply 下候选停止回放，它仍是候选，只能从 replay_lag 看出来。所以回放暂停没有注入：在实验环境会卡住主库的所有提交（阶段 7 审查指出，删了注入脚本）。
+- 备库上落后字节按收到和回放中较远的那个算：级联 walsender 发到那里。
+- `sys_stat_wal_receiver.conninfo` 不采：可能带密码。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。

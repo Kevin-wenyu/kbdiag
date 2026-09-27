@@ -1,0 +1,12 @@
+repl  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:25:40+08:00)
+
+[WARN] repl.sync_short  synchronous_standby_names 'ANY 1( node2)' needs 1 synchronous standby, but the server counts 0 as synchronous candidates: commits either wait or the server no longer waits for a standby, so the synchronous copy is not guaranteed
+  verify: kbdiag slots  # whether the missing standby's slot is inactive
+  verify: kbdiag status  # run on the missing standby: is it receiving WAL
+
+sync
+  synchronous_standby_names  ANY 1( node2)  (any 1 of node2 must confirm)
+  synchronous_commit         remote_apply
+  synchronous now            0
+
+downstreams: 0

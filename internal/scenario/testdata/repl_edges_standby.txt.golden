@@ -1,0 +1,20 @@
+repl  WARN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] repl.replay_paused  WAL replay is paused on this standby (sys_wal_replay_pause()): queries still run, but it falls further behind, and a failover would first have to replay everything received
+  fix: SELECT sys_wal_replay_resume()  # unless replay was paused on purpose
+
+upstream
+  status    streaming
+  upstream  10.0.0.1:54321
+  slot      repmgr_slot_2
+  last_msg  1m 35s ago
+
+replay
+  received                   0/C0000000
+  replayed                   0/10000000  (3072 MB received, not replayed yet)
+  last replayed transaction  10m 0s ago
+  paused                     yes
+
+downstreams: 1  (bytes behind this node's current WAL position)
+  name   address  state      sync   sent     flushed  replayed  replay lag  last reply
+  node3  -        streaming  async  0 bytes  0 bytes  0 bytes   -           -

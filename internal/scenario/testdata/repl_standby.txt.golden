@@ -1,0 +1,15 @@
+repl  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T21:23:11+08:00)
+
+upstream
+  status    streaming
+  upstream  192.168.105.10:54321
+  slot      repmgr_slot_2
+  last_msg  2s ago
+
+replay
+  received                   0/A43590F8
+  replayed                   0/A43590F8  (caught up with what was received)
+  last replayed transaction  7h 23m ago
+  paused                     no
+
+downstreams: 0

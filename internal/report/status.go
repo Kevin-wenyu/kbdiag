@@ -84,8 +84,10 @@ func writeDownstreams(w io.Writer, p Probe) error {
 	return writeTable(w, "  ", []string{"name", "address", "state", "sync"}, rows)
 }
 
-func writeUpstream(w io.Writer, p Probe) error {
-	fmt.Fprintln(w, "\ninst.upstream")
+func writeUpstream(w io.Writer, p Probe) error { return writeUpstreamAs(w, p, "inst.upstream") }
+
+func writeUpstreamAs(w io.Writer, p Probe, title string) error {
+	fmt.Fprintln(w, "\n"+title)
 	if len(p.Rows) == 0 {
 		// Same key width as a full upstream, so the value lines up with
 		// what the reader saw on other standbys.

@@ -255,3 +255,50 @@ func TestParams(t *testing.T) {
 		}
 	})
 }
+
+var (
+	replDownstreamColumns = []string{"pid", "application_name", "client_addr", "state", "sync_state", "sync_priority", "sent_lsn", "write_lsn", "flush_lsn", "replay_lsn",
+		"sent_lag_bytes", "flush_lag_bytes", "replay_lag_bytes", "write_lag_s", "flush_lag_s", "replay_lag_s", "reply_age_s"}
+	replSyncColumns   = []string{"synchronous_standby_names", "synchronous_commit"}
+	replReplayColumns = []string{"receive_lsn", "replay_lsn", "replay_gap_bytes", "last_replay_age_s", "replay_paused"}
+)
+
+func TestRepl(t *testing.T) {
+	r, code := kbdiag(t, nil, "repl")
+	d := okProbe(t, r, "repl.downstreams", replDownstreamColumns)
+	want := ksql(t, "select string_agg(application_name || ':' || state, ',' order by application_name, pid) from sys_stat_replication")
+	var got []string
+	for _, row := range d.rowsOf() {
+		got = append(got, str(row["application_name"])+":"+str(row["state"]))
+		if b, ok := row["sent_lag_bytes"].(float64); !ok || b < 0 {
+			t.Errorf("sent_lag_bytes = %v", row["sent_lag_bytes"])
+		}
+	}
+	if strings.Join(got, ",") != want {
+		t.Errorf("downstreams %v, ksql %q", got, want)
+	}
+	if r.Verdict != "OK" || code != 0 {
+		t.Errorf("clean lab: verdict=%s exit=%d findings=%+v", r.Verdict, code, r.Findings)
+	}
+	if role == "standby" {
+		okProbe(t, r, "repl.replay", replReplayColumns)
+		if p := r.Data["repl.sync"]; p.Status != "not_applicable" {
+			t.Errorf("repl.sync on a standby = %+v", p)
+		}
+		// repl.replay_paused is L1/L2 only: pausing replay on the lab's
+		// standby would hold every commit on the primary (remote_apply)
+		return
+	}
+	okProbe(t, r, "repl.sync", replSyncColumns)
+	if p := r.Data["repl.replay"]; p.Status != "not_applicable" {
+		t.Errorf("repl.replay on a primary = %+v", p)
+	}
+	// stage 0: with the standby's walreceiver paused, sys_stat_replication is empty
+	t.Run("standby walreceiver paused", func(t *testing.T) {
+		inject(t, "slot")
+		r, code := kbdiag(t, nil, "repl")
+		if len(r.Findings) != 1 || r.Findings[0].ID != "repl.sync_short" || r.Findings[0].Level != "WARN" || code != 1 {
+			t.Errorf("findings=%+v exit=%d", r.Findings, code)
+		}
+	})
+}
