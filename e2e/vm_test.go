@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -222,4 +223,13 @@ func kbdiagText(t *testing.T, env []string, args ...string) (string, int) {
 		code = ee.ExitCode()
 	}
 	return stdout.String(), code
+}
+
+// str formats a JSON value the way kbdiag prints it: a pid of 1066014
+// decodes as float64, and fmt.Sprint would write it as 1.066014e+06.
+func str(v any) string {
+	if f, ok := v.(float64); ok {
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+	return fmt.Sprint(v)
 }

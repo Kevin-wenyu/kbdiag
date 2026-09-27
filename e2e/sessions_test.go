@@ -218,7 +218,7 @@ func TestSessionsIdleInTxn(t *testing.T) {
 		var background string
 		for _, x := range r.Data[sessionProbe].rowsOf() {
 			if x["backend_type"] == "checkpointer" {
-				background = fmt.Sprint(x["pid"])
+				background = str(x["pid"])
 				break
 			}
 		}
@@ -234,7 +234,7 @@ func TestSessionsIdleInTxn(t *testing.T) {
 			return false
 		}
 		out, code := kbdiagText(t, nil, "sessions", "--idle-in-txn-warn", "1")
-		idle, busy := fmt.Sprint(fp.pid), fmt.Sprint(decoy.pid)
+		idle, busy := str(fp.pid), str(decoy.pid)
 		if !line(out, idle) || !line(out, busy) || line(out, background) || code != 1 {
 			t.Errorf("default text (exit %d) must list %s and %s, not background %s:\n%s", code, idle, busy, background, out)
 		}

@@ -179,10 +179,10 @@ func TestLocks(t *testing.T) {
 	// The text leads with the holder as a blocker, then the waiter.
 	t.Run("text", func(t *testing.T) {
 		out, _ := kbdiagText(t, nil, "locks")
-		holder, waiter := fmt.Sprint(l.holder), fmt.Sprint(l.waiter)
+		holder, waiter := str(l.holder), str(l.waiter)
 		object := "advisory"
 		if l.relation != nil {
-			object = fmt.Sprint(l.relation)
+			object = str(l.relation)
 		}
 		if f := strings.Fields(textLine(out, holder)); len(f) < 3 || f[1] != "1" || !strings.Contains(textLine(out, holder), object) ||
 			!textRow(out, waiter, object, l.mode) ||
@@ -234,7 +234,7 @@ func TestLocksBlockedByPrepared(t *testing.T) {
 		t.Errorf("lock.list lacks the prepared transaction's lock on kbdiag_inj_2pc")
 	}
 	out, _ := kbdiagText(t, nil, "locks")
-	if !textRow(out, "2PC", "1", "public.kbdiag_inj_2pc") || !strings.HasSuffix(strings.TrimSpace(textLine(out, fmt.Sprint(waiter))), "2PC") {
+	if !textRow(out, "2PC", "1", "public.kbdiag_inj_2pc") || !strings.HasSuffix(strings.TrimSpace(textLine(out, str(waiter))), "2PC") {
 		t.Errorf("text does not name the prepared transaction as 2PC with the lock it holds:\n%s", out)
 	}
 }
@@ -297,7 +297,7 @@ func TestSession(t *testing.T) {
 		}
 		out, _ := kbdiagText(t, nil, "session", strconv.Itoa(int(l.holder)), "--lock-wait-warn", "1")
 		// "  <waiter>  " starts a table row; the finding line mentions the pid too
-		if !strings.Contains(out, "\nblocking: 1\n") || !strings.Contains(out, "\n  "+fmt.Sprint(l.waiter)+"  ") {
+		if !strings.Contains(out, "\nblocking: 1\n") || !strings.Contains(out, "\n  "+str(l.waiter)+"  ") {
 			t.Errorf("holder text does not list waiter %v under blocking:\n%s", l.waiter, out)
 		}
 	})
@@ -331,13 +331,13 @@ func TestTxnPrepared(t *testing.T) {
 	if row == nil {
 		t.Fatal("injected gid not in txn.prepared")
 	}
-	if row["owner"] != want[0] || row["database"] != want[1] || fmt.Sprint(row["transaction"]) != want[2] {
+	if row["owner"] != want[0] || row["database"] != want[1] || str(row["transaction"]) != want[2] {
 		t.Errorf("row = %v, ksql says %v", row, want)
 	}
 	if age, _ := row["age_s"].(float64); age < 1 {
 		t.Errorf("age_s = %v", row["age_s"])
 	}
-	if _, err := time.Parse(time.RFC3339, fmt.Sprint(row["prepared_at"])); err != nil {
+	if _, err := time.Parse(time.RFC3339, str(row["prepared_at"])); err != nil {
 		t.Errorf("prepared_at: %v", err)
 	}
 	if got := findings(r, "txn.prepared", "gid", "kbdiag_inj_2pc"); !reflect.DeepEqual(got, []string{"WARN"}) || r.Verdict != "WARN" || code != 1 {
@@ -377,10 +377,10 @@ func TestTxnLong(t *testing.T) {
 	// cannot assign one, so there the xid column shows "-".
 	xid := "-"
 	if fp.xid != nil {
-		xid = fmt.Sprint(fp.xid)
+		xid = str(fp.xid)
 	}
 	out, _ := kbdiagText(t, nil, "txn", "--limit", "0")
-	if !textRow(out, fmt.Sprint(fp.pid), "idle in transaction", xid) {
+	if !textRow(out, str(fp.pid), "idle in transaction", xid) {
 		t.Errorf("text does not list %v with xid %s:\n%s", fp.pid, xid, out)
 	}
 	r, _ = kbdiag(t, nil, "txn")
@@ -419,7 +419,7 @@ func TestWaits(t *testing.T) {
 	// The text shows the waiter's group; the idle holder and the background
 	// processes are only counted (Activity waits are processes idling).
 	out, _ := kbdiagText(t, nil, "waits")
-	if !textRow(out, "Lock:"+event, "active", fmt.Sprint(l.waiter)) || !strings.Contains(out, "\nnot shown: ") {
+	if !textRow(out, "Lock:"+event, "active", str(l.waiter)) || !strings.Contains(out, "\nnot shown: ") {
 		t.Errorf("waits text:\n%s", out)
 	}
 	// Activity waits (KES's Activity:KshMain included, whatever its state)
@@ -432,7 +432,7 @@ func TestWaits(t *testing.T) {
 		pids, _ := row["pids"].([]any)
 		for _, x := range pids {
 			for _, line := range strings.Split(out, "\n") {
-				if slices.Contains(strings.Fields(line), fmt.Sprint(x)) {
+				if slices.Contains(strings.Fields(line), str(x)) {
 					t.Errorf("Activity:%v pid %v listed in text: %q", row["wait_event"], x, line)
 				}
 			}
@@ -477,15 +477,15 @@ current_setting('data_directory'), current_setting('port'), split_part(version()
 		t.Fatalf("inst.info rows = %v", info.Rows)
 	}
 	row := info.rowsOf()[0]
-	start, err := time.Parse(time.RFC3339, fmt.Sprint(row["start_time"]))
-	if err != nil || fmt.Sprint(start.Unix()) != want[0] {
+	start, err := time.Parse(time.RFC3339, str(row["start_time"]))
+	if err != nil || str(start.Unix()) != want[0] {
 		t.Errorf("start_time = %v, ksql epoch %s", row["start_time"], want[0])
 	}
 	if up, _ := row["uptime_s"].(float64); up < 1 || up-time.Since(start).Seconds() > 5 || time.Since(start).Seconds()-up > 5 {
 		t.Errorf("uptime_s = %v, start %v", row["uptime_s"], start)
 	}
-	if fmt.Sprint(row["max_connections"]) != want[1] || fmt.Sprint(row["superuser_reserved_connections"]) != want[2] ||
-		row["data_directory"] != want[3] || fmt.Sprint(row["port"]) != want[4] || row["version"] != want[5] {
+	if str(row["max_connections"]) != want[1] || str(row["superuser_reserved_connections"]) != want[2] ||
+		row["data_directory"] != want[3] || str(row["port"]) != want[4] || row["version"] != want[5] {
 		t.Errorf("row = %v, ksql says %v", row, want)
 	}
 	if u, _ := row["usable_connections"].(float64); u != row["max_connections"].(float64)-row["superuser_reserved_connections"].(float64) {
@@ -649,7 +649,7 @@ func TestSlots(t *testing.T) {
 		}
 		// inactive slots come first; this one also shows its xmin
 		out, _ := kbdiagText(t, nil, "slots")
-		if !textRow(out, fmt.Sprint(name), "  no  ") || !strings.Contains(out, "\nslots: ") {
+		if !textRow(out, str(name), "  no  ") || !strings.Contains(out, "\nslots: ") {
 			t.Errorf("text does not list %v as inactive:\n%s", name, out)
 		}
 	})
