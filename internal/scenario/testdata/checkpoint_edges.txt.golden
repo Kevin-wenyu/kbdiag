@@ -1,0 +1,17 @@
+checkpoint  UNKNOWN  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T22:50:00+08:00)
+
+last restartpoint: error  (XX000: boom)
+
+since the statistics reset; on a standby these are restartpoints
+  checkpoints       0: 0 timed, 0 requested (- forced by WAL volume or by hand)
+  write, sync time  0.00 ms, 0.00 ms
+  buffers written   0: checkpointer 0 (-), bgwriter 0 (-), backends 0 (-)
+  backend fsyncs    0
+  bgwriter stopped  0 times at bgwriter_lru_maxpages
+
+settings
+  checkpoint_timeout            5m 0s
+  max_wal_size                  1024 MB
+  checkpoint_completion_target  0.5
+  checkpoint_warning            30s
+  log_checkpoints               on

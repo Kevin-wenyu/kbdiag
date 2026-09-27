@@ -53,6 +53,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `table <name>` | One table: size, rows, vacuum and analyze, freeze age, access, indexes; judged with the freeze and vacuum rules. The name follows SQL rules (unquoted folds to lower case); not found is UNKNOWN | |
 | `top` | Cumulative top SQL from `sys_stat_statements` (since the last reset), with each statement's share of all execution time; says so when statements are not being collected. Shows only | `--limit N`, `--by time/mean/calls/io/temp` |
 | `progress` | How far running VACUUM, CREATE INDEX, CLUSTER / VACUUM FULL and CHECKPOINT have got. Shows only | |
+| `checkpoint` | The last checkpoint, timed vs requested checkpoints, who writes dirty buffers (checkpointer, bgwriter, backends), and the settings. Shows only | |
 
 Defaults: idle in transaction 300 s, lock wait 10 s, transaction 300 s, prepared transaction 900 s, all WARN. `--limit` only trims what is shown; findings always cover every row.
 
@@ -162,6 +163,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `table <name>` | 一张表：大小、行数、vacuum 和 analyze、冻结年龄、访问、索引；用 freeze、vacuum 的规则判。名字按 SQL 规则（不带引号的折成小写）；找不到是 UNKNOWN | |
 | `top` | `sys_stat_statements` 的累计 Top SQL（自上次重置以来），带每条占全部执行时间的比例；没在收集时明说。只展示 | `--limit N`、`--by time/mean/calls/io/temp` |
 | `progress` | 正在跑的 VACUUM、CREATE INDEX、CLUSTER / VACUUM FULL、CHECKPOINT 到哪了。只展示 | |
+| `checkpoint` | 最近一次 checkpoint，定时和被请求的各多少，脏页是谁写的（checkpointer、bgwriter、后端），相关参数。只展示 | |
 
 默认阈值：idle in transaction 300 秒，等锁 10 秒，事务 300 秒，两阶段事务 900 秒，都报 WARN。`--limit` 只影响显示，判定始终覆盖全部行。
 

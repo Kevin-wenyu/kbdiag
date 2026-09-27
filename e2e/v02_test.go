@@ -471,3 +471,26 @@ func TestProgress(t *testing.T) {
 		okProbe(t, r, "progress.list", progressColumns)
 	})
 }
+
+var (
+	checkpointStatsColumns = []string{"checkpoints_timed", "checkpoints_req", "checkpoint_write_s", "checkpoint_sync_s", "buffers_checkpoint", "buffers_clean",
+		"maxwritten_clean", "buffers_backend", "buffers_backend_fsync", "buffers_alloc", "stats_reset", "stats_reset_age_s"}
+	checkpointLastColumns = []string{"checkpoint_time", "checkpoint_age_s", "checkpoint_lsn", "redo_lsn", "redo_wal_file"}
+)
+
+func TestCheckpoint(t *testing.T) {
+	r, code := kbdiag(t, nil, "checkpoint")
+	if r.Verdict != "OK" || code != 0 {
+		t.Errorf("verdict=%s exit=%d", r.Verdict, code)
+	}
+	st := okProbe(t, r, "checkpoint.stats", checkpointStatsColumns).rowsOf()[0]
+	// ksql runs after kbdiag: the counter can only have grown since
+	want, _ := strconv.ParseFloat(ksql(t, "select checkpoints_timed from sys_stat_bgwriter"), 64)
+	if got := num(t, st["checkpoints_timed"]); got > want || got < want-2 {
+		t.Errorf("checkpoints_timed %v, ksql %v", got, want)
+	}
+	last := okProbe(t, r, "checkpoint.last", checkpointLastColumns).rowsOf()[0]
+	if last["redo_lsn"] == nil || last["redo_wal_file"] == nil {
+		t.Errorf("last = %v", last)
+	}
+}

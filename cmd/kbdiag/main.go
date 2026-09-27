@@ -99,7 +99,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
 		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout),
 		newCluster(g, stdout), newTopObjects(g, stdout), newTable(g, stdout, stderr),
-		newTop(g, stdout), newProgress(g, stdout))
+		newTop(g, stdout), newProgress(g, stdout), newCheckpoint(g, stdout))
 	return root
 }
 
@@ -454,6 +454,20 @@ func newProgress(g *globalFlags, stdout io.Writer) *cobra.Command {
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
 				return scenario.Progress(info, probe.ProgressList(ctx, x))
+			})
+		},
+	}
+}
+
+func newCheckpoint(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "checkpoint",
+		Short: "The last checkpoint, timed vs requested checkpoints, who writes dirty buffers, and the settings",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Checkpoint(info, probe.CheckpointStats(ctx, x), probe.CheckpointLast(ctx, x), probe.CheckpointSettings(ctx, x))
 			})
 		},
 	}

@@ -1,0 +1,19 @@
+checkpoint  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T22:50:00+08:00)
+
+last checkpoint
+  time  2026-09-27 22:47:34  (2m 26s ago)
+  redo  0/A5DCFF18  (0000000300000000000000A5)
+
+since the statistics reset 2026-09-15 23:12:34 (11d 23h ago)
+  checkpoints       1309: 1309 timed, 0 requested (0% forced by WAL volume or by hand)
+  write, sync time  3m 9s, 311 ms
+  buffers written   5255: checkpointer 1856 (35%), bgwriter 0 (0%), backends 3399 (65%)
+  backend fsyncs    0
+  bgwriter stopped  0 times at bgwriter_lru_maxpages
+
+settings
+  checkpoint_timeout            5m 0s
+  max_wal_size                  1024 MB
+  checkpoint_completion_target  0.5
+  checkpoint_warning            30s
+  log_checkpoints               on

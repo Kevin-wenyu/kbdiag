@@ -271,6 +271,14 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - CREATE INDEX CONCURRENTLY 还在等事务时，阶段后面写还剩几个、指向 `kbdiag locks`：这正是它"卡住"的常见原因。
 - 没有 ANALYZE 和 basebackup 的进度视图（V8R6，阶段 0），空的时候文本写明查了哪几种。
 
+### checkpoint（2026-09-27）
+
+场景表见计划附录 B.13。
+
+- **只展示**：服务器自己的"checkpoint 太频繁"看的是两次 checkpoint 的间隔（`checkpoint_warning`），累计计数算不出间隔；被请求的占比只给数，不下结论。
+- **脏页是谁写的**分三方给比例：后端自己写得多，说明 checkpointer 和 bgwriter 跟不上。`buffers_backend_fsync > 0` 是否报 WARN 留给用户定（PG 文档说应当几乎总是 0，node2 实采是 9）。
+- 备库上计数是 restartpoint，文本写明。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。
