@@ -45,6 +45,21 @@ func TestExitCodesWithoutDatabase(t *testing.T) {
 		{"waits cannot connect", []string{"waits", "--host", sock}, 69, false},
 		{"status cannot connect", []string{"status", "--host", sock}, 69, false},
 		{"slots cannot connect", []string{"slots", "--host", sock}, 69, false},
+		{"space takes no argument", []string{"space", "x"}, 64, false},
+		{"freeze bad limit", []string{"freeze", "--limit", "x"}, 64, false},
+		{"vacuum cannot connect", []string{"vacuum", "--host", sock}, 69, false},
+		{"archive cannot connect", []string{"archive", "--host", sock}, 69, false},
+		{"params has no pattern", []string{"params", "work_mem"}, 64, false},
+		{"repl cannot connect", []string{"repl", "--host", sock}, 69, false},
+		{"cluster cannot connect", []string{"cluster", "--host", sock}, 69, false},
+		{"cluster -d cannot connect", []string{"cluster", "-d", "esrep", "--host", sock}, 69, false},
+		{"top-objects cannot connect", []string{"top-objects", "--host", sock}, 69, false},
+		{"table without a name", []string{"table"}, 64, false},
+		{"table with an empty name", []string{"table", " "}, 64, false},
+		{"table with two names", []string{"table", "a", "b"}, 64, false},
+		{"table cannot connect", []string{"table", "t", "--host", sock}, 69, false},
+		{"top bad order", []string{"top", "--by", "size"}, 64, false},
+		{"top cannot connect", []string{"top", "--by", "mean", "--host", sock}, 69, false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

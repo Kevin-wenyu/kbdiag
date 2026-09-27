@@ -1,0 +1,8 @@
+top  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+statements: 8, by calls  (cumulative since the last reset, whose time is not recorded; read and temp are blocks)
+  total   share  calls    mean     rows     read     temp  user    database     query
+  1h 2m   99.9%  1000000  3.70 ms  1000000  9000000  0     app     prod\x1b[2J  select * from big\u202e where id = $1
+  218 ms  0.0%   2        109 ms   2        0        0     system  test         select count(*) from public.kbdiag_inj_top where v like $1
+  1.75 s  0.0%   1        1.75 s   200000   2        342   system  test         insert into public.kbdiag_inj_top select g, md5(g::text) ...
+  ... 5 more not shown (--limit 0 shows all)

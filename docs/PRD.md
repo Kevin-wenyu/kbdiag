@@ -61,6 +61,7 @@
 | `cluster`（v0.2） | repmgr 眼里的集群：节点、类型、上游、active、优先级、槽，标出本节点（repmgr 的 `get_local_node_id()` 给的节点，或槽名等于本实例的 `primary_slot_name`），最近 20 条 repmgr 事件；和数据库自己的看法对照。WARN 四条：多于一个 active 的 primary（`cluster.primaries`）、repmgr 标了 inactive 的节点（`cluster.inactive`）、本节点的类型和恢复角色不一致（`cluster.role_mismatch`）、主库上 repmgr 说跟着本节点的 active 备库没挂上来（`cluster.detached`）。节点能不能连上看不到（只连一个库）。没给 `-d` 时连 `esrep` 库（没有这个库就连默认库）；当前库没有 repmgr schema 时 `not_applicable`；认不出本节点时 UNKNOWN | `cluster.nodes`、`cluster.events`、`inst.downstreams` | 正常（备库的元数据是复制过来的；witness 的由 repmgrd 拷过去）；`cluster.detached` 只在主库上判 |
 | `top-objects`（v0.2） | 当前库最大的表（含分区表、物化视图；总大小 = 堆 + 索引 + TOAST，三部分分列，给估算行数）和最大的索引（TOAST 的索引算在 TOAST 里，不单列）。只展示，不判；有 probe 没采到时 UNKNOWN（有表被 AccessExclusiveLock 锁着时大小函数会等到 lock_timeout）。`--limit` 两个列表各自裁 | `object.tables`、`object.indexes` | 正常（大小是本地文件；unlogged 表在备库上只有 init 分支，读成 0） |
 | `table <name>`（v0.2） | 一张表的全貌：大小（堆、索引、TOAST）、估算和实际的活/死元组、xid/multixact 年龄、reloptions；vacuum 和 analyze（触发线、最近手工/自动各多久前、次数、自上次 analyze 的修改数）；自统计重置以来的访问（顺序/索引扫描、写入、块的读和命中）；索引（大小、扫描次数、主键/唯一/无效、定义）。判定复用 freeze（`freeze.table_age`）和 vacuum（`vacuum.table_disabled`）的规则，不另立。名字按 SQL 规则解析（`to_regclass`，不带引号的折成小写，按 search_path 找）；找不到或不是表时 UNKNOWN（退出码 3），stderr 写明；空名字是用法错误（64） | `table.info`、`table.stats`、`table.indexes`、`freeze.limits`、`vacuum.settings` | `table.stats` 为 `not_applicable`（统计是节点本地的），索引扫描次数为 NULL；年龄照判 |
+| `top`（v0.2） | 累计 Top SQL（`sys_stat_statements`）：总时间、占全部执行时间的比例、次数、平均时间、行数、读盘块、临时块、用户、库、SQL；`--by time|mean|calls|io|temp` 换排序（不是过滤）。标题写明是累计值、重置时间没有记录。只展示，不判；没在收集（没装、没加载、`track=none`）时 `skipped` 写明开关，UNKNOWN；看不到别人的 SQL 时 UNKNOWN。`--limit` 只裁显示 | `sql.top` | 正常（统计的是本节点的查询） |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
 
@@ -496,6 +497,7 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | `table.info` | table | `oid`、`schemaname`、`relname`、`relkind`、`relpersistence`、`reltuples`、`relpages`、`total_bytes`、`table_bytes`、`index_bytes`、`toast_bytes`、`reloptions`、`xid_age`、`mxid_age`（没有 frozen xid 时 NULL）；找不到时 0 行 |
 | `table.stats` | table | `n_live_tup`、`n_dead_tup`、`n_mod_since_analyze`、`last_vacuum_age_s`、`last_autovacuum_age_s`、`last_analyze_age_s`、`last_autoanalyze_age_s`、`vacuum_count`、`autovacuum_count`、`analyze_count`、`autoanalyze_count`、`seq_scan`、`seq_tup_read`、`idx_scan`、`idx_tup_fetch`、`n_tup_ins`、`n_tup_upd`、`n_tup_del`、`n_tup_hot_upd`、`heap_blks_read`、`heap_blks_hit`、`idx_blks_read`、`idx_blks_hit` |
 | `table.indexes` | table | `indexrelname`、`definition`、`bytes`、`is_unique`、`is_primary`、`is_valid`、`idx_scan`（备库上 NULL） |
+| `sql.top` | top | `queryid`、`username`、`datname`、`calls`、`total_exec_s`、`mean_exec_s`、`max_exec_s`（毫秒换成秒）、`rows`、`shared_blks_hit`、`shared_blks_read`、`temp_blks_written`、`query`（看不到时 `<insufficient privilege>`、queryid 为 NULL，记 `redacted[]`）；行按 `--by` 排 |
 
 | finding.id | 级别 | 命令 | evidence 字段 |
 |---|---|---|---|

@@ -438,3 +438,20 @@ func TestTable(t *testing.T) {
 		t.Errorf("text:\n%s", out)
 	}
 }
+
+var topColumns = []string{"queryid", "username", "datname", "calls", "total_exec_s", "mean_exec_s", "max_exec_s", "rows", "shared_blks_hit", "shared_blks_read", "temp_blks_written", "query"}
+
+// The lab runs with sys_stat_statements.track=none (stage 0): the probe must
+// say so, never answer OK with an empty list.
+func TestTop(t *testing.T) {
+	track := ksql(t, "select coalesce((select setting from sys_settings where name = 'sys_stat_statements.track'), '')")
+	r, code := kbdiag(t, nil, "top")
+	p := r.Data["sql.top"]
+	if track == "none" {
+		if p.Status != "skipped" || p.Reason == nil || !strings.Contains(*p.Reason, "track=none") || r.Verdict != "UNKNOWN" || code != 3 {
+			t.Errorf("sql.top=%+v verdict=%s exit=%d", p, r.Verdict, code)
+		}
+		return
+	}
+	okProbe(t, r, "sql.top", topColumns)
+}

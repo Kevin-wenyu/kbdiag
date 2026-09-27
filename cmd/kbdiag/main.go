@@ -98,7 +98,8 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
 		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
 		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout),
-		newCluster(g, stdout), newTopObjects(g, stdout), newTable(g, stdout, stderr))
+		newCluster(g, stdout), newTopObjects(g, stdout), newTable(g, stdout, stderr),
+		newTop(g, stdout))
 	return root
 }
 
@@ -415,6 +416,27 @@ func newTable(g *globalFlags, stdout, stderr io.Writer) *cobra.Command {
 			})
 		},
 	}
+}
+
+func newTop(g *globalFlags, stdout io.Writer) *cobra.Command {
+	o := scenario.TopOptions{By: "time"}
+	c := &cobra.Command{
+		Use:   "top",
+		Short: "Cumulative top SQL from sys_stat_statements; says so when statements are not being collected",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if _, ok := scenario.TopOrders[o.By]; !ok {
+				return fmt.Errorf("--by must be time, mean, calls, io or temp, got %q", o.By)
+			}
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Top(info, probe.SQLTop(ctx, x, info), o)
+			})
+		},
+	}
+	limitFlagN(c, &o.Limit, 20)
+	c.Flags().StringVar(&o.By, "by", "time", "order: time (total), mean, calls, io (blocks read), temp (temp blocks written)")
+	return c
 }
 
 func limitFlag(c *cobra.Command, limit *int) { limitFlagN(c, limit, 50) }

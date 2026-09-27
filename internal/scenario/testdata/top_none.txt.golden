@@ -1,0 +1,3 @@
+top  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+statements: skipped  (sys_stat_statements.track=none: statements are not being collected; set it to top or all)

@@ -1,0 +1,11 @@
+top  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+statements: 7, by total execution time  (cumulative since the last reset, whose time is not recorded; read and temp are blocks)
+  total    share  calls  mean     rows    read  temp  user    database  query
+  1.75 s   59.4%  1      1.75 s   200000  2     342   system  test      insert into public.kbdiag_inj_top select g, md5(g::text) ...
+  503 ms   17.0%  1      503 ms   1       0     0     system  test      select pg_sleep($1)
+  395 ms   13.4%  1      395 ms   1       0     347   system  test      select count(*) from public.kbdiag_inj_top a join public....
+  218 ms   7.4%   2      109 ms   2       0     0     system  test      select count(*) from public.kbdiag_inj_top where v like $1
+  74 ms    2.5%   1      74 ms    0       1     0     system  test      create table public.kbdiag_inj_top(id int, v text)
+  6.56 ms  0.2%   1      6.56 ms  0       0     0     system  test      drop table public.kbdiag_inj_top
+  0.09 ms  0.0%   1      0.09 ms  0       0     0     system  test      show sys_stat_statements.track
