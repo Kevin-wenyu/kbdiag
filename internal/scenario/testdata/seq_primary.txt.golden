@@ -1,0 +1,20 @@
+seq  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+sequences in test: 16, most used first
+  sequence                                type     last     limit                used   left
+  public.kbdiag_test_id_seq               integer  1311000  2147483647           0.06%  2.15e+09
+  kdb_schedule.kdb_jobclass_jclid_seq     integer  5        2147483647           0.00%  2.15e+09
+  perf.kwr_snapshots_snap_id_seq          integer  2        2147483647           0.00%  2.15e+09
+  public.flight_psg_new_info_id_seq       bigint   1000000  9223372036854775807  0.00%  9.22e+18
+  public.orders_id_seq                    bigint   1000000  9223372036854775807  0.00%  9.22e+18
+  public.t_perf_test_id_seq               bigint   100000   9223372036854775807  0.00%  9.22e+18
+  sysmac.sysmac_policy_oid_seq            bigint   1        9223372036854775807  0.00%  9.22e+18
+  kdb_schedule.kdb_action_acid_seq        integer  -        2147483647           -      never used
+  kdb_schedule.kdb_exception_jexid_seq    integer  -        2147483647           -      never used
+  kdb_schedule.kdb_job_action_jaid_seq    integer  -        2147483647           -      never used
+  kdb_schedule.kdb_joblog_jlgid_seq       integer  -        2147483647           -      never used
+  kdb_schedule.kdb_jobsteplog_jslid_seq   integer  -        2147483647           -      never used
+  kdb_schedule.kdb_schedule_job_sjid_seq  integer  -        2147483647           -      never used
+  kdb_schedule.kdb_schedule_scid_seq      integer  -        2147483647           -      never used
+  sys_catalog.global_chain_seq            bigint   -        9223372036854775807  -      never used
+  sys_hm.hm_run_t_run_id_seq              integer  -        2147483647           -      never used

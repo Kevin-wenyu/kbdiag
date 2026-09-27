@@ -65,6 +65,7 @@
 | `progress`（v0.2） | 正在跑的 VACUUM（标出 autovacuum）、CREATE INDEX、CLUSTER/VACUUM FULL 和 KES 的 CHECKPOINT：库、对象、阶段、已做/总量、百分比、跑了多久；CREATE INDEX CONCURRENTLY 还在等几个事务。V8R6 没有 ANALYZE 和 basebackup 的进度视图，文本写明。已做/总量按阶段取（VACUUM 扫描时算扫描的块、回收时算回收的块、索引阶段没有计数；CREATE INDEX 扫表算块、排序和加载算元组；CLUSTER 按索引扫描时只有元组数）。只展示；看不到别人的进度时 UNKNOWN（被遮蔽的 VACUUM 不说是手工还是 autovacuum） | `progress.list`、`progress.checkpoint` | 正常 |
 | `checkpoint`（v0.2） | 最近一次 checkpoint（时间、redo LSN 和 WAL 文件），自统计重置以来：定时和被请求的 checkpoint 各多少（被 WAL 量或手工逼出来的比例）、写和 sync 的总时间、脏页由 checkpointer/bgwriter/后端各写了多少、后端自己 fsync 的次数、bgwriter 到上限停下的次数；相关参数。只展示（累计计数算不出服务器自己用的间隔线）；备库上是 restartpoint | `checkpoint.last`、`checkpoint.stats`、`checkpoint.settings` | 正常，文本注明 restartpoint |
 | `wal`（v0.2） | WAL 写到哪了（主库给当前位置和文件名，备库给回放位置）、`sys_wal` 多大，以及让 WAL 留在这里的每一样：`max_wal_size`、`wal_keep_segments`、每个槽保留多少、有几个 `.ready` 等着归档。只展示：槽和归档的判定在 `slots`、`archive` 里，这里只指过去 | `wal.position`、`space.wal`、`slot.list`、`archive.ready` | 正常（回放位置、没有文件名） |
+| `seq`（v0.2） | 当前库的序列，按已用掉的比例排（从没调用过和看不到的放后面）：类型、当前值、上/下限、已用百分比、还能取几次（会循环的注明）。取不出下一个值时 FAIL（`seq.exhausted`：nextval 报错，插入失败）；快用完没有客观线，只展示。看不到 `last_value` 的账号 UNKNOWN。`--limit` 裁文本和 JSON 的行 | `seq.list` | 正常（值可能按预取超前） |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
 
@@ -507,6 +508,7 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | `checkpoint.last` | checkpoint | `checkpoint_time`、`checkpoint_age_s`、`checkpoint_lsn`、`redo_lsn`、`redo_wal_file` |
 | `checkpoint.settings` | checkpoint | `checkpoint_timeout_s`、`max_wal_size_bytes`、`checkpoint_completion_target`、`checkpoint_warning_s`、`log_checkpoints` |
 | `wal.position` | wal | `in_recovery`、`lsn`（主库是写入位置，备库是回放位置）、`wal_file`（备库上 NULL） |
+| `seq.list` | seq | `schemaname`、`sequencename`、`data_type`、`start_value`、`min_value`、`max_value`、`increment_by`、`cycle`、`cache_size`、`last_value`（从没调用过或看不到时 NULL）、`readable`（有没有 SELECT/USAGE：分开这两种 NULL） |
 
 | finding.id | 级别 | 命令 | evidence 字段 |
 |---|---|---|---|
@@ -522,6 +524,7 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | `cluster.inactive` | WARN | cluster | `node_id`、`node_name`、`type`、`active` |
 | `cluster.role_mismatch` | WARN | cluster | `node_id`、`node_name`、`type`、`role` |
 | `cluster.detached` | WARN | cluster | `node_id`、`node_name`、`upstream_node_id` |
+| `seq.exhausted` | FAIL | seq | `schemaname`、`sequencename`、`data_type`、`last_value`、`min_value`、`max_value`、`increment_by` |
 
 ## 6. 功能性需求（MVP 以外的按版本排）
 

@@ -55,6 +55,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `progress` | How far running VACUUM, CREATE INDEX, CLUSTER / VACUUM FULL and CHECKPOINT have got. Shows only | |
 | `checkpoint` | The last checkpoint, timed vs requested checkpoints, who writes dirty buffers (checkpointer, bgwriter, backends), and the settings. Shows only | |
 | `wal` | Where WAL is, how much `sys_wal` holds, and what keeps it: `max_wal_size`, `wal_keep_segments`, each slot, files waiting to be archived. Shows only | |
+| `seq` | Sequences of this database by how much of their range is used; FAIL when one cannot hand out another value | `--limit N` |
 
 Defaults: idle in transaction 300 s, lock wait 10 s, transaction 300 s, prepared transaction 900 s, all WARN. `--limit` only trims what is shown; findings always cover every row.
 
@@ -166,6 +167,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `progress` | 正在跑的 VACUUM、CREATE INDEX、CLUSTER / VACUUM FULL、CHECKPOINT 到哪了。只展示 | |
 | `checkpoint` | 最近一次 checkpoint，定时和被请求的各多少，脏页是谁写的（checkpointer、bgwriter、后端），相关参数。只展示 | |
 | `wal` | WAL 写到哪了、`sys_wal` 多大，以及是什么让它留着：`max_wal_size`、`wal_keep_segments`、每个槽、等着归档的文件。只展示 | |
+| `seq` | 当前库的序列，按用掉的比例排；取不出下一个值时报 FAIL | `--limit N` |
 
 默认阈值：idle in transaction 300 秒，等锁 10 秒，事务 300 秒，两阶段事务 900 秒，都报 WARN。`--limit` 只影响显示，判定始终覆盖全部行。
 

@@ -1,0 +1,9 @@
+seq  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-27T21:20:09+08:00)
+
+sequences in test: 16, most used first
+  sequence                              type     last  limit       used  left
+  kdb_schedule.kdb_action_acid_seq      integer  ?     2147483647  ?     ?
+  kdb_schedule.kdb_exception_jexid_seq  integer  ?     2147483647  ?     ?
+  kdb_schedule.kdb_job_action_jaid_seq  integer  ?     2147483647  ?     ?
+  ... 13 more not shown (--limit 0 shows all)
+redacted: 16 rows of seq.list hide last_value (insufficient_privilege; grant sys_monitor)

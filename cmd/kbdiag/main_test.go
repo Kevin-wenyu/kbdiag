@@ -60,6 +60,8 @@ func TestExitCodesWithoutDatabase(t *testing.T) {
 		{"checkpoint cannot connect", []string{"checkpoint", "--host", sock}, 69, false},
 		{"wal takes no argument", []string{"wal", "x"}, 64, false},
 		{"wal cannot connect", []string{"wal", "--host", sock}, 69, false},
+		{"seq bad limit", []string{"seq", "--limit", "x"}, 64, false},
+		{"seq cannot connect", []string{"seq", "--host", sock}, 69, false},
 		{"freeze bad limit", []string{"freeze", "--limit", "x"}, 64, false},
 		{"vacuum cannot connect", []string{"vacuum", "--host", sock}, 69, false},
 		{"archive cannot connect", []string{"archive", "--host", sock}, 69, false},

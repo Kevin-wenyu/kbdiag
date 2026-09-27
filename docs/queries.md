@@ -34,6 +34,7 @@
 | D5 | `progress` | `progress.list`、`progress.checkpoint` | 15, 31 | 自写；SQL 在 `internal/probe/progress.go` | — | 正常 | 未验证（L1/L2；阶段 0 实采手排 golden） |
 | H3 | `checkpoint` | `checkpoint.last`、`checkpoint.stats`、`checkpoint.settings` | 13, 32 | 自写；SQL 在 `internal/probe/checkpoint.go` | — | 正常（restartpoint） | 未验证（L1/L2；阶段 0 实采手排 golden） |
 | H1 | `wal` | `wal.position`、`space.wal`、`slot.list`、`archive.ready` | 16, 22 | 自写；SQL 在 `internal/probe/wal.go`，其余复用 | — | 回放位置、没有文件名 | 未验证（L1/L2；阶段 0 实采手排 golden） |
+| F7 | `seq` | `seq.list` | 33 | 自写；SQL 在 `internal/probe/seq.go` | — | 正常 | 未验证（L1/L2；阶段 0 实采手排 golden） |
 
 注记：
 - B1：`track_activities` 按当前连接的 `current_setting` 判断，关着就把 probe 标 `skipped`。实测发现，关掉之后已经 idle 的会话要等处理到 SIGHUP 才显示 `disabled`，所以不能靠逐行的 state 判断。`track_activity_query_size` 只决定 SQL 截断到多长，不是开关，不影响 status。被遮蔽的行统一以 `query='<insufficient privilege>'` 为标记；`backend_xid`/`backend_xmin` 不在遮蔽范围内。验证手段：L3 夹具取值 + L4 注入（诱饵是同时存在的长查询）+ L5 的 `kbdiag_ro` 一格；300 秒阈值用 §6.5 的 A（阈值缩放到 1 秒）测，没有真等 300 秒；`idle in transaction (aborted)` 只有 L1 覆盖，没有注入。L5 逐列断言了遮蔽值，但注入会话走本地 socket，client_addr 本来就是 NULL，所以"client_addr 被遮蔽"这一点没有被真正区分出来。只给某个会话关掉的情况（`ALTER ROLE ... SET` 或会话自己 SET）不走 `skipped`：那一行 state 是 `disabled`，state_age_s、wait_event* 是 NULL，query 是空串，而 xact_age_s、query_age_s 保留旧值（实测）；这类行记进 `redacted[]`（reason `track_activities_off`），verdict 给 UNKNOWN，由 L4 `untracked.sh` 验证；L5 同时断言 15 列齐全、顺序不变，`rows_affected` 等于输出里带标记的行数（`--limit 0` 下全部行都在输出里）。2026-09-26 打磨：文本默认只给汇总和不是 idle 的客户端会话，`--all` 列全部，`--active` 删除；JSON 不变。文本排版由 L2 golden 覆盖（草样和阶段 0 实采）；VM 上的文本断言（默认不列 checkpointer、`--all` 列出、`--all` 不改 JSON）和 `--active` 返回 64 已在 2026-09-26 两节点跑通（阶段 9）
@@ -55,6 +56,7 @@
 - D5（v0.2 阶段 14，云会话）：PG 的三个进度视图用一条 UNION ALL 并成同一组列，KES 特有的 checkpoint 视图单独一个 probe（阶段 0：V8R6 只有这四个；checkpoint 视图只实采到列名，值都 cast，`start_time` 也 cast 成 timestamptz，出错时不连累另三个；审查后拆开）。已做/总量按阶段取（审查纠正：块计数在扫描结束后停在最后的值，索引阶段、排序加载阶段要换计数）；运行时长从 `xact_start` 算，同 `vacuum.progress`。被遮蔽的行 phase、relid、计数都是 NULL（PG12），backend_type 也被遮蔽，这时命令写 `VACUUM or autovacuum`，不说成手工。VM 待验。有数据的实采只有一行 CREATE INDEX（`progress_node1_sys_index_running`），golden 用它；运行时长是编的（实采没有开始时间）
 - H3（v0.2 阶段 15，云会话）：`sys_stat_bgwriter` 是 PG12 的列（实采）；时间从毫秒换成秒。`sys_control_checkpoint()` 给最近一次 checkpoint（kbdiag_ro 可调，实采）。只展示：被请求的 checkpoint 多了说明 `max_wal_size` 相对写入量小，但累计计数算不出服务器自己用的 `checkpoint_warning` 间隔；`buffers_backend_fsync > 0`（node2 实采是 9）是 checkpointer 的 fsync 队列满过，是否报 WARN 是拍板点。实验环境 `checkpoints_req` 为 0，只能看阴性
 - H1（v0.2 阶段 16，云会话）：新 probe 只有 `wal.position`，其余复用 `space.wal`、`slot.list`、`archive.ready`（同一 probe、同样的列）。备库上 `sys_current_wal_lsn()`、`sys_walfile_name()` 报错（实采），CASE 挡住。只展示：槽和归档各自在 `slots`、`archive` 里判，这里只指过去，不让同一个问题三处各报一次。实采：`sys_replication_slots` 没有 `wal_status`/`safe_wal_size`，参数里没有 `max_slot_wal_keep_size`，说不出槽会不会被作废。kbdiag_ro 调不了 `sys_ls_waldir`、`sys_ls_archive_statusdir`，UNKNOWN
+- F7（v0.2 阶段 17，云会话）：剩余次数和已用比例在 rule 里用 `math/big` 精确算（bigint 序列跨满 int64，int64 相减会溢出），按步长和方向取上限或下限。客观线只有"取不出下一个值"（FAIL：nextval 报错，插入失败），会循环的不算；快用完的阈值（digoal 的 10 万/1 万/1000）是经验值，只展示比例，拍板点。kbdiag_ro 的 `last_value` 全是 NULL（实采），和"从没调用过"一样，所以 SQL 加 `has_sequence_privilege(..., 'SELECT, USAGE')` 分开两种（PG 内核函数，没实采）。修复语句：int/smallint 改 bigint（列要先改），bigint 挪上/下限。注入 `e2e/inject/seq.sh`（`maxvalue 3` 取到头，未在 VM 上跑过）。序列背后列的类型错配没做（要查 `sys_depend`，拍板点）
 
 填写规则：
 - probe_id 格式 `<域>.<对象>`，和 finding.id 共用域前缀（PRD §5）；上表的 probe_id 和 PRD §5.1 示例一致；一个 probe 就是一条 SQL（例外：`inst.disk`、`space.disk` 是 statfs），列名属于契约
@@ -120,7 +122,7 @@
 | F4 | `colstats <t>` | 列统计：NULL 比例、distinct、相关性 | ora `colstats` | `sys_stats` | 以后 |
 | F5 | `bloat` | 表/索引膨胀：默认用估算（快）；加 `--exact <t>` 对单表用 kbstattuple 精确测量（会扫全表，需显式指定） | ora `tab_frag`/`index_frag`、pgmetrics、digoal `pg-find-bloat` | 估算 SQL；KES 文档里的 `kbstattuple` 扩展 | 待排 |
 | F6 | `indexes --unused\|--dup` | 从未使用、重复的索引。要把 digoal 列出的误判点写进输出：统计起点（`stats_reset`、重启时间）；**备库上的扫描不计入主库**；支撑外键的索引不建议删；分区表要把所有分区加起来看；账号权限不足时结果会不全 | pganalyze、pg_profile、digoal `pg-find-unused-index` | `sys_stat_user_indexes`、`sys_index`、`sys_constraint` | 待排 |
-| F7 | `seq` | 快用完的序列：剩余可调用次数；int/smallint 类型的序列单独标出 | pgmetrics、digoal `pg-runtime-risk` | `sys_sequences` | 待排 |
+| F7 | `seq` | 快用完的序列：剩余可调用次数；int/smallint 类型的序列单独标出 | pgmetrics、digoal `pg-runtime-risk` | `sys_sequences` | v0.2（后备队列，用户 2026-09-27 同意提前） |
 | F8 | `partitions <t>` | 分区表的分区列表和大小 | — | `sys_inherits`、`kdb_partman` | 以后 |
 
 ## G. 维护（vacuum / 冻结）

@@ -515,3 +515,31 @@ func TestWAL(t *testing.T) {
 		t.Errorf("text:\n%s", out)
 	}
 }
+
+var seqColumns = []string{"schemaname", "sequencename", "data_type", "start_value", "min_value", "max_value", "increment_by", "cycle", "cache_size", "last_value", "readable"}
+
+func TestSeq(t *testing.T) {
+	r, code := kbdiag(t, nil, "seq", "--limit", "0")
+	l := okProbe(t, r, "seq.list", seqColumns)
+	if n := ksql(t, "select count(*) from sys_sequences"); strconv.Itoa(len(l.Rows)) != n {
+		t.Errorf("sequences = %d, ksql %s", len(l.Rows), n)
+	}
+	if r.Verdict != "OK" || code != 0 {
+		t.Errorf("clean lab: verdict=%s exit=%d findings=%+v", r.Verdict, code, r.Findings)
+	}
+	t.Run("kbdiag_ro", func(t *testing.T) {
+		r, code := kbdiag(t, roEnv, append([]string{"seq"}, roArgs...)...)
+		if len(r.Redacted) != 1 || r.Redacted[0].Field != "last_value" || r.Verdict != "UNKNOWN" || code != 3 {
+			t.Errorf("redacted=%+v verdict=%s exit=%d", r.Redacted, r.Verdict, code)
+		}
+	})
+	if role == "primary" {
+		t.Run("exhausted", func(t *testing.T) {
+			inject(t, "seq")
+			r, code := kbdiag(t, nil, "seq")
+			if got := findings(r, "seq.exhausted", "sequencename", "kbdiag_inj_seq"); len(got) != 1 || got[0] != "FAIL" || code != 2 {
+				t.Errorf("findings=%v exit=%d", got, code)
+			}
+		})
+	}
+}

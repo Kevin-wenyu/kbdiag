@@ -100,7 +100,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout),
 		newCluster(g, stdout), newTopObjects(g, stdout), newTable(g, stdout, stderr),
 		newTop(g, stdout), newProgress(g, stdout), newCheckpoint(g, stdout),
-		newWAL(g, stdout))
+		newWAL(g, stdout), newSeq(g, stdout))
 	return root
 }
 
@@ -486,6 +486,23 @@ func newWAL(g *globalFlags, stdout io.Writer) *cobra.Command {
 			})
 		},
 	}
+}
+
+func newSeq(g *globalFlags, stdout io.Writer) *cobra.Command {
+	var o scenario.SeqOptions
+	c := &cobra.Command{
+		Use:   "seq",
+		Short: "Sequences of this database by how much of their range is used; FAIL when one is exhausted",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Seq(info, probe.SeqList(ctx, x), o)
+			})
+		},
+	}
+	limitFlagN(c, &o.Limit, 20)
+	return c
 }
 
 func limitFlag(c *cobra.Command, limit *int) { limitFlagN(c, limit, 50) }
