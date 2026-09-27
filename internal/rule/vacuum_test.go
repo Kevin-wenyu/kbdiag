@@ -108,7 +108,7 @@ func TestParseBool(t *testing.T) {
 			t.Errorf("parseBool(%q) = %s, want %s", in, got, want)
 		}
 	}
-	if !hasControl("t\u200b") || !hasControl("a\u2028") || hasControl("表") {
+	if !hasControl("t\u200b") || !hasControl("t\x9b") || !hasControl("a\u2028") || hasControl("表") {
 		t.Error("hasControl must match what the text escapes")
 	}
 }

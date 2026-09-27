@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/Kevin-wenyu/kbdiag/internal/facts"
 )
@@ -125,7 +126,7 @@ func (r *Report) writeTables(w io.Writer) error {
 			if p.Reason != nil {
 				reason = *p.Reason
 			}
-			fmt.Fprintf(w, "\n%s: %s  %s\n", id, p.Status, reason)
+			fmt.Fprintf(w, "\n%s: %s  %s\n", id, p.Status, escapeControl(reason))
 			continue
 		}
 		fmt.Fprintf(w, "\n%s: %d rows\n", id, len(p.Rows))
@@ -170,15 +171,20 @@ func cell(v any) string {
 
 // escapeControl makes control characters visible, so a query text cannot
 // drive the terminal (ESC sequences clearing the screen, recoloring, ...),
-// and so do format characters (bidi overrides that reorder what is shown)
-// and the Unicode line and paragraph separators.
+// and so do format characters (bidi overrides that reorder what is shown),
+// the Unicode line and paragraph separators, and bytes that are not UTF-8
+// (a lone 0x9b is CSI on terminals that take 8-bit controls; a SQL_ASCII
+// database passes such bytes through unconverted).
 func escapeControl(s string) string {
-	if strings.IndexFunc(s, hostile) < 0 {
+	if utf8.ValidString(s) && strings.IndexFunc(s, hostile) < 0 {
 		return s
 	}
 	var b strings.Builder
-	for _, r := range s {
+	for i := 0; i < len(s); {
+		r, n := utf8.DecodeRuneInString(s[i:])
 		switch {
+		case r == utf8.RuneError && n == 1:
+			fmt.Fprintf(&b, `\x%02x`, s[i])
 		case !hostile(r):
 			b.WriteRune(r)
 		case r < 0x80:
@@ -186,6 +192,7 @@ func escapeControl(s string) string {
 		default:
 			fmt.Fprintf(&b, `\u%04x`, r)
 		}
+		i += n
 	}
 	return b.String()
 }

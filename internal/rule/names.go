@@ -3,6 +3,7 @@ package rule
 import (
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // keywords are the PG12 keywords quote_ident quotes (every category but
@@ -49,9 +50,9 @@ func qualified(schema, rel string) string { return quoteIdent(schema) + "." + qu
 // report escapes: controls, format characters such as bidi overrides and
 // zero-width spaces, line and paragraph separators): a command or fix SQL
 // built from it would not match once pasted, so the reader is sent to
-// --json instead.
+// --json instead. Bytes that are not UTF-8 are escaped too.
 func hasControl(s string) bool {
-	return strings.IndexFunc(s, func(r rune) bool {
+	return !utf8.ValidString(s) || strings.IndexFunc(s, func(r rune) bool {
 		return unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp)
 	}) >= 0
 }

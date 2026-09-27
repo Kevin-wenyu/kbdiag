@@ -104,6 +104,7 @@ func FuzzV02Reports(f *testing.F) {
 	f.Add("public.orders", int64(1311000), 0.5, false)
 	f.Add("\x1b[2J‮ \t\r", int64(-1), -1.5, true)
 	f.Add(strings.Repeat("表", 200), int64(1<<62), 1e15, false)
+	f.Add("\x1b[2J\u202e\u200b\x9b\xc2\x9b", int64(42), 2.5, false)
 	f.Add("", int64(-1<<63), 0.0, false)
 	f.Add("\xff\xfe", int64(1<<63-1), -1e-300, true)
 	f.Fuzz(func(t *testing.T, s string, n int64, x float64, null bool) {
@@ -121,8 +122,11 @@ func FuzzV02Reports(f *testing.F) {
 				t.Fatalf("%s: JSON: %v", rep.Command, err)
 			}
 			checkContract(t, rep)
+			if !utf8.Valid(text.Bytes()) {
+				t.Fatalf("%s: bytes that are not UTF-8 in the text:\n%q", rep.Command, text.String())
+			}
 			for _, r := range text.String() {
-				if r != '\n' && r != utf8.RuneError && (unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp)) {
+				if r != '\n' && (unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp)) {
 					t.Fatalf("%s: raw %U in the text:\n%s", rep.Command, r, text.String())
 				}
 			}

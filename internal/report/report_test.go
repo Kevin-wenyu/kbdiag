@@ -193,6 +193,9 @@ func TestEscapeFormatCharacters(t *testing.T) {
 		"a" + string(ls) + "b":                "a" + bs + "u2028b",
 		"a" + string(ps) + "b":                "a" + bs + "u2029b",
 		"a" + string(rune(0x1b)) + "b":        "a" + bs + "x1bb",
+		"a\x9bb":                              "a" + bs + "x9bb", // not UTF-8: 8-bit CSI
+		"a" + string(rune(0x9b)) + "b":        "a" + bs + "u009bb",
+		"a\ufffdb":                            "a\ufffdb", // a real U+FFFD is text
 		"表名":                                  "表名",
 		"plain":                               "plain",
 	} {
