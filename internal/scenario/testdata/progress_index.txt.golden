@@ -1,5 +1,5 @@
 progress  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
 
 running: 1
-  pid      command       database  relation       phase                           progress                  running
-  1190380  CREATE INDEX  test      public.orders  building index: scanning table  1038 / 7896 blocks (13%)  4s
+  pid      command       database  relation  phase                           progress                  running
+  1190380  CREATE INDEX  test      orders    building index: scanning table  1038 / 7896 blocks (13%)  4s

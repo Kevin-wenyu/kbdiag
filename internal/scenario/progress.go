@@ -7,10 +7,13 @@ import (
 )
 
 // Progress only shows: how long is too long has no objective line.
-func Progress(c facts.Context, p facts.ProgressList) *report.Report {
-	rep := report.New("progress", c, rule.Display(len(p.Redacted()) > 0, p.Status))
+func Progress(c facts.Context, p, cp facts.ProgressList) *report.Report {
+	hidden := len(p.Redacted(facts.ProgressListID))+len(cp.Redacted(facts.ProgressCheckpointID)) > 0
+	rep := report.New("progress", c, rule.Display(hidden, p.Status, cp.Status))
 	rep.AddProbe(facts.ProgressListID, p.Status, p.Reason, facts.ProgressColumns, rows(p.Rows), 0)
-	rep.AddRedacted(p.Redacted())
-	rep.SetProgress(p)
+	rep.AddProbe(facts.ProgressCheckpointID, cp.Status, cp.Reason, facts.ProgressColumns, rows(cp.Rows), 0)
+	rep.AddRedacted(p.Redacted(facts.ProgressListID))
+	rep.AddRedacted(cp.Redacted(facts.ProgressCheckpointID))
+	rep.SetProgress(p, cp)
 	return rep
 }

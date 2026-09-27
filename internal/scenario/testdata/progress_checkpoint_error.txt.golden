@@ -1,0 +1,7 @@
+progress  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+checkpoint: error  (42846: cannot cast type bigint to timestamp with time zone)
+
+running: 1
+  pid  command  database  relation  phase          progress            running
+  1    VACUUM   test      t         scanning heap  1 / 2 blocks (50%)  ?

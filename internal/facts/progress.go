@@ -1,9 +1,11 @@
 package facts
 
-// ProgressListID is the probe_id of everything with a progress view.
-const ProgressListID = "progress.list"
+const (
+	ProgressListID       = "progress.list"       // VACUUM, CREATE INDEX, CLUSTER
+	ProgressCheckpointID = "progress.checkpoint" // KES's own checkpoint view
+)
 
-// ProgressColumns is the column contract of progress.list (PRD §5.2).
+// ProgressColumns is the column contract of both progress probes (PRD §5.2).
 var ProgressColumns = []string{"pid", "command", "datname", "relation", "phase", "done", "total", "unit", "running_s", "waiting_lockers"}
 
 // Operation is one long operation from one of the four progress views,
@@ -16,7 +18,7 @@ type Operation struct {
 	Relation       *string // a name in the current database, the oid elsewhere
 	Phase          *string // NULL: masked for this account
 	Done           *int64
-	Total          *int64
+	Total          *int64 // NULL: the phase has no total
 	Unit           string // blocks, tuples or buffers
 	RunningS       *float64
 	WaitingLockers *int64 // CREATE INDEX CONCURRENTLY: transactions it still waits for
@@ -33,7 +35,7 @@ type ProgressList struct {
 }
 
 // Redacted reports operations whose progress this account may not read.
-func (p ProgressList) Redacted() []Redaction {
+func (p ProgressList) Redacted(id string) []Redaction {
 	n := 0
 	for _, x := range p.Rows {
 		if x.Phase == nil {
@@ -43,5 +45,5 @@ func (p ProgressList) Redacted() []Redaction {
 	if n == 0 {
 		return nil
 	}
-	return []Redaction{{ProbeID: ProgressListID, Field: "phase", Reason: ReasonInsufficientPrivilege, RowsAffected: n}}
+	return []Redaction{{ProbeID: id, Field: "phase", Reason: ReasonInsufficientPrivilege, RowsAffected: n}}
 }

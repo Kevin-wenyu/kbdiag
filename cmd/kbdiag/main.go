@@ -453,7 +453,7 @@ func newProgress(g *globalFlags, stdout io.Writer) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
-				return scenario.Progress(info, probe.ProgressList(ctx, x))
+				return scenario.Progress(info, probe.ProgressList(ctx, x), probe.ProgressCheckpoint(ctx, x))
 			})
 		},
 	}

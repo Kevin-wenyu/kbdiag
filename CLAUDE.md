@@ -266,7 +266,8 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 场景表见计划附录 B.12。
 
-- **四个进度视图并成一个 probe**（UNION ALL，同一组列）：读者问的是"那个长操作到哪了"，不关心它在哪个视图里；分成四个 probe 只会多四段空表。
+- **PG 的三个进度视图并成一个 probe**（UNION ALL，同一组列）：读者问的是"那个长操作到哪了"，不关心它在哪个视图里。KES 特有的 checkpoint 视图单独一个 probe：它只实采到列名，cast 失败时不能连累另三个。
+- **已做/总量按阶段取**：块计数在扫描结束后停住，接着的回收、建索引的排序加载阶段要换计数，否则长时间显示 100%。
 - **只展示**：多久算慢没有客观线；vacuum 该不该跑由 `vacuum` 判。
 - CREATE INDEX CONCURRENTLY 还在等事务时，阶段后面写还剩几个、指向 `kbdiag locks`：这正是它"卡住"的常见原因。
 - 没有 ANALYZE 和 basebackup 的进度视图（V8R6，阶段 0），空的时候文本写明查了哪几种。
