@@ -1,0 +1,13 @@
+-- system@test on kes-node1: select name, setting, unit, source from sys_settings where name in ('checkpoint_timeout','max_wal_size','min_wal_size','checkpoint_completion_target','checkpoint_warning','log_checkpoints','wal_segment_size','full_page_writes','wal_compression')
+name|setting|unit|source
+checkpoint_completion_target|0.5|<NULL>|default
+checkpoint_timeout|300|s|default
+checkpoint_warning|30|s|default
+full_page_writes|on|<NULL>|configuration file
+log_checkpoints|on|<NULL>|configuration file
+max_wal_size|1024|MB|configuration file
+min_wal_size|80|MB|configuration file
+wal_compression|on|<NULL>|configuration file
+wal_segment_size|16777216|B|override
+(9 rows)
+EXIT_CODE=0

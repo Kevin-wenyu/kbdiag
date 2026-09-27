@@ -1,0 +1,10 @@
+-- system@test on kes-node1: select name, setting, unit, source from sys_settings where name in ('wal_level','max_wal_size','min_wal_size','wal_keep_segments','wal_keep_size','max_slot_wal_keep_size','archive_mode','wal_segment_size')
+name|setting|unit|source
+archive_mode|always|<NULL>|configuration file
+max_wal_size|1024|MB|configuration file
+min_wal_size|80|MB|configuration file
+wal_keep_segments|512|<NULL>|configuration file
+wal_level|replica|<NULL>|configuration file
+wal_segment_size|16777216|B|override
+(6 rows)
+EXIT_CODE=0

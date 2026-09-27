@@ -1,0 +1,3 @@
+-- kbdiag_ro@test on kes-node1: select count(*), sum(size), min(name), max(name), max(modification) from sys_ls_waldir()
+ERROR:  permission denied for function sys_ls_waldir
+EXIT_CODE=1

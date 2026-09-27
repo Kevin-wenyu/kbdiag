@@ -1,0 +1,8 @@
+-- kbdiag_ro@test on kes-node2: select relname from sys_class where relname like 'sys_stat_progress%' order by 1
+relname
+sys_stat_progress_checkpoint
+sys_stat_progress_cluster
+sys_stat_progress_create_index
+sys_stat_progress_vacuum
+(4 rows)
+EXIT_CODE=0

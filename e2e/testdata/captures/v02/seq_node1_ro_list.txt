@@ -1,0 +1,20 @@
+-- kbdiag_ro@test on kes-node1: select * from sys_sequences
+schemaname|sequencename|sequenceowner|data_type|start_value|min_value|max_value|increment_by|cycle|cache_size|last_value
+public|t_perf_test_id_seq|system|bigint|1|1|9223372036854775807|1|f|1|<NULL>
+kdb_schedule|kdb_jobclass_jclid_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+kdb_schedule|kdb_action_acid_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+kdb_schedule|kdb_schedule_scid_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+kdb_schedule|kdb_schedule_job_sjid_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+kdb_schedule|kdb_job_action_jaid_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+kdb_schedule|kdb_exception_jexid_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+kdb_schedule|kdb_joblog_jlgid_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+kdb_schedule|kdb_jobsteplog_jslid_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+sysmac|sysmac_policy_oid_seq|sso|bigint|1|1|9223372036854775807|1|f|1|<NULL>
+sys_hm|hm_run_t_run_id_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+public|kbdiag_test_id_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+perf|kwr_snapshots_snap_id_seq|system|integer|1|1|2147483647|1|f|1|<NULL>
+sys_catalog|global_chain_seq|system|bigint|1|1|9223372036854775807|1|f|1|<NULL>
+public|orders_id_seq|system|bigint|1|1|9223372036854775807|1|f|1|<NULL>
+public|flight_psg_new_info_id_seq|system|bigint|1|1|9223372036854775807|1|f|1|<NULL>
+(16 rows)
+EXIT_CODE=0

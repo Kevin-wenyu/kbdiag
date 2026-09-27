@@ -1,0 +1,20 @@
+-- kbdiag_ro@test on kes-node1: select s.seqrelid::regclass, s.seqtypid::regtype, s.seqmax, s.seqincrement, s.seqcycle from sys_sequence s
+seqrelid|seqtypid|seqmax|seqincrement|seqcycle
+sysmac.sysmac_policy_oid_seq|bigint|9223372036854775807|1|f
+sys_hm.hm_run_t_run_id_seq|integer|2147483647|1|f
+global_chain_seq|bigint|9223372036854775807|1|f
+t_perf_test_id_seq|bigint|9223372036854775807|1|f
+kdb_schedule.kdb_jobclass_jclid_seq|integer|2147483647|1|f
+kdb_schedule.kdb_action_acid_seq|integer|2147483647|1|f
+kdb_schedule.kdb_schedule_scid_seq|integer|2147483647|1|f
+kdb_schedule.kdb_schedule_job_sjid_seq|integer|2147483647|1|f
+kdb_schedule.kdb_job_action_jaid_seq|integer|2147483647|1|f
+kdb_schedule.kdb_exception_jexid_seq|integer|2147483647|1|f
+kdb_schedule.kdb_joblog_jlgid_seq|integer|2147483647|1|f
+kdb_schedule.kdb_jobsteplog_jslid_seq|integer|2147483647|1|f
+kbdiag_test_id_seq|integer|2147483647|1|f
+perf.kwr_snapshots_snap_id_seq|integer|2147483647|1|f
+flight_psg_new_info_id_seq|bigint|9223372036854775807|1|f
+orders_id_seq|bigint|9223372036854775807|1|f
+(16 rows)
+EXIT_CODE=0

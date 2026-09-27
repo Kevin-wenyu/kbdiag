@@ -1,0 +1,5 @@
+-- kbdiag_ro@test on kes-node1: select * from sys_stat_bgwriter
+checkpoints_timed|checkpoints_req|checkpoint_write_time|checkpoint_sync_time|buffers_checkpoint|buffers_clean|maxwritten_clean|buffers_backend|buffers_backend_fsync|buffers_alloc|stats_reset
+1309|0|188700|311|1856|0|0|3399|0|7391|2026-09-15 23:12:34.303749+08
+(1 row)
+EXIT_CODE=0

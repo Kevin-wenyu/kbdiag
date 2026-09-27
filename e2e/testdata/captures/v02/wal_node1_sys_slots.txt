@@ -1,0 +1,5 @@
+-- system@test on kes-node1: select * from sys_replication_slots
+slot_name|plugin|slot_type|datoid|database|temporary|active|active_pid|xmin|catalog_xmin|restart_lsn|confirmed_flush_lsn
+repmgr_slot_2|<NULL>|physical|<NULL>|<NULL>|f|t|1170836|6465|<NULL>|0/A9128C08|<NULL>
+(1 row)
+EXIT_CODE=0

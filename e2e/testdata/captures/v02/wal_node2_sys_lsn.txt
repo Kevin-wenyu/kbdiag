@@ -1,0 +1,5 @@
+-- system@test on kes-node2: select sys_is_in_recovery(), sys_current_wal_lsn() from (select 1) x where not sys_is_in_recovery() union all select true, sys_last_wal_replay_lsn() where sys_is_in_recovery()
+sys_is_in_recovery|sys_current_wal_lsn
+t|0/A9128C08
+(1 row)
+EXIT_CODE=0

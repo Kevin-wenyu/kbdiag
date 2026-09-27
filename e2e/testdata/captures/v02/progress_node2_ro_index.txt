@@ -1,0 +1,4 @@
+-- kbdiag_ro@test on kes-node2: select * from sys_stat_progress_create_index
+pid|datid|datname|relid|index_relid|command|phase|lockers_total|lockers_done|current_locker_pid|blocks_total|blocks_done|tuples_total|tuples_done|partitions_total|partitions_done
+(0 rows)
+EXIT_CODE=0

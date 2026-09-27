@@ -1,0 +1,5 @@
+-- system@test on kes-node1: select count(*), sum(size), min(name), max(name), max(modification) from sys_ls_waldir()
+count|sum|min|max|max
+179|2818575754|000000010000000000000001|00000003.history|2026-09-27 22:47:44+08
+(1 row)
+EXIT_CODE=0

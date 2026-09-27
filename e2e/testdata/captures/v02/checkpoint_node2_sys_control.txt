@@ -1,0 +1,5 @@
+-- system@test on kes-node2: select * from sys_control_checkpoint()
+checkpoint_lsn|redo_lsn|redo_wal_file|timeline_id|prev_timeline_id|full_page_writes|next_xid|next_oid|next_multixact_id|next_multi_offset|oldest_xid|oldest_xid_dbid|oldest_active_xid|oldest_multi_xid|oldest_multi_dbid|oldest_commit_ts_xid|newest_commit_ts_xid|checkpoint_time
+0/A5DCFF48|0/A5DCFF18|0000000300000000000000A5|3|3|t|0:6463|125327|1|0|1078|1|6463|1|1|0|0|2026-09-27 22:47:34+08
+(1 row)
+EXIT_CODE=0

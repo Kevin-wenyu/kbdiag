@@ -1,0 +1,4 @@
+-- kbdiag_ro@test on kes-node2: select * from sys_stat_progress_cluster
+pid|datid|datname|relid|command|phase|cluster_index_relid|heap_tuples_scanned|heap_tuples_written|heap_blks_total|heap_blks_scanned|index_rebuild_count
+(0 rows)
+EXIT_CODE=0

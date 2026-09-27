@@ -1,0 +1,4 @@
+-- kbdiag_ro@test on kes-node1: select * from sys_stat_progress_checkpoint
+pid|phase|flags|buffers_scan|buffers_processed|buffers_written|written_progress|write_rate|start_time
+(0 rows)
+EXIT_CODE=0

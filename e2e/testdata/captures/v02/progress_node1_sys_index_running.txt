@@ -1,0 +1,6 @@
+-- system@test on kes-node1: select * from sys_stat_progress_create_index (during CREATE INDEX on public.orders)
+pid|datid|datname|relid|index_relid|command|phase|lockers_total|lockers_done|current_locker_pid|blocks_total|blocks_done|tuples_total|tuples_done|partitions_total|partitions_done
+1190380|13778|test|100772|0|CREATE INDEX|building index: scanning table|0|0|0|7896|1038|0|0|0|0
+(1 row)
+EXIT_CODE=0
+DROP INDEX

@@ -29,6 +29,7 @@
 6. `TYPESAFE_API_KEY` 没有就跳过 Jev，在 chronicle 里注明，回本地再补。
 7. 不起多 agent 工作流（ralplan/team/autopilot/ultragoal）。单 agent 主线加上每阶段一个 code-reviewer 审查。
 8. 输出全部英文（help、文本、finding、reason），没有 `--lang`。
+9. **续做**：会话中断或回合结束后，用户只会发"继续"。收到后先看 §5 最后一行和 `git log`，从断点接着做，不要重新规划，也不要问用户做什么。每做完一个阶段，就在 §5 加一行（阶段、提交号、下一步）。
 
 ## 1. 场景先行（用户 2026-09-27 强调："主要是考虑场景"）
 
@@ -82,9 +83,32 @@
 | 12 | 云 | **跨命令收口和加固**：所有 `verify:` 指向的命令和参数都存在（扩展已有的 Next.Command 扫描测试）；各命令 next 互相一致；README（中英）和 PRD 命令表一致；新 report 格式化的边界测试；汇总 10 条命令的 VM 待验清单成一份核对表写进 chronicle；起草 `v2.0.0-alpha.3` 发布说明写进 chronicle，不打 tag | 核对表、发布说明草稿 |
 | 13 | 本地 | fetch 云分支 → 两节点 e2e（`-count=1`）→ 修 → 把 VM 实跑文本贴给用户 → Codex 审查 → Jev 分诊 → 修 → queries.md 验证状态 → kbdiag-docs 10 个新命令页（VM 实跑输出，注明 commit）→ 用户说了才合 main、打 tag、合 kbdiag-docs main | 每条命令的 VM 输出；Codex 意见处理表 |
 
+### 阶段 12 之后：后备队列（按顺序取，做完一条再取下一条）
+
+用户 2026-09-27：云额度还剩 $60，"值得用完"，不要让云会话停下来。阶段 12 做完后按下表往下做，每条走同一套固定流程（场景表先补进附录 B，再实现）。这四条原来在 queries.md 里是"待排"，用户同意提前做：它们都是单次查询，而且 §3 已经有实采。
+
+| 阶段 | 命令 | queries.md | 一句话 | 实采 |
+|---|---|---|---|---|
+| 14 | `progress` | D5 | 正在跑的 VACUUM、CREATE INDEX、CLUSTER，以及 KES 自己的 checkpoint 进度 | `progress_*` |
+| 15 | `checkpoint` | H3 | checkpoint 是定时触发还是被 WAL 量逼出来的，以及 bgwriter 和后端进程写了多少 | `checkpoint_*` |
+| 16 | `wal` | H1 | 当前 LSN、WAL 目录多大、谁让 WAL 留着（槽、`wal_keep_segments`） | `wal_*` |
+| 17 | `seq` | F7 | 快用完的序列，int 和 smallint 的单独标出 | `seq_*` |
+| 18 | 加固 | — | 见下面的列表 | — |
+
+阶段 18 的加固项，全都做完了才算完：
+
+- 给 10 多条新命令的 report 加 fuzz 测试（Go 原生的 `testing.F`），覆盖控制字符、超长字符串、NULL 和极值，查崩溃和转义漏掉的情况；
+- 对全部命令的 `--json` 做 schema 一致性测试：字段名和 PRD §5 的契约逐个对上；
+- `go test -race`；
+- 跑 `deslop` 式的自查，删掉多余的注释和重复的 helper；
+- 把 CLAUDE.md 里各命令小节的"为什么"整理成一样的结构；
+- 最后把阶段 13 的 VM 待验清单再过一遍，按命令排好，让本地可以照着逐条跑。
+
+阶段 14–17 的 VM 验证同样并进阶段 13（本地）。阶段 13 在全部云阶段之后做。
+
 阶段 2–11 按顺序做（后面的命令会引用前面命令的 next），不停下来等审核；用户对前一阶段提了意见，先处理意见再继续。
 
-**一口气做下去**（用户 2026-09-27："我要的继续是开发，任务量可以更多"）：阶段 1 提交推送后直接进阶段 2，一直做到阶段 12。只有这几种情况停：碰到 §4 的门槛；分类器拦了；证据不够、只能靠猜 KES 行为（先跳过这一小块，列进 VM 待验清单，接着做别的）。额度快用完时，先把当前阶段做到能提交的状态，写 chronicle（做到哪、下一步是什么），再推送。
+**一口气做下去**（用户 2026-09-27："我要的继续是开发，任务量可以更多"）：阶段 1 提交推送后直接进阶段 2，一直做到阶段 12，然后接着做后备队列（阶段 14–18）。只有这几种情况停：碰到 §4 的门槛；分类器拦了；证据不够、只能靠猜 KES 行为（先跳过这一小块，列进 VM 待验清单，接着做别的）。额度快用完时，先把当前阶段做到能提交的状态，写 chronicle（做到哪、下一步是什么），再推送。
 
 ### 阶段 2–11 每条命令的固定流程
 
@@ -134,6 +158,10 @@
 - **top-objects**（`topobj_*_rels`、`topobj_*_idx`）：`reltuples` 是 float4，ksql 显示成 `1e+06`，SQL 里要 cast 成 bigint。kbdiag_ro 也能看到大小，结果和 system 一样（`pg_total_relation_size` 没有被拒）。
 - **table**（`table_*`，21:40 左右补采）：测试表 `public.kbdiag_inj_tbl`，2 万行删掉四分之一、带主键、一个普通索引和 TOAST，采完已删。采了 `sys_class` 全列加 `age(relfrozenxid)`、`sys_stat_user_tables`、`sys_statio_user_tables`、`sys_index` 加 `pg_get_indexdef`、`sys_stat_user_indexes`、各项大小。备库的 `sys_stat_user_tables` 同样全是 0。表不存在时 `'x'::regclass` 报 `relation "public.no_such_tbl" does not exist`（`table_*_missing`）；`to_regclass` 按标识符规则折叠大小写：`kbdiag_inj_tbl` 和 `KBDIAG_INJ_TBL` 都能解析到，`public."KBDIAG_INJ_TBL"` 是 NULL（`table_*_ambiguous`）。
 - **top**（`top_*`）：`sys_stat_statements` 1.11 装在 test 库里，也在 `shared_preload_libraries` 中；但 **`sys_stat_statements.track=none`**（配置文件里设的），实验库里一行都没有。`sys_stat_statements_info` 不存在，所以拿不到统计起点。列名用 `total_exec_time`、`mean_exec_time`（PG13 以后的命名），另有 `parses`、`total_parse_time` 等 KES 自己加的列。有数据的样本 `top_node1_*_stmts_tracked` 是在一个会话里 `SET sys_stat_statements.track='top'` 后跑几条 SQL 采的，采完已 `sys_stat_statements_reset()`、删测试表。kbdiag_ro 看别人的语句：`queryid` 为 NULL，`query` 是 `<insufficient privilege>`，数值列都能看到。
+- **progress**（`progress_*`，22:45 左右补采）：KES 只有 4 个进度视图，`sys_stat_progress_vacuum`、`_create_index`、`_cluster`，加上 KES 特有的 `_checkpoint`（列：pid、phase、flags、buffers_scan、buffers_processed、buffers_written、written_progress、write_rate、start_time）。**`_analyze` 和 `_basebackup` 不存在**。`progress_node1_sys_index_running.txt` 是在 `public.orders` 上 CREATE INDEX 的过程中采的，有一行，phase 是 `building index: scanning table`；那个索引采完已删。kbdiag_ro 也能查这几个视图。
+- **checkpoint**（`checkpoint_*`）：`sys_stat_bgwriter` 是 PG13 以前的列（checkpoints_timed、checkpoints_req、buffers_backend_fsync 等），stats_reset 在 node1 是 2026-09-15、node2 是 2026-09-23；两节点的 checkpoints_req 都是 0。另外采了参数和 `sys_control_checkpoint()`。
+- **wal**（`wal_*`）：node1 的 `sys_ls_waldir()` 有 179 个文件、2.8 GB，kbdiag_ro 被拒。**`sys_replication_slots` 没有 `wal_status`、`safe_wal_size`**，只有 PG12 的列。`sys_walfile_name()` 在备库上报 `recovery is progressing`。参数里没有 `wal_keep_size` 和 `max_slot_wal_keep_size`（以 `wal_settings` 为准）。
+- **seq**（`seq_*`）：`sys_sequences` 有 last_value（从来没调用过的是 NULL）和 data_type；实验库里有 bigint 和 integer 两种。
 - 采完已撤注入、删测试表；两节点 `kbdiag_inj%` 会话 0、2PC 0，`repmgr_slot_2` active，node2 walreceiver streaming。
 
 ## 4. 审批门槛（压缩、交接、云会话都不能自己跨过）
@@ -147,6 +175,7 @@
 
 - 2026-09-27：用户定范围（巡检五条 + 复制两条）和做法；计划写成，状态 active
 - 2026-09-27：阶段 0 完成（实采 213 个文件，发现见 §3"阶段 0 结果"）。下一步：云会话从阶段 1 开始
+- 2026-09-27：加后备队列阶段 14–18（progress、checkpoint、wal、seq、加固），补采；云会话做完阶段 12 接着做
 - 2026-09-27：用户追加范围（top-objects、table、top，阶段 9–11），收口改为阶段 12、本地 VM 收尾改为阶段 13；补采这三条；明确云会话一口气做到阶段 12
 
 ## 附录 B：场景表（阶段 1 写）
