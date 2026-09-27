@@ -33,6 +33,7 @@
 | D2 | `top` | `sql.top` | 10, 11, 12 | 自写；SQL 在 `internal/probe/top.go` | `sys_stat_statements.track`、`shared_preload_libraries` | 正常 | 未验证（L1/L2；阶段 0 实采手排 golden） |
 | D5 | `progress` | `progress.list`、`progress.checkpoint` | 15, 31 | 自写；SQL 在 `internal/probe/progress.go` | — | 正常 | 未验证（L1/L2；阶段 0 实采手排 golden） |
 | H3 | `checkpoint` | `checkpoint.last`、`checkpoint.stats`、`checkpoint.settings` | 13, 32 | 自写；SQL 在 `internal/probe/checkpoint.go` | — | 正常（restartpoint） | 未验证（L1/L2；阶段 0 实采手排 golden） |
+| H1 | `wal` | `wal.position`、`space.wal`、`slot.list`、`archive.ready` | 16, 22 | 自写；SQL 在 `internal/probe/wal.go`，其余复用 | — | 回放位置、没有文件名 | 未验证（L1/L2；阶段 0 实采手排 golden） |
 
 注记：
 - B1：`track_activities` 按当前连接的 `current_setting` 判断，关着就把 probe 标 `skipped`。实测发现，关掉之后已经 idle 的会话要等处理到 SIGHUP 才显示 `disabled`，所以不能靠逐行的 state 判断。`track_activity_query_size` 只决定 SQL 截断到多长，不是开关，不影响 status。被遮蔽的行统一以 `query='<insufficient privilege>'` 为标记；`backend_xid`/`backend_xmin` 不在遮蔽范围内。验证手段：L3 夹具取值 + L4 注入（诱饵是同时存在的长查询）+ L5 的 `kbdiag_ro` 一格；300 秒阈值用 §6.5 的 A（阈值缩放到 1 秒）测，没有真等 300 秒；`idle in transaction (aborted)` 只有 L1 覆盖，没有注入。L5 逐列断言了遮蔽值，但注入会话走本地 socket，client_addr 本来就是 NULL，所以"client_addr 被遮蔽"这一点没有被真正区分出来。只给某个会话关掉的情况（`ALTER ROLE ... SET` 或会话自己 SET）不走 `skipped`：那一行 state 是 `disabled`，state_age_s、wait_event* 是 NULL，query 是空串，而 xact_age_s、query_age_s 保留旧值（实测）；这类行记进 `redacted[]`（reason `track_activities_off`），verdict 给 UNKNOWN，由 L4 `untracked.sh` 验证；L5 同时断言 15 列齐全、顺序不变，`rows_affected` 等于输出里带标记的行数（`--limit 0` 下全部行都在输出里）。2026-09-26 打磨：文本默认只给汇总和不是 idle 的客户端会话，`--all` 列全部，`--active` 删除；JSON 不变。文本排版由 L2 golden 覆盖（草样和阶段 0 实采）；VM 上的文本断言（默认不列 checkpointer、`--all` 列出、`--all` 不改 JSON）和 `--active` 返回 64 已在 2026-09-26 两节点跑通（阶段 9）
@@ -53,6 +54,7 @@
 - D2（v0.2 阶段 11，云会话）：先从 `sys_extension` 找扩展装在哪个 schema（然后按 schema 限定读视图，不走 search_path，别的对象顶替不了；阶段 11 审查），再看 `sys_stat_statements.track`（`sys_settings` 里没有这一行说明库没加载）；没装、没加载就 `skipped` 写明怎么开。本连接看到 `track=none` 时照样读（角色、库可以自己设 track，旧数据 save=on 也会留着），一行都没有才 `skipped` 写明开关、UNKNOWN（感知开关：查到空要分清"真的没有"和"没开"）；有行时文本注明。`track=all` 时比例会把函数里的语句和调用者重复算（1.11 没有 toplevel 列），文本注明。并列时按总时间、次数、queryid、文本排，结果稳定。实验环境 `track=none`，VM 上天然测这一支；有数据的一支只有 L2（阶段 0 在一个会话里 `SET track='top'` 采的样本），VM 上要改服务器配置才能造，不做（拍板点）。列名按 1.11 的 `total_exec_time`/`mean_exec_time`（实采）；`sys_stat_statements_info` 不存在，重置时间拿不到，标题写明。用户名用 PG 内核的 `pg_get_userbyid`（没实采）。kbdiag_ro 看别人的语句：query 遮蔽、queryid 为 NULL、数值可见（实采），记 `redacted[]`、UNKNOWN。`--by` 在 Go 里排，JSON 行也按它排、受 `--limit` 截断
 - D5（v0.2 阶段 14，云会话）：PG 的三个进度视图用一条 UNION ALL 并成同一组列，KES 特有的 checkpoint 视图单独一个 probe（阶段 0：V8R6 只有这四个；checkpoint 视图只实采到列名，值都 cast，`start_time` 也 cast 成 timestamptz，出错时不连累另三个；审查后拆开）。已做/总量按阶段取（审查纠正：块计数在扫描结束后停在最后的值，索引阶段、排序加载阶段要换计数）；运行时长从 `xact_start` 算，同 `vacuum.progress`。被遮蔽的行 phase、relid、计数都是 NULL（PG12），backend_type 也被遮蔽，这时命令写 `VACUUM or autovacuum`，不说成手工。VM 待验。有数据的实采只有一行 CREATE INDEX（`progress_node1_sys_index_running`），golden 用它；运行时长是编的（实采没有开始时间）
 - H3（v0.2 阶段 15，云会话）：`sys_stat_bgwriter` 是 PG12 的列（实采）；时间从毫秒换成秒。`sys_control_checkpoint()` 给最近一次 checkpoint（kbdiag_ro 可调，实采）。只展示：被请求的 checkpoint 多了说明 `max_wal_size` 相对写入量小，但累计计数算不出服务器自己用的 `checkpoint_warning` 间隔；`buffers_backend_fsync > 0`（node2 实采是 9）是 checkpointer 的 fsync 队列满过，是否报 WARN 是拍板点。实验环境 `checkpoints_req` 为 0，只能看阴性
+- H1（v0.2 阶段 16，云会话）：新 probe 只有 `wal.position`，其余复用 `space.wal`、`slot.list`、`archive.ready`（同一 probe、同样的列）。备库上 `sys_current_wal_lsn()`、`sys_walfile_name()` 报错（实采），CASE 挡住。只展示：槽和归档各自在 `slots`、`archive` 里判，这里只指过去，不让同一个问题三处各报一次。实采：`sys_replication_slots` 没有 `wal_status`/`safe_wal_size`，参数里没有 `max_slot_wal_keep_size`，说不出槽会不会被作废。kbdiag_ro 调不了 `sys_ls_waldir`、`sys_ls_archive_statusdir`，UNKNOWN
 
 填写规则：
 - probe_id 格式 `<域>.<对象>`，和 finding.id 共用域前缀（PRD §5）；上表的 probe_id 和 PRD §5.1 示例一致；一个 probe 就是一条 SQL（例外：`inst.disk`、`space.disk` 是 statfs），列名属于契约
@@ -134,7 +136,7 @@
 
 | # | 暂定名 | 回答的问题 | 参考来源 | KES 数据源 | 版本 |
 |---|---|---|---|---|---|
-| H1 | `wal` | WAL 生成速率（两次采样差值）、`sys_wal` 目录大小、谁在保留 WAL（槽/`wal_keep_segments`） | pgmetrics | `sys_current_wal_lsn()`、`sys_replication_slots` | 待排 |
+| H1 | `wal` | 当前位置、`sys_wal` 目录大小、谁在保留 WAL（槽/`wal_keep_segments`/归档）；生成速率要两次采样，不在这一版 | pgmetrics | `sys_current_wal_lsn()`、`sys_replication_slots` | v0.2（后备队列，用户 2026-09-27 同意提前；速率待排） |
 | H2 | `archive` | 归档是否正常：失败次数、最后成功/失败时间 | pgmetrics | `sys_stat_archiver` | v0.2 |
 | H3 | `checkpoint` | 检查点频率、定时 vs 请求触发比例、bgwriter 统计 | pgBadger、pg_profile | `sys_stat_bgwriter` | v0.2（后备队列，用户 2026-09-27 同意提前） |
 

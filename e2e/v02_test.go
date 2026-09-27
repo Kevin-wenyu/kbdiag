@@ -494,3 +494,24 @@ func TestCheckpoint(t *testing.T) {
 		t.Errorf("last = %v", last)
 	}
 }
+
+var walPositionColumns = []string{"in_recovery", "lsn", "wal_file"}
+
+func TestWAL(t *testing.T) {
+	r, code := kbdiag(t, nil, "wal")
+	p := okProbe(t, r, "wal.position", walPositionColumns).rowsOf()[0]
+	if (p["in_recovery"] == true) != (role == "standby") || p["lsn"] == nil {
+		t.Errorf("position = %v", p)
+	}
+	if role == "primary" && p["wal_file"] == nil || role == "standby" && p["wal_file"] != nil {
+		t.Errorf("wal_file = %v on a %s", p["wal_file"], role)
+	}
+	okProbe(t, r, "space.wal", spaceWALColumns)
+	if r.Verdict != "OK" || code != 0 || len(r.Findings) != 0 {
+		t.Errorf("verdict=%s exit=%d findings=%v", r.Verdict, code, r.Findings)
+	}
+	out, _ := kbdiagText(t, nil, "wal")
+	if !strings.Contains(out, "\nwhat keeps WAL here\n") {
+		t.Errorf("text:\n%s", out)
+	}
+}

@@ -1,0 +1,12 @@
+wal  OK  (KingbaseES V008R006C009B0014, standby, system@local, 2026-09-27T21:20:09+08:00)
+
+position
+  replayed  0/A9128C08
+
+sys_wal: 179 files, 2688 MB
+
+what keeps WAL here
+  max_wal_size       1024 MB
+  wal_keep_segments  8192 MB  (512 x 16 MB)
+  slot cascade       3072 MB  (inactive: kbdiag slots)
+  archiving          1 .ready file waiting  (kbdiag archive)

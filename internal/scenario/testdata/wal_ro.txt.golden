@@ -1,0 +1,9 @@
+wal  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-27T21:20:09+08:00)
+
+position
+  replayed  0/A9128C08
+
+sys_wal: skipped  (insufficient_privilege 42501: permission denied for function sys_ls_waldir)
+
+what keeps WAL here
+  archiving  ? (skipped)

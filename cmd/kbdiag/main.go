@@ -99,7 +99,8 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
 		newArchive(g, stdout), newParams(g, stdout), newRepl(g, stdout),
 		newCluster(g, stdout), newTopObjects(g, stdout), newTable(g, stdout, stderr),
-		newTop(g, stdout), newProgress(g, stdout), newCheckpoint(g, stdout))
+		newTop(g, stdout), newProgress(g, stdout), newCheckpoint(g, stdout),
+		newWAL(g, stdout))
 	return root
 }
 
@@ -468,6 +469,20 @@ func newCheckpoint(g *globalFlags, stdout io.Writer) *cobra.Command {
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
 				return scenario.Checkpoint(info, probe.CheckpointStats(ctx, x), probe.CheckpointLast(ctx, x), probe.CheckpointSettings(ctx, x))
+			})
+		},
+	}
+}
+
+func newWAL(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "wal",
+		Short: "Where WAL is, how much sys_wal holds, and what keeps it: settings, slots, archiving",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.WAL(info, probe.WALPosition(ctx, x), probe.SpaceWAL(ctx, x), probe.SlotList(ctx, x), probe.ArchiveReady(ctx, x))
 			})
 		},
 	}
