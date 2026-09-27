@@ -181,6 +181,7 @@
 - 2026-09-27：阶段 3 freeze 完成（云会话，`v02(freeze)`）。下一步：阶段 4 vacuum
 - 2026-09-27：阶段 4 vacuum 完成（云会话，`v02(vacuum)`）。下一步：阶段 5 archive
 - 2026-09-27：阶段 5 archive 完成（云会话，`v02(archive)`）。下一步：阶段 6 params
+- 2026-09-27：阶段 6 params 完成（云会话，`v02(params)`）。下一步：阶段 7 repl
 - 2026-09-27：用户追加范围（top-objects、table、top，阶段 9–11），收口改为阶段 12、本地 VM 收尾改为阶段 13；补采这三条；明确云会话一口气做到阶段 12
 
 ## 附录 B：场景表（阶段 1 写）
@@ -327,8 +328,8 @@ DS：16（WAL 增长：归档失败）；新增 DS-26（归档失败）。
 参数：无（不加 `[pattern]`，见拍板点）。
 
 判定：
-- `params.pending_restart` **WARN**：有参数改了（reload 过）但要重启才生效。客观线是服务器自己的 `pending_restart` 列。现在跑的还是旧值，业务没受影响；但下次重启（包括故障切换后的重启）会突然换成新值，所以 WARN。实验环境没有这样的参数（`params_*_pending` 0 行），L6 要注入：`ALTER SYSTEM SET` 一个 postmaster 级参数再 reload，撤注入用 `ALTER SYSTEM RESET` 再 reload（不重启、不 sudo），脚本 `e2e/inject/pending_restart.sh`，阶段 13 验证。
-- next：verify `kbdiag params --json`（看新旧值）；fix：计划一次重启，或 `ALTER SYSTEM RESET <name>` 撤回。
+- `params.pending_restart` **WARN**：有参数改了（reload 过）但要重启才生效。客观线是服务器自己的 `pending_restart` 列。现在跑的还是旧值，业务没受影响；但下次重启（包括故障切换后的重启）会突然换成新值，所以 WARN。实验环境没有这样的参数（`params_*_pending` 0 行），L6 要注入：`ALTER SYSTEM SET` 一个 postmaster 级参数（`max_files_per_process`，没有备库约束）再 reload，撤注入用 `ALTER SYSTEM RESET` 再 reload（不重启、不 sudo），脚本 `e2e/inject/pending_restart.sh`，阶段 13 验证。
+- next：verify 查 `sys_file_settings` 看等着的新值（要超级用户；`sys_settings` 里只有正在跑的旧值）；fix：计划一次重启，或 `ALTER SYSTEM SET <name> = <正在跑的值>` 再 reload 撤回（阶段 6 审查纠正：PG12 的 reload 只在文件值等于运行值时清掉标志，只 RESET 会一直挂到重启）。
 
 probe：
 - `params.changed`：`name`、`setting`、`unit`、`source`、`sourcefile`、`sourceline`、`boot_val`、`reset_val`、`context`、`pending_restart`。过滤 `source not in ('default', 'override', 'client', 'session')`：override 是编译或 initdb 定的（block_size、data_checksums），client/session 是 kbdiag 自己这个连接设的（实采里 ksql 的 `application_name`），都不是"谁改了参数"。

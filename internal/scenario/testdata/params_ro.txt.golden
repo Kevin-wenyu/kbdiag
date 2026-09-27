@@ -1,0 +1,68 @@
+params  UNKNOWN  (KingbaseES V008R006C009B0014, primary, kbdiag_ro@remote, 2026-09-27T21:20:09+08:00)
+
+pending restart: 0
+
+changed: 59 parameters not at their default (sources other than default, override and this connection)
+  this connection sets application_name, default_transaction_read_only, lock_timeout and statement_timeout itself, so their configured values are not shown; per-role and per-database settings show only for this role and database
+  name                          setting                                                       unit  source              file
+  archive_command               export TZ=Asia/Shanghai;/home/kingbase/cluster/install/ki...  -     configuration file  ?
+  archive_mode                  always                                                        -     configuration file  ?
+  control_file_copy             /home/kingbase/cluster/install/kingbase/copy_file             -     configuration file  ?
+  DateStyle                     ISO, MDY                                                      -     configuration file  ?
+  default_text_search_config    pg_catalog.english                                            -     configuration file  ?
+  dynamic_shared_memory_type    posix                                                         -     configuration file  ?
+  fsync                         on                                                            -     configuration file  ?
+  full_page_writes              on                                                            -     configuration file  ?
+  hot_standby                   on                                                            -     configuration file  ?
+  hot_standby_feedback          on                                                            -     configuration file  ?
+  lc_messages                   C                                                             -     configuration file  ?
+  lc_monetary                   en_US.UTF-8                                                   -     configuration file  ?
+  lc_numeric                    en_US.UTF-8                                                   -     configuration file  ?
+  lc_time                       en_US.UTF-8                                                   -     configuration file  ?
+  listen_addresses              *                                                             -     configuration file  ?
+  log_autovacuum_min_duration   0                                                             ms    configuration file  ?
+  log_checkpoints               on                                                            -     configuration file  ?
+  log_connections               on                                                            -     configuration file  ?
+  log_destination               stderr                                                        -     configuration file  ?
+  log_disconnections            on                                                            -     configuration file  ?
+  logging_collector             on                                                            -     configuration file  ?
+  log_line_prefix               %t [%p]: [%l-1] [%x] user=%u,db=%d,app=%a,client=%h           -     configuration file  ?
+  log_lock_waits                on                                                            -     configuration file  ?
+  log_min_duration_statement    1000                                                          ms    configuration file  ?
+  log_replication_commands      on                                                            -     configuration file  ?
+  log_rotation_age              1440                                                          min   configuration file  ?
+  log_statement                 ddl                                                           -     configuration file  ?
+  log_temp_files                0                                                             kB    configuration file  ?
+  log_timezone                  Asia/Shanghai                                                 -     configuration file  ?
+  log_truncate_on_rotation      on                                                            -     configuration file  ?
+  max_connections               100                                                           -     configuration file  ?
+  max_prepared_transactions     100                                                           -     configuration file  ?
+  max_replication_slots         32                                                            -     configuration file  ?
+  max_stack_depth               3072                                                          kB    configuration file  ?
+  max_wal_senders               32                                                            -     configuration file  ?
+  max_wal_size                  1024                                                          MB    configuration file  ?
+  min_wal_size                  80                                                            MB    configuration file  ?
+  ora_input_emptystr_isnull     on                                                            -     configuration file  ?
+  ora_integer_div_returnfloat   on                                                            -     configuration file  ?
+  password_encryption           scram-sha-256                                                 -     configuration file  ?
+  port                          54321                                                         -     configuration file  ?
+  primary_slot_name             repmgr_slot_1                                                 -     configuration file  ?
+  shared_buffers                65536                                                         8kB   configuration file  ?
+  synchronous_commit            remote_apply                                                  -     configuration file  ?
+  synchronous_standby_names     ANY 1( node2)                                                 -     configuration file  ?
+  sys_stat_statements.track     none                                                          -     configuration file  ?
+  tcp_keepalives_count          0                                                             -     configuration file  ?
+  tcp_keepalives_idle           0                                                             s     configuration file  ?
+  tcp_keepalives_interval       0                                                             s     configuration file  ?
+  tcp_user_timeout              0                                                             ms    configuration file  ?
+  TimeZone                      PRC                                                           -     configuration file  ?
+  track_real_stats              on                                                            -     configuration file  ?
+  wal_compression               on                                                            -     configuration file  ?
+  wal_keep_segments             512                                                           -     configuration file  ?
+  wal_level                     replica                                                       -     configuration file  ?
+  wal_log_hints                 on                                                            -     configuration file  ?
+  wal_receiver_status_interval  2                                                             s     configuration file  ?
+  wal_receiver_timeout          30000                                                         ms    configuration file  ?
+  wal_sender_timeout            30000                                                         ms    configuration file  ?
+  only the parameters this account may read: superuser-only ones are not listed
+redacted: 59 rows of params.changed hide sourcefile, sourceline (insufficient_privilege; grant sys_monitor)

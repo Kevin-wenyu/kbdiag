@@ -213,3 +213,45 @@ func TestArchive(t *testing.T) {
 		}
 	})
 }
+
+var paramColumns = []string{"name", "setting", "unit", "source", "sourcefile", "sourceline", "boot_val", "reset_val", "context", "pending_restart"}
+
+func TestParams(t *testing.T) {
+	r, code := kbdiag(t, nil, "params")
+	p := okProbe(t, r, "params.changed", paramColumns)
+	// independent of the probe's filter: set in es_rep.conf on the lab, and
+	// fixed at initdb
+	if row := p.row("name", "max_connections"); row == nil || row["source"] != "configuration file" || row["setting"] != ksql(t, "show max_connections") {
+		t.Errorf("max_connections row = %v", row)
+	}
+	for _, name := range []string{"block_size", "data_checksums", "lock_timeout"} {
+		if p.row("name", name) != nil {
+			t.Errorf("%s is listed: not set by anyone (or set by this connection)", name)
+		}
+	}
+	if r.Verdict != "OK" || code != 0 {
+		t.Errorf("clean lab: verdict=%s exit=%d", r.Verdict, code)
+	}
+
+	if role == "primary" {
+		t.Run("pending restart", func(t *testing.T) {
+			inject(t, "pending_restart")
+			r, code := kbdiag(t, nil, "params")
+			if got := findings(r, "params.pending_restart", "name", "max_files_per_process"); len(got) != 1 || got[0] != "WARN" || code != 1 {
+				t.Errorf("findings=%v exit=%d", got, code)
+			}
+			out, _ := kbdiagText(t, nil, "params")
+			if !strings.Contains(out, "\npending restart: 1\n") || !textRow(out, "max_files_per_process", "kingbase.auto.conf:") {
+				t.Errorf("text:\n%s", out)
+			}
+		})
+	}
+
+	t.Run("kbdiag_ro", func(t *testing.T) {
+		r, code := kbdiag(t, roEnv, append([]string{"params"}, roArgs...)...)
+		okProbe(t, r, "params.changed", paramColumns)
+		if len(r.Redacted) != 2 || r.Redacted[0].Field != "sourcefile" || r.Verdict != "UNKNOWN" || code != 3 {
+			t.Errorf("redacted=%+v verdict=%s exit=%d", r.Redacted, r.Verdict, code)
+		}
+	})
+}

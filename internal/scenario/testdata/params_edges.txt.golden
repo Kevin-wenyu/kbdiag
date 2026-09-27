@@ -1,0 +1,18 @@
+params  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+[WARN] params.pending_restart  parameter max_connections was changed (kingbase.auto.conf:9) but the instance still runs with 100: the new value takes effect only after a restart, the next one included
+  verify: select sourcefile, sourceline, setting, applied, error from sys_file_settings where name = 'max_connections'  # the value waiting in the file (needs a superuser)
+  fix: ALTER SYSTEM SET max_connections = '100'  # if the change was not meant: writes the running value back; after SELECT sys_reload_conf() the flag clears (a reload clears it only when the file's value equals the running one, so ALTER SYSTEM RESET alone leaves it until a restart). Otherwise plan the restart
+
+pending restart: 1
+  name             running  file
+  max_connections  100      kingbase.auto.conf:9
+
+changed: 5 parameters not at their default (sources other than default, override and this connection)
+  this connection sets application_name, default_transaction_read_only, lock_timeout and statement_timeout itself, so their configured values are not shown; per-role and per-database settings show only for this role and database
+  name              setting      unit  source                file
+  max_connections   100          -     configuration file    kingbase.auto.conf:9
+  search_path       app, public  -     database              -
+  work_mem          65536        kB    user                  -
+  application_name  ''           -     environment variable  -
+  log_line_prefix   %t \x1b[31m  -     command line          -

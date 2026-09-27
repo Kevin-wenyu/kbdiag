@@ -56,6 +56,7 @@
 | `freeze`（v0.2） | 离事务号回卷还有多远：每个库的 xid/multixact 年龄对照 `autovacuum_freeze_max_age`（WARN）和回卷停止线（FAIL，服务器拒绝分配新 xid 或 multixact；PG12 内核的 xid 停止线是回卷线前 100 万，multixact 前 100），当前库最老的表（`relfrozenxid = 0` 的不算，大小按 relpages 估算）；next 指向 `txn`、`-d <库> freeze` 和 `VACUUM (FREEZE)`。`--limit` 只裁表 | `freeze.databases`、`freeze.tables`、`freeze.limits` | 正常（年龄和主库相同）；VACUUM 要到主库上跑 |
 | `vacuum`（v0.2） | 当前库死元组最多的表、各自的 autovacuum 触发线（`threshold + scale_factor × reltuples`，表级 reloptions 覆盖）和是否已过线，最近 vacuum/autovacuum 多久前；正在跑的 vacuum；`autovacuum`、`track_counts` 开关。只报两种没人清的情况：开关关了（`vacuum.disabled`），表级关了 autovacuum 又过了线（`vacuum.table_disabled`），都是 WARN；过线而 autovacuum 开着的只标 due。`--limit` 只裁表 | `vacuum.tables`、`vacuum.progress`、`vacuum.settings` | `vacuum.tables`、`vacuum.progress` 为 `not_applicable`（统计是节点本地的，autovacuum 不在备库跑），不判定 |
 | `archive`（v0.2） | 归档在不在正常工作：`archive_mode`、`archive_command`、`archive_timeout`，归档进程的成功/失败次数和各自最后一个 WAL、多久以前，`archive_status` 下 `.ready`/`.done` 的个数和最老的 `.ready` 等了多久。最后一次失败晚于最后一次成功（或从没成功过而有失败时间）报 WARN（`archive.failing`）；`archive_mode=off`、`archive_command` 为空不报；next 指向 `space` 和服务器日志 | `archive.status`、`archive.ready` | 正常；`archive_mode=on` 的备库不归档，不判定（只有 always 才判） |
+| `params`（v0.2） | 哪些参数不是默认值、在哪设的（文件和行号；来源不含 default、override 和本连接自己的 client/session），先列等着重启才生效的（服务器的 `pending_restart`，每个报一条 WARN `params.pending_restart`）；看不到来源文件的账号也看不到超级用户专属参数，没有 finding 时 UNKNOWN。没有参数 | `params.changed` | 正常 |
 
 开关感知：`sessions` 依赖 `track_activities`，关着时 probe 标 `skipped` 并写明开关名，而不是给出空的 SQL 文本。`track_activity_query_size` 只决定 SQL 文本截断到多长，不是开关，不影响 status。
 
@@ -480,6 +481,7 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | `vacuum.settings` | vacuum | `autovacuum`、`track_counts`、`autovacuum_vacuum_threshold`、`autovacuum_vacuum_scale_factor`、`autovacuum_naptime_s`、`autovacuum_max_workers` |
 | `archive.status` | archive | `archive_mode`、`archive_command`、`archive_timeout_s`、`archived_count`、`last_archived_wal`、`last_archived_time`、`last_archived_age_s`、`failed_count`、`last_failed_wal`、`last_failed_time`、`last_failed_age_s`、`stats_reset` |
 | `archive.ready` | archive | `ready`、`done`、`oldest_ready_age_s`（没有 `.ready` 时 NULL）；只展示 |
+| `params.changed` | params | `name`、`setting`、`unit`、`source`、`sourcefile`、`sourceline`（这两列看不到时 NULL，记 `redacted[]`）、`boot_val`、`reset_val`、`context`、`pending_restart` |
 
 | finding.id | 级别 | 命令 | evidence 字段 |
 |---|---|---|---|
@@ -487,6 +489,7 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | `vacuum.disabled` | WARN | vacuum | `autovacuum`、`track_counts` |
 | `vacuum.table_disabled` | WARN | vacuum | `schemaname`、`relname`、`n_dead_tup`、`reltuples`、`threshold` |
 | `archive.failing` | WARN | archive | `archive_mode`、`failed_count`、`last_failed_wal`、`last_failed_time`、`archived_count`、`last_archived_wal`、`last_archived_time` |
+| `params.pending_restart` | WARN | params | `name`、`setting`、`sourcefile`、`sourceline`、`context` |
 
 ## 6. 功能性需求（MVP 以外的按版本排）
 

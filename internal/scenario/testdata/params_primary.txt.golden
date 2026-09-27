@@ -1,0 +1,70 @@
+params  OK  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
+
+pending restart: 0
+
+changed: 63 parameters not at their default (sources other than default, override and this connection)
+  this connection sets application_name, default_transaction_read_only, lock_timeout and statement_timeout itself, so their configured values are not shown; per-role and per-database settings show only for this role and database
+  name                          setting                                                       unit  source              file
+  archive_command               export TZ=Asia/Shanghai;/home/kingbase/cluster/install/ki...  -     configuration file  es_rep.conf:10
+  archive_mode                  always                                                        -     configuration file  es_rep.conf:9
+  control_file_copy             /home/kingbase/cluster/install/kingbase/copy_file             -     configuration file  es_rep.conf:11
+  DateStyle                     ISO, MDY                                                      -     configuration file  kingbase.conf:654
+  default_text_search_config    pg_catalog.english                                            -     configuration file  kingbase.conf:676
+  dynamic_shared_memory_type    posix                                                         -     configuration file  kingbase.conf:140
+  fsync                         on                                                            -     configuration file  es_rep.conf:23
+  full_page_writes              on                                                            -     configuration file  es_rep.conf:3
+  hot_standby                   on                                                            -     configuration file  es_rep.conf:13
+  hot_standby_feedback          on                                                            -     configuration file  es_rep.conf:14
+  lc_messages                   C                                                             -     configuration file  kingbase.conf:669
+  lc_monetary                   en_US.UTF-8                                                   -     configuration file  kingbase.conf:671
+  lc_numeric                    en_US.UTF-8                                                   -     configuration file  kingbase.conf:672
+  lc_time                       en_US.UTF-8                                                   -     configuration file  kingbase.conf:673
+  listen_addresses              *                                                             -     configuration file  es_rep.conf:1
+  log_autovacuum_min_duration   0                                                             ms    configuration file  es_rep.conf:40
+  log_checkpoints               on                                                            -     configuration file  es_rep.conf:38
+  log_connections               on                                                            -     configuration file  es_rep.conf:32
+  log_destination               stderr                                                        -     configuration file  es_rep.conf:44
+  log_directory                 sys_log                                                       -     configuration file  kingbase.conf:432
+  log_disconnections            on                                                            -     configuration file  es_rep.conf:33
+  log_filename                  kingbase-%d.log                                               -     configuration file  es_rep.conf:43
+  logging_collector             on                                                            -     configuration file  es_rep.conf:15
+  log_line_prefix               %t [%p]: [%l-1] [%x] user=%u,db=%d,app=%a,client=%h           -     configuration file  es_rep.conf:42
+  log_lock_waits                on                                                            -     configuration file  es_rep.conf:39
+  log_min_duration_statement    1000                                                          ms    configuration file  es_rep.conf:47
+  log_replication_commands      on                                                            -     configuration file  es_rep.conf:18
+  log_rotation_age              1440                                                          min   configuration file  es_rep.conf:46
+  log_statement                 ddl                                                           -     configuration file  es_rep.conf:36
+  log_temp_files                0                                                             kB    configuration file  es_rep.conf:41
+  log_timezone                  Asia/Shanghai                                                 -     configuration file  kingbase.conf:540
+  log_truncate_on_rotation      on                                                            -     configuration file  es_rep.conf:45
+  max_connections               100                                                           -     configuration file  es_rep.conf:7
+  max_prepared_transactions     100                                                           -     configuration file  es_rep.conf:21
+  max_replication_slots         32                                                            -     configuration file  es_rep.conf:12
+  max_stack_depth               3072                                                          kB    configuration file  kingbase.conf:133
+  max_wal_senders               32                                                            -     configuration file  es_rep.conf:5
+  max_wal_size                  1024                                                          MB    configuration file  kingbase.conf:224
+  min_wal_size                  80                                                            MB    configuration file  kingbase.conf:225
+  ora_input_emptystr_isnull     on                                                            -     configuration file  kingbase.conf:767
+  ora_integer_div_returnfloat   on                                                            -     configuration file  kingbase.conf:768
+  password_encryption           scram-sha-256                                                 -     configuration file  kingbase.conf:91
+  port                          54321                                                         -     configuration file  es_rep.conf:2
+  primary_conninfo              user=esrep connect_timeout=10 host=192.168.105.11 port=54...  -     configuration file  kingbase.auto.conf:3
+  primary_slot_name             repmgr_slot_1                                                 -     configuration file  kingbase.auto.conf:4
+  shared_buffers                65536                                                         8kB   configuration file  es_rep.conf:22
+  shared_preload_libraries      repmgr, synonym, plsql, force_view, kdb_flashback,plugin_...  -     configuration file  kingbase.conf:766
+  synchronous_commit            remote_apply                                                  -     configuration file  es_rep.conf:20
+  synchronous_standby_names     ANY 1( node2)                                                 -     configuration file  kingbase.auto.conf:7
+  sys_stat_statements.track     none                                                          -     configuration file  kingbase.auto.conf:5
+  tcp_keepalives_count          0                                                             -     configuration file  es_rep.conf:27
+  tcp_keepalives_idle           0                                                             s     configuration file  es_rep.conf:25
+  tcp_keepalives_interval       0                                                             s     configuration file  es_rep.conf:26
+  tcp_user_timeout              0                                                             ms    configuration file  es_rep.conf:28
+  TimeZone                      PRC                                                           -     configuration file  es_rep.conf:24
+  track_real_stats              on                                                            -     configuration file  kingbase.auto.conf:6
+  wal_compression               on                                                            -     configuration file  es_rep.conf:19
+  wal_keep_segments             512                                                           -     configuration file  es_rep.conf:6
+  wal_level                     replica                                                       -     configuration file  es_rep.conf:8
+  wal_log_hints                 on                                                            -     configuration file  es_rep.conf:4
+  wal_receiver_status_interval  2                                                             s     configuration file  kingbase.conf:323
+  wal_receiver_timeout          30000                                                         ms    configuration file  es_rep.conf:30
+  wal_sender_timeout            30000                                                         ms    configuration file  es_rep.conf:29

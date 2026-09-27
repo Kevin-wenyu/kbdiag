@@ -46,6 +46,7 @@ echo $?                  # 0 OK, 1 WARN, 2 FAIL, 3 UNKNOWN
 | `freeze` | How far each database is from transaction ID wraparound, and the oldest tables of this one; WARN past `autovacuum_freeze_max_age`, FAIL at the stop limit where new transaction IDs are refused | `--limit N` |
 | `vacuum` | The tables with the most dead tuples and where autovacuum's threshold is for each, what is vacuuming now; WARN when nothing will clean them (autovacuum or track_counts off, or a table past its threshold with autovacuum off for it). Primary only | `--limit N` |
 | `archive` | Whether WAL archiving works: the settings, the last success and failure, WAL waiting to be archived; WARN when the last attempt failed | |
+| `params` | The parameters someone set (not at their default) and where: file and line; WARN for each change that waits for a restart | |
 
 Defaults: idle in transaction 300 s, lock wait 10 s, transaction 300 s, prepared transaction 900 s, all WARN. `--limit` only trims what is shown; findings always cover every row.
 
@@ -148,6 +149,7 @@ echo $?                  # 0 OK，1 WARN，2 FAIL，3 UNKNOWN
 | `freeze` | 各库离事务号回卷还有多远，当前库最老的表；超过 `autovacuum_freeze_max_age` 报 WARN，到了拒绝分配新事务号的停止线报 FAIL | `--limit N` |
 | `vacuum` | 死元组最多的表和各自的 autovacuum 触发线，正在跑的 vacuum；没人会清时报 WARN（autovacuum 或 track_counts 关了，或表级关了 autovacuum 又过了线）。只在主库上有表统计 | `--limit N` |
 | `archive` | 归档是不是在正常工作：设置、最后一次成功和失败、等着归档的 WAL；最后一次尝试失败时报 WARN | |
+| `params` | 哪些参数不是默认值、在哪设的（文件和行号）；改了但要重启才生效的每个报 WARN | |
 
 默认阈值：idle in transaction 300 秒，等锁 10 秒，事务 300 秒，两阶段事务 900 秒，都报 WARN。`--limit` 只影响显示，判定始终覆盖全部行。
 

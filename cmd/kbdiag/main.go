@@ -96,7 +96,7 @@ func newRoot(stdout, stderr io.Writer) *cobra.Command {
 	root.AddCommand(newSessions(g, stdout), newSession(g, stdout, stderr), newLocks(g, stdout),
 		newTxn(g, stdout), newWaits(g, stdout), newStatus(g, stdout), newSlots(g, stdout),
 		newSpace(g, stdout), newFreeze(g, stdout), newVacuum(g, stdout),
-		newArchive(g, stdout))
+		newArchive(g, stdout), newParams(g, stdout))
 	return root
 }
 
@@ -305,6 +305,20 @@ func newArchive(g *globalFlags, stdout io.Writer) *cobra.Command {
 			ctx := cmd.Context()
 			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
 				return scenario.Archive(info, probe.ArchiveStatus(ctx, x), probe.ArchiveReady(ctx, x))
+			})
+		},
+	}
+}
+
+func newParams(g *globalFlags, stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "params",
+		Short: "Which parameters are not at their default and where they are set; flag changes waiting for a restart",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx := cmd.Context()
+			return diagnose(ctx, g, stdout, func(x *pgx.Conn, info facts.Context) *report.Report {
+				return scenario.Params(info, probe.ParamsChanged(ctx, x))
 			})
 		},
 	}

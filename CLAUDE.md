@@ -195,6 +195,17 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - `archive.ready`（`.ready` 个数和最老的等了多久）只展示：kbdiag_ro 调不了 `sys_ls_archive_statusdir`，不能让它影响结论。
 - next 指向 `kbdiag space`（WAL 目录被撑到多大）和服务器日志：失败原因只在日志里，kbdiag 不读日志（K1 待排）。
 
+### params（2026-09-27）
+
+场景表见计划附录 B.5。
+
+- **只列有人设过的参数**：去掉 default、override（编译或 initdb 定的）和 client/session（kbdiag 自己连接时带的参数就是 client，列出来是噪声）。
+- **`params.pending_restart` 是 WARN，每个参数一条**：线是服务器自己的 `pending_restart` 列。现在跑的还是旧值，业务没受影响；但下一次重启（包括故障切换后的重启）会突然换成新值。
+- **看不到来源文件的账号，没有 finding 时是 UNKNOWN**：kbdiag_ro 的 `sourcefile` 是 NULL，而且根本看不到超级用户专属参数（实采少 27 行），它们的 `pending_restart` 也就看不到。
+- 不加 `params <pattern>`：看单个参数用 `ksql -c 'show x'` 或 `--json` 配 jq（拍板点）。
+- **撤回的修复语句是把运行值写回**（`ALTER SYSTEM SET x = '<运行值>'` 再 reload）：PG12 的 reload 只在文件值等于运行值时清掉 pending 标志，只 `ALTER SYSTEM RESET` 会一直挂到重启（阶段 6 审查从 PG12 源码查出来的，注入脚本的 down 也照这个顺序）。
+- 看不全的两处在文本里写明：kbdiag 自己连接设的四个参数（来源 client）看不到配置值；按角色、按库的设置只看得到当前角色和库的。
+
 ### 三层深度（看 / 查 / 断）
 
 保留为概念，不体现在命令分组上（PRD §4）：看 = 给一个确定事实；查 = 单维度深查，输出可机读，也用来验证"断"的结论；断 = 多维关联，输出症状→证据→根因→建议的链路。v0.1 只做看和查。
