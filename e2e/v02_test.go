@@ -304,10 +304,25 @@ func TestRepl(t *testing.T) {
 	if p := r.Data["repl.replay"]; p.Status != "not_applicable" {
 		t.Errorf("repl.replay on a primary = %+v", p)
 	}
-	// stage 0: with the standby's walreceiver paused, sys_stat_replication is empty
+	// stage 0: with the standby's walreceiver paused, sys_stat_replication is
+	// empty. The lab's repmgr (synchronous='quorum') clears
+	// synchronous_standby_names about 2s after the standby drops (hamgr.log,
+	// VM 2026-09-28), so which case this run sees is a race: judge by the
+	// names kbdiag itself read.
 	t.Run("standby walreceiver paused", func(t *testing.T) {
 		inject(t, "slot")
 		r, code := kbdiag(t, nil, "repl")
+		sync := okProbe(t, r, "repl.sync", replSyncColumns).rowsOf()
+		if len(sync) != 1 {
+			t.Fatalf("repl.sync = %v", sync)
+		}
+		if names, _ := sync[0]["synchronous_standby_names"].(string); names == "" {
+			t.Logf("repmgr already degraded to async")
+			if len(r.Findings) != 0 || code != 0 {
+				t.Errorf("no synchronous standby required: findings=%+v exit=%d", r.Findings, code)
+			}
+			return
+		}
 		if len(r.Findings) != 1 || r.Findings[0].ID != "repl.sync_short" || r.Findings[0].Level != "WARN" || code != 1 {
 			t.Errorf("findings=%+v exit=%d", r.Findings, code)
 		}
