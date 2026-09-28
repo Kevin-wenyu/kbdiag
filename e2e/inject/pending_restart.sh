@@ -7,7 +7,7 @@
 # value equals the running one; removing the entry does not. So `down` first
 # writes the running value back, reloads and waits for the flag to clear,
 # then removes the entry. Primary only; refuses to touch an existing entry.
-# Written in the cloud session: NOT RUN ON A VM YET (plan stage 13).
+# Run on kes-node1 2026-09-28: up sets the flag, down clears it.
 . "$(dirname "$0")/lib.sh"
 
 case "${1:-}" in

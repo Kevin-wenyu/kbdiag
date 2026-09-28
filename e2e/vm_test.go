@@ -76,8 +76,8 @@ func deploy() error {
 	return nil
 }
 
-// vm runs a command on the node as kingbase. Arguments are joined by a
-// remote shell, so they must not contain spaces or quotes.
+// vm runs a command on the node as kingbase. limactl quotes each argument
+// for the remote shell: " " arrives as one blank argument (VM 2026-09-28).
 func vm(args ...string) *exec.Cmd {
 	return exec.Command("limactl", append([]string{"shell", node, "sudo", "-iu", "kingbase"}, args...)...)
 }

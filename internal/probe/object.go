@@ -31,7 +31,7 @@ select * from (
          pg_indexes_size(c.oid),
          case when c.reltoastrelid <> 0 then pg_total_relation_size(c.reltoastrelid) end,
          c.reltuples::bigint
-  from sys_class c join sys_namespace n on n.oid = c.relnamespace
+  from sys_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace
   where c.relkind in ('r', 'p', 'm')) x
 where total is not null
 order by 4 desc, 1, 2`
@@ -45,7 +45,7 @@ select * from (
   from sys_index i
   join sys_class c on c.oid = i.indexrelid
   join sys_class t on t.oid = i.indrelid
-  join sys_namespace n on n.oid = c.relnamespace
+  join pg_catalog.pg_namespace n on n.oid = c.relnamespace
   where t.relkind <> 't') x
 where bytes is not null
 order by 4 desc, 1, 2`

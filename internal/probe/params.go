@@ -12,15 +12,17 @@ import (
 // default; override (fixed at build or initdb: block_size, data_checksums);
 // client and session (this connection's own: kbdiag sends application_name,
 // lock_timeout and the like at startup, stage 0 shows ksql's
-// application_name as client).
+// application_name as client). A pending restart is listed whatever the
+// source: a parameter at its default that ALTER SYSTEM changed stays
+// source default until the restart (VM 2026-09-28, pending_restart.sh).
 // Source: written for kbdiag against the KES V8R6 manual (help.kingbase.com.cn/v8,
 // 系统视图 sys_settings). Stage 0 capture (params_*_nondefault): 509 rows
 // for system, 482 for kbdiag_ro, which also gets sourcefile and sourceline
-// as NULL. Not run on a VM yet.
+// as NULL.
 const paramsChangedSQL = `
 select name::text, setting, unit, source, sourcefile, sourceline, boot_val, reset_val, context, pending_restart
 from sys_settings
-where source not in ('default', 'override', 'client', 'session')
+where source not in ('default', 'override', 'client', 'session') or pending_restart
 order by name`
 
 func ParamsChanged(ctx context.Context, x *pgx.Conn) facts.ParamsChanged {

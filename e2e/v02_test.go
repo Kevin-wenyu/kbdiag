@@ -65,13 +65,24 @@ func TestSpace(t *testing.T) {
 		t.Errorf("text does not merge data_directory and wal:\n%s", out)
 	}
 
+	t.Run("disk not applicable over TCP", func(t *testing.T) {
+		ip := map[string]string{"kes-node1": "192.168.105.10", "kes-node2": "192.168.105.11"}[node]
+		if ip == "" {
+			t.Skipf("no internal IP known for %s", node)
+		}
+		r, _ := kbdiag(t, roEnv, "space", "--host", ip, "-U", "kbdiag_ro")
+		if p := r.Data["space.disk"]; p.Status != "not_applicable" || p.Reason == nil || *p.Reason != "remote connection" {
+			t.Errorf("space.disk = %+v", p)
+		}
+	})
 	t.Run("kbdiag_ro", func(t *testing.T) {
 		r, code := kbdiag(t, roEnv, append([]string{"space"}, roArgs...)...)
 		if p := r.Data["space.wal"]; p.Status != "skipped" || p.Reason == nil || !strings.Contains(*p.Reason, "sys_ls_waldir") {
 			t.Errorf("space.wal = %+v", p)
 		}
-		if p := r.Data["space.disk"]; p.Status != "not_applicable" {
-			t.Errorf("space.disk over TCP = %+v", p)
+		// 127.0.0.1 with data_directory on this host: read, like inst.disk
+		if p := r.Data["space.disk"]; p.Status != "ok" {
+			t.Errorf("space.disk over loopback = %+v", p)
 		}
 		hidden := 0
 		for _, row := range okProbe(t, r, "space.tablespaces", spaceTblspcColumns).rowsOf() {
@@ -241,7 +252,7 @@ func TestParams(t *testing.T) {
 				t.Errorf("findings=%v exit=%d", got, code)
 			}
 			out, _ := kbdiagText(t, nil, "params")
-			if !strings.Contains(out, "\npending restart: 1\n") || !textRow(out, "max_files_per_process", "kingbase.auto.conf:") {
+			if !strings.Contains(out, "\npending restart: 1\n") || !textRow(out, "max_files_per_process") {
 				t.Errorf("text:\n%s", out)
 			}
 		})
@@ -407,8 +418,7 @@ func TestTable(t *testing.T) {
 		}
 	})
 	t.Run("empty name is a usage error", func(t *testing.T) {
-		// vm() joins arguments for a remote shell: quote so it passes one blank argument
-		if _, code := kbdiagText(t, nil, "table", "' '"); code != 64 {
+		if _, code := kbdiagText(t, nil, "table", " "); code != 64 {
 			t.Errorf("exit=%d", code)
 		}
 	})

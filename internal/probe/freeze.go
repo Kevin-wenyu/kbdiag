@@ -28,12 +28,14 @@ order by age(datfrozenxid) desc, datname`
 // them. The size is relpages × block_size, not pg_total_relation_size: that
 // one takes AccessShareLock on every relation, and a single VACUUM FULL or
 // TRUNCATE (common while fighting wraparound) would fail the whole probe on
-// lock_timeout. Not run on a VM yet.
+// lock_timeout. The schema comes from pg_namespace: KES's sys_namespace hides
+// pg_toast% and pg_temp%, which would drop TOAST and temporary tables, and
+// temporary tables are the ones autovacuum cannot freeze (VM 2026-09-28).
 const freezeTablesSQL = `
 select n.nspname::text || '.' || c.relname::text, c.relkind::text,
        c.relfrozenxid, age(c.relfrozenxid), c.relminmxid, mxid_age(c.relminmxid),
        c.relpages::bigint * current_setting('block_size')::bigint
-from sys_class c join sys_namespace n on n.oid = c.relnamespace
+from sys_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace
 where c.relkind in ('r', 'm', 't') and c.relfrozenxid::text <> '0'
 order by age(c.relfrozenxid) desc, 1`
 

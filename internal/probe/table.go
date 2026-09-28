@@ -25,7 +25,7 @@ select c.oid, n.nspname::text, c.relname::text, c.relkind::text, c.relpersistenc
        c.reloptions::text[],
        case when c.relfrozenxid::text <> '0' then age(c.relfrozenxid) end,
        case when c.relminmxid::text <> '0' then mxid_age(c.relminmxid) end
-from sys_class c join sys_namespace n on n.oid = c.relnamespace
+from sys_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace
 where c.oid = to_regclass($1::text)`
 
 // tableSizeSQL is table.size: the heap is pg_table_size less TOAST, as in

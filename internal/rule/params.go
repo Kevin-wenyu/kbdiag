@@ -25,12 +25,17 @@ func Params(p facts.ParamsChanged) Result {
 		if !x.PendingRestart {
 			continue
 		}
-		where := x.Source
+		// source default: the new value is in a file but not yet in
+		// effect, so the server has no file for it
+		where := ""
 		if x.Sourcefile != nil {
-			where = filepath.Base(*x.Sourcefile)
+			where = " (" + filepath.Base(*x.Sourcefile)
 			if x.Sourceline != nil {
 				where += fmt.Sprintf(":%d", *x.Sourceline)
 			}
+			where += ")"
+		} else if x.Source != "default" {
+			where = " (" + x.Source + ")"
 		}
 		running := orDash(x.Setting)
 		if x.Unit != nil && *x.Unit != "" {
@@ -44,7 +49,7 @@ func Params(p facts.ParamsChanged) Result {
 		fs = append(fs, Finding{
 			ID:    "params.pending_restart",
 			Level: LevelWARN,
-			Symptom: fmt.Sprintf("parameter %s was changed (%s) but the instance still runs with %s: the new value takes effect only after a restart, the next one included",
+			Symptom: fmt.Sprintf("parameter %s was changed%s but the instance still runs with %s: the new value takes effect only after a restart, the next one included",
 				x.Name, where, running),
 			Evidence: []Evidence{{ProbeID: facts.ParamsChangedID, Fields: map[string]any{
 				"name": x.Name, "setting": x.Setting, "sourcefile": x.Sourcefile, "sourceline": x.Sourceline, "context": x.Context,

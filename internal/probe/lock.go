@@ -34,7 +34,7 @@ select l.pid,
 from sys_locks l
 left join sys_stat_activity a on a.pid = l.pid
 left join sys_class c on c.oid = l.relation
-left join sys_namespace n on n.oid = c.relnamespace
+left join pg_catalog.pg_namespace n on n.oid = c.relnamespace
 where l.pid is distinct from sys_backend_pid()
 order by l.pid nulls last, l.granted desc, l.locktype, l.mode, relation`
 

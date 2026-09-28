@@ -11,6 +11,7 @@ func TestParams(t *testing.T) {
 	file, line, v := "/data/kingbase.auto.conf", int32(3), "100"
 	pending := facts.Param{Name: "max_connections", Setting: &v, Source: "configuration file", Sourcefile: &file, Sourceline: &line, Context: "kingbase", PendingRestart: true}
 	clean := facts.Param{Name: "work_mem", Setting: &v, Source: "configuration file", Sourcefile: &file, Sourceline: &line, Context: "user"}
+	fromDefault := facts.Param{Name: "max_files_per_process", Setting: &v, Source: "default", Context: "kingbase", PendingRestart: true}
 	hidden := clean
 	hidden.Sourcefile, hidden.Sourceline = nil, nil
 	cases := []struct {
@@ -26,6 +27,15 @@ func TestParams(t *testing.T) {
 		{"not collected", facts.ParamsChanged{Status: facts.StatusSkipped}, VerdictUNKNOWN, 0},
 		{"nothing changed", facts.ParamsChanged{Status: facts.StatusOK}, VerdictOK, 0},
 	}
+	t.Run("pending from the default", func(t *testing.T) {
+		r := Params(facts.ParamsChanged{Status: facts.StatusOK, Rows: []facts.Param{fromDefault}})
+		if r.Verdict != VerdictWARN || len(r.Findings) != 1 {
+			t.Fatalf("verdict=%s findings=%+v", r.Verdict, r.Findings)
+		}
+		if s := r.Findings[0].Symptom; !strings.HasPrefix(s, "parameter max_files_per_process was changed but the instance still runs with 100:") {
+			t.Errorf("symptom = %q", s)
+		}
+	})
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := Params(c.p)
