@@ -40,3 +40,4 @@
 - 2026-10-07：用户选 A（读 repmgr.conf，在 cluster 里报 `cluster.sync_degraded` WARN），状态 active。
 - 2026-10-07：实现完成（未提交）：probe `cluster.sync`、rule `cluster.sync_degraded`、文本 `synchronous` 段、PRD §5.2 登记、README、CLAUDE.md、queries.md。单元测试：parser、本机判断、文件核对、14 条 rule 用例、6 个 golden、fuzz。两节点完整 e2e 通过；`slot.sh` 注入时实采到 `cluster.detached` + `cluster.sync_degraded`。VM 上暴露的两个问题已修：KES 清空后返回空串而不是 NULL；备库刚回来时 repmgrd 还没切回来的窗口（措辞改成"还没切回来"，`slot.sh` 的 down 等名单恢复）。下一步：code-reviewer 审查（进行中）→ Jev 分诊 → 修 → 提交 → kbdiag-docs cluster 页。SD3（repmgrd 没切回来）要停 repmgrd 才能在 VM 上造，没做，等用户决定。
 - 2026-10-07：审查 8 条处理完（见 chronicle），用户定读不到文件保持 UNKNOWN；两节点 e2e 通过，提交。剩下：kbdiag-docs cluster 页；SD3 的 VM 实测等用户决定。
+- 2026-10-07：kbdiag-docs cluster 页已更新（v2）。计划里的工作都做完了；SD3 的 VM 实测等用户决定，做不做都不挡发布。
