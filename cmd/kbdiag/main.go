@@ -358,8 +358,8 @@ func newCluster(g *globalFlags, stdout io.Writer) *cobra.Command {
 			build := func(skip string, explicit bool) func(*pgx.Conn, facts.Context) *report.Report {
 				return func(x *pgx.Conn, info facts.Context) *report.Report {
 					n, e := probe.ClusterNodes(ctx, x, info), probe.ClusterEvents(ctx, x, info)
-					if explicit && n.Status == facts.StatusNotApplicable {
-						skip = n.Reason // -d names the metadata database, yet it has none
+					if explicit && n.Status == facts.StatusNotApplicable { // -d named the metadata database, yet it has none
+						skip = "no repmgr schema in database " + info.Database + " named by -d; repmgr keeps it in database " + repmgrDB + " by default"
 					}
 					if skip != "" {
 						n = facts.ClusterNodes{Status: facts.StatusSkipped, Reason: skip}
