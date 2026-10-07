@@ -50,7 +50,13 @@ func TestSpaceDiskFull(t *testing.T) {
 		{"segment size not collected", facts.SpaceWAL{Status: facts.StatusSkipped}, mounts(
 			facts.Mount{Kind: "data_directory", Path: "/data", Disk: disk(0, "1")}),
 			VerdictUNKNOWN, nil},
-		{"remote", wal, facts.SpaceDisk{Status: facts.StatusNotApplicable, Reason: "remote connection"}, VerdictOK, nil},
+		// the only judged line could not be checked: not OK
+		{"remote", wal, facts.SpaceDisk{Status: facts.StatusNotApplicable, Reason: "remote connection"}, VerdictUNKNOWN, nil},
+		// a tablespace failed statfs: the data filesystem is still judged
+		{"tablespace failed, data full", wal, facts.SpaceDisk{Status: facts.StatusError, Reason: "statfs /ts/one: no such file or directory",
+			Rows: []facts.Mount{{Kind: "data_directory", Path: "/data", Disk: disk(1*mb, "1")}}}, VerdictFAIL, [][]string{{"/data"}}},
+		{"tablespace failed, data fine", wal, facts.SpaceDisk{Status: facts.StatusError, Reason: "statfs /ts/one: no such file or directory",
+			Rows: []facts.Mount{{Kind: "data_directory", Path: "/data", Disk: disk(50<<30, "1")}}}, VerdictUNKNOWN, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

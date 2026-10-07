@@ -31,10 +31,13 @@ func Display(hidden bool, sts ...facts.Status) Result {
 // on the database. A full tablespace disk stops writes to its tables, not
 // the server, so it is shown only. The segment size comes from space.wal,
 // which kbdiag_ro cannot collect: then the line is not judged (UNKNOWN).
+// Over a remote connection the disks are not_applicable, and the line is
+// not judged either, so that is UNKNOWN too, not OK. A tablespace that
+// could not be statted leaves the data and WAL rows to judge.
 func Space(d facts.InstDatabases, t facts.SpaceTablespaces, w facts.SpaceWAL, disk facts.SpaceDisk) Result {
-	hidden := len(d.Redacted())+len(t.Redacted()) > 0
+	hidden := len(d.Redacted())+len(t.Redacted()) > 0 || disk.Status == facts.StatusNotApplicable
 	r := Display(hidden, d.Status, t.Status, w.Status, disk.Status)
-	if disk.Status != facts.StatusOK || w.Status != facts.StatusOK || len(w.Rows) == 0 || w.Rows[0].WALSegmentBytes == nil {
+	if len(disk.Rows) == 0 || w.Status != facts.StatusOK || len(w.Rows) == 0 || w.Rows[0].WALSegmentBytes == nil {
 		return r
 	}
 	seg := *w.Rows[0].WALSegmentBytes

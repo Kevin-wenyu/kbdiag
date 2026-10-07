@@ -63,7 +63,7 @@ func tableFacts(t *testing.T, node string) (facts.Context, facts.TableInfos, fac
 				break
 			}
 		}
-		ix.Rows = append(ix.Rows, facts.TableIndex{Name: name, Definition: def, Bytes: *kI64(t, m["size"]), IsUnique: kBool(m["indisunique"]),
+		ix.Rows = append(ix.Rows, facts.TableIndex{Name: name, Definition: def, Bytes: kI64(t, m["size"]), IsUnique: kBool(m["indisunique"]),
 			IsPrimary: kBool(m["indisprimary"]), IsValid: kBool(m["indisvalid"]), IdxScan: scans[name]})
 	}
 	// the probe orders by name
@@ -122,7 +122,7 @@ func TestTableTextEdges(t *testing.T) {
 		Reloptions: []string{"autovacuum_enabled=false", "fillfactor=70"}, XIDAge: &old, MXIDAge: &mx}}}
 	sizes := facts.TableSizes{Status: facts.StatusOK, Rows: []facts.TableSize{{TotalBytes: 5 << 30, TableBytes: 4 << 30, IndexBytes: 1 << 30}}}
 	st := facts.TableStats{Status: facts.StatusOK, Rows: []facts.TableStat{{NLiveTup: 1e6, NDeadTup: 600_000, LastAutovacuumAgeS: f64(8 * 86400), AutovacuumCount: 3}}}
-	ix := facts.TableIndexes{Status: facts.StatusOK, Rows: []facts.TableIndex{{Name: "q_idx", Definition: "CREATE INDEX q_idx ON app.\"Q\" USING btree (a)", Bytes: 1 << 30, IsValid: false}}}
+	ix := facts.TableIndexes{Status: facts.StatusOK, Rows: []facts.TableIndex{{Name: "q_idx", Definition: "CREATE INDEX q_idx ON app.\"Q\" USING btree (a)", Bytes: i64(1 << 30), IsValid: false}}}
 	rep, _ = Table(c, info, sizes, st, ix, freezeLimitsLab(), vacuumSettingsLab())
 	assertGolden(t, "table_edges", rep)
 	if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 2 {

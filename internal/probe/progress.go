@@ -21,7 +21,9 @@ import (
 // Running time is from xact_start, as vacuum.progress (a manual VACUUM of
 // several tables runs one transaction per table). A masked row has phase,
 // relid and counters NULL (PG12); backend_type is masked too, so such a
-// VACUUM is not called manual or autovacuum. Not run on a VM yet.
+// VACUUM is not called manual or autovacuum, and CREATE INDEX and CLUSTER
+// have a NULL command (VM 2026-10-07: kbdiag_ro scanning NULL failed the
+// whole probe), so it is written as the two commands the view can mean.
 const progressListSQL = `
 select * from (
   select p.pid,
@@ -39,7 +41,7 @@ select * from (
          null::bigint
   from sys_stat_progress_vacuum p left join sys_stat_activity a on a.pid = p.pid
   union all
-  select p.pid, p.command::text, p.datname::text,
+  select p.pid, coalesce(p.command::text, 'CREATE INDEX or REINDEX'), p.datname::text,
          case when p.datname = current_database() then p.relid::regclass::text else p.relid::text end,
          p.phase::text,
          case when p.tuples_total > 0 then p.tuples_done else p.blocks_done end::bigint,
@@ -49,7 +51,7 @@ select * from (
          (p.lockers_total - p.lockers_done)::bigint
   from sys_stat_progress_create_index p left join sys_stat_activity a on a.pid = p.pid
   union all
-  select p.pid, p.command::text, p.datname::text,
+  select p.pid, coalesce(p.command::text, 'CLUSTER or VACUUM FULL'), p.datname::text,
          case when p.datname = current_database() then p.relid::regclass::text else p.relid::text end,
          p.phase::text,
          case when p.heap_blks_total > 0 then p.heap_blks_scanned else p.heap_tuples_scanned end::bigint,

@@ -235,5 +235,13 @@ func number(v any) (float64, bool) {
 }
 
 // size and duration are the shared human units (internal/units).
-func size(b float64) string     { return units.Bytes(b) }
+func size(b float64) string { return units.Bytes(b) }
+
+// sizeOf is size for a nullable column: "-" when NULL.
+func sizeOf(b *int64) string {
+	if b == nil {
+		return "-"
+	}
+	return size(float64(*b))
+}
 func duration(s float64) string { return units.Duration(s) }

@@ -42,11 +42,19 @@ func TestSpaceDisk(t *testing.T) {
 		t.Errorf("status=%s rows=%d", d.Status, len(d.Rows))
 	}
 
-	// a directory that cannot be statted fails the probe, never drops a row
+	// a tablespace that cannot be statted fails the probe but keeps the
+	// data and WAL rows, which can still be judged
 	fail = "/ts/one"
-	if d := SpaceDisk(info, ts, true, false); d.Status != facts.StatusError || !strings.Contains(d.Reason, "/ts/one") || len(d.Rows) != 0 {
+	if d := SpaceDisk(info, ts, true, false); d.Status != facts.StatusError || !strings.Contains(d.Reason, "/ts/one") || len(d.Rows) != 2 || d.Rows[1].Kind != "wal" {
 		t.Errorf("status=%s reason=%q rows=%d", d.Status, d.Reason, len(d.Rows))
 	}
+
+	// the WAL directory failing leaves nothing to judge
+	fail = "/data/sys_wal"
+	if d := SpaceDisk(info, ts, true, false); d.Status != facts.StatusError || !strings.Contains(d.Reason, "sys_wal") || len(d.Rows) != 0 {
+		t.Errorf("status=%s reason=%q rows=%d", d.Status, d.Reason, len(d.Rows))
+	}
+	fail = ""
 
 	// remote: same rules as inst.disk, nothing statted
 	statted = nil

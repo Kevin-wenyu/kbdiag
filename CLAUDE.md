@@ -156,7 +156,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 场景表：SP1 磁盘还剩多少、是哪块盘在满；SP2 哪个库最大；SP3 表空间各多大、在哪；SP4 WAL 目录多大、有没有超出配置该有的量。不归 space：表和索引 → `top-objects`；单表 → `table`；谁保留了 WAL → `slots`、`archive`、`wal`；数据目录那块盘的一行摘要 → `status`。
 
-- **只判一条 FAIL：数据目录或 WAL 目录所在文件系统的可用空间不到一个 WAL 段**（`space.disk_full`，用户 2026-09-27 定）：WAL 所在盘上建不出新段，只能复用旧段，旧段用完实例就停；数据目录所在盘上表、事务状态文件、临时文件马上长不了（报 ERROR，实例不停）。symptom 按这个盘上有什么分别写（阶段审查指出原来一律说"实例会停"不对）。严格说是"马上就会受影响"，按用户定报 FAIL：离失败只差一个段，没有余地再观察。剩多少算少的其余情况因库而异，只展示。只看数据目录和 WAL：表空间所在盘满了只影响那些表，不让实例停，只展示。段大小来自 `space.wal`，kbdiag_ro 采不到，这时不判（本来就是 UNKNOWN）。每个文件系统一条，和文本一样按 `st_dev` 合并；avail 是非 root 可用的量，kingbase 用户就只能用这么多。L6 造不出来（要真把数据盘填满），只有 L1/L2。status 的 `inst.disk` 仍只展示，没改。
+- **只判一条 FAIL：数据目录或 WAL 目录所在文件系统的可用空间不到一个 WAL 段**（`space.disk_full`，用户 2026-09-27 定）：WAL 所在盘上建不出新段，只能复用旧段，旧段用完实例就停；数据目录所在盘上表、事务状态文件、临时文件马上长不了（报 ERROR，实例不停）。symptom 按这个盘上有什么分别写（阶段审查指出原来一律说"实例会停"不对）。严格说是"马上就会受影响"，按用户定报 FAIL：离失败只差一个段，没有余地再观察。剩多少算少的其余情况因库而异，只展示。只看数据目录和 WAL：表空间所在盘满了只影响那些表，不让实例停，只展示。段大小来自 `space.wal`，kbdiag_ro 采不到，这时不判（本来就是 UNKNOWN）。每个文件系统一条，和文本一样按 `st_dev` 合并；avail 是非 root 可用的量，kingbase 用户就只能用这么多。L6 造不出来（要真把数据盘填满），只有 L1/L2。status 的 `inst.disk` 仍只展示，没改。**远程运行是 UNKNOWN，不是 OK**（审查 2026-10-07）：盘读不到，唯一的判定没做，说 OK 就是假装；status 不受影响，因为它的 `inst.disk` 本来就不参与判定。**某个表空间 statfs 失败（没挂载、目录删了）时保留数据目录和 WAL 两行照样判**：probe 记 error（JSON 照规矩不给行），能判出 FAIL 就是 FAIL，否则 UNKNOWN；原来整条 probe 报错，盘满了反而只给 UNKNOWN。
 - **`space.disk` 是第二个 statfs 例外**：space 的问题就是"哪块盘在满"，而 `sys_wal` 常是指向另一块盘的符号链接，表空间也可以在别的盘上；只看数据目录（`inst.disk`）答不了。按目录的设备号（`st_dev`，跟随符号链接；statfs 的 fsid 在有些文件系统上是 0，靠不住）把同一文件系统上的目录合成一行；本机判断和 `inst.disk` 完全相同（复用它）。
 - **表空间大小按权限用 CASE 包住**：kbdiag_ro 调 `pg_tablespace_size(sys_global)` 会让整条 SQL 失败（阶段 0 实采），包住之后看不到的只是 NULL，记 `redacted[]`。
 - **WAL 只给参照，不下结论**：超过 `max_wal_size` 加 `wal_keep_segments × wal_segment_size` 时（PG12 的保留量大约是这两者加上最近检查点以来的 WAL，只超过其中一个是常态），文本提示去看 slots、archive；`max_wal_size` 是软上限，超出不等于故障。kbdiag_ro 调不了 `sys_ls_waldir`，这一块是 skipped，所以 kbdiag_ro 下 space 是 UNKNOWN。
@@ -227,7 +227,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 - **repmgr 的看法对照数据库自己的看法，四条都是 WARN**：两个 active 的 primary、inactive 节点、本节点类型和恢复角色不一致、主库上该挂上来的备库没挂上来。repmgr 按元数据做切换，不一致是隐患，业务此刻还没受影响；是不是真脑裂要到各节点上跑 status，所以不给 FAIL。
 - **本节点先问 repmgr 的 `get_local_node_id()`，再按 `primary_slot_name` 认**：repmgr 给节点 N 的槽叫 `repmgr_slot_N`，在克隆或 rejoin 时写进节点 N 的 `primary_slot_name`（阶段 0 两节点都是；node1 的是当备库时留下的），从没当过备库的主库可能没有，所以先问函数（repmgrd 设的，可能没有，未实采）。认不出来就不做角色对照，verdict 不说 OK。
-- **没给 `-d` 时连 `esrep`**：元数据在那个库，而 kbdiag 只占一个连接（N-02），不同时开两个连接。没有 `esrep` 库（3D000）时退回默认库，不给 69（69 只表示连不上实例）；当前库没有 repmgr schema 时 `not_applicable`（不是 repmgr 集群，或者元数据在别的库）。
+- **没给 `-d` 时连 `esrep`**：元数据在那个库，而 kbdiag 只占一个连接（N-02），不同时开两个连接。没有 `esrep` 库（3D000）时退回默认库，不给 69（69 只表示连不上实例）；当前库没有 repmgr schema 时 `not_applicable`（不是 repmgr 集群，或者元数据在别的库）。**`esrep` 拒绝这个用户（pg_hba、CONNECT 权限，任何服务器返回的错误）时也退回默认库**，但两个元数据 probe 记 skipped、写明 esrep 的错误，verdict UNKNOWN：实例是通的，不能给 69（审查 2026-10-07）。**显式给了 `-d` 而那个库没有 repmgr schema 时是 skipped（UNKNOWN），不是 not_applicable**：用户指名了元数据库，没找到就是没看到，不能说集群 OK；只有默认路径（没有 `esrep` 库）才能推断"不是 repmgr 集群"。
 - **不调 repmgr 二进制**（和不调 ksql 同一个理由），所以 `repmgr cluster show` 的 Status 列（逐个连节点）做不了，文本和 next 指到各节点跑 `kbdiag status`。
 - conninfo 不采：可能带密码。
 
@@ -250,7 +250,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **找不到是 UNKNOWN（3），不是用法错误（64）**：表可能在别的库里（stderr 提示 `-d`），同 `session <pid>` 找不到 pid；只有空名字是 64。
 - 备库上统计不适用（节点本地），索引扫描次数给 NULL 而不是 0；年龄照判（复制过来的）。
 - 块命中率保留一位小数：几次读盘不该被四舍五入成 100%。
-- **解析不加锁，大小单独一个 probe**（阶段 10 审查）：有人看这张表时，它常常正被 VACUUM FULL 之类锁住；大小函数等到 lock_timeout 时只丢大小，别的照常，文本指向 `kbdiag locks`。堆大小和 top-objects 用同一个定义（`pg_table_size` 减 TOAST），同一张表两处数字一致。
+- **解析不加锁，大小单独一个 probe**（阶段 10 审查）：有人看这张表时，它常常正被 VACUUM FULL 之类锁住；大小函数等到 lock_timeout 时只丢大小，别的照常，文本指向 `kbdiag locks`。堆大小和 top-objects 用同一个定义（`pg_table_size` 减 TOAST），同一张表两处数字一致。**索引大小也只在 `table.size` 读到时才读**（审查 2026-10-07）：`pg_relation_size` 对每个索引加锁，VACUUM FULL、CLUSTER、TRUNCATE 独占着索引，原来索引列表也跟着丢；现在大小读不到时 `bytes` 是 NULL（文本 `-`），列表和定义照常。
 
 ### top（2026-09-27）
 
@@ -272,6 +272,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **只展示**：多久算慢没有客观线；vacuum 该不该跑由 `vacuum` 判。
 - CREATE INDEX CONCURRENTLY 还在等事务时，阶段后面写还剩几个、指向 `kbdiag locks`：这正是它"卡住"的常见原因。
 - 没有 ANALYZE 和 basebackup 的进度视图（V8R6，阶段 0），空的时候文本写明查了哪几种。
+- **被遮蔽的 CREATE INDEX、CLUSTER 行写成 `CREATE INDEX or REINDEX`、`CLUSTER or VACUUM FULL`**（审查 2026-10-07，VM 实测）：kbdiag_ro 看别人的这两种操作时 `command` 是 NULL，原来整条 probe 报错，连看得到的 VACUUM 也一起丢了；和遮蔽的 VACUUM 写 `VACUUM or autovacuum` 同一个做法。
 
 ### checkpoint（2026-09-27）
 
@@ -327,7 +328,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - 系统视图前缀 `sys_`：`sys_stat_activity`、`sys_locks`、`sys_stat_replication` 等；函数 `sys_`/`pg_` 两套并存时优先 `sys_`
 - Size 函数只有 `pg_` 前缀：`pg_relation_size`、`pg_total_relation_size`、`pg_database_size`
 - 本地 socket 是 `/tmp/.s.KINGBASE.54321`，不是 `.s.PGSQL.54321`
-- `database_mode=oracle`：`''` 当 NULL（`ora_input_emptystr_isnull=on`）；`||` 把 NULL 当空串（`NULL || '/'` 得 `'/'`），不能靠 `coalesce(a||b, fallback)` 兜底，要用 CASE 显式判断
+- `database_mode=oracle`：`''` 当 NULL（`ora_input_emptystr_isnull=on`）；`||` 把 NULL 当空串（`NULL || '/'` 得 `'/'`），不能靠 `coalesce(a||b, fallback)` 兜底，要用 CASE 显式判断；`greatest`/`least` 有一个参数是 NULL 就返回 NULL（`greatest(1, null)` 是 NULL，2026-10-07 实测，PG 会忽略 NULL），同样用 CASE
 - ksql 输出布尔值是 `t`/`f`（旧 shell 版 CLAUDE.md 写的 `true`/`false` 不对）；脚本比较时两种都接受
 - interval 返回 KES 自有格式文本（`+000000002 17:10:03.47`）：一律在 SQL 里 `extract(epoch ...)` 转成秒数
 - `sysdate` 不带时区：时间一律用 `now()` 或 timestamptz

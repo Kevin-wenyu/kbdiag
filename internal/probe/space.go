@@ -3,6 +3,7 @@ package probe
 import (
 	"context"
 	"path/filepath"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -90,15 +91,26 @@ func SpaceDisk(i facts.InstInfo, t facts.SpaceTablespaces, socket, loopback bool
 			}
 		}
 	}
+	// A tablespace that cannot be statted (unmounted, removed) fails the
+	// probe but keeps the rows already read: the data and WAL filesystems
+	// can still be judged.
+	var bad []string
 	for _, p := range paths {
 		d, err := statfs(p[1])
 		if err == nil {
 			d.FSID, err = deviceOf(p[1])
 		}
 		if err != nil {
-			return facts.SpaceDisk{Status: facts.StatusError, Reason: err.Error()}
+			if p[0] != "tablespace" {
+				return facts.SpaceDisk{Status: facts.StatusError, Reason: err.Error()}
+			}
+			bad = append(bad, err.Error())
+			continue
 		}
 		out = append(out, facts.Mount{Kind: p[0], Path: p[1], Disk: d})
+	}
+	if len(bad) > 0 {
+		return facts.SpaceDisk{Status: facts.StatusError, Reason: strings.Join(bad, "; "), Rows: out}
 	}
 	return facts.SpaceDisk{Status: facts.StatusOK, Rows: out}
 }

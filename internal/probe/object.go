@@ -19,7 +19,7 @@ import (
 // and is cast. The heap is pg_table_size less TOAST, so it includes the
 // free space and visibility maps and the three parts add up to the total.
 // A relation dropped while the query runs reads NULL (try_relation_open)
-// and is left out. The size functions take AccessShareLock on each relation, so
+// and is left out, whichever size function saw it gone first. The size functions take AccessShareLock on each relation, so
 // a relation held under AccessExclusiveLock (VACUUM FULL, TRUNCATE, most
 // ALTER TABLE) stops the probe at lock_timeout: it is then skipped with
 // that reason, never shown partly. Not run on a VM yet.
@@ -27,13 +27,13 @@ const objectTablesSQL = `
 select * from (
   select n.nspname::text, c.relname::text, c.relkind::text,
          pg_total_relation_size(c.oid) as total,
-         pg_table_size(c.oid) - coalesce(case when c.reltoastrelid <> 0 then pg_total_relation_size(c.reltoastrelid) end, 0),
-         pg_indexes_size(c.oid),
+         pg_table_size(c.oid) - coalesce(case when c.reltoastrelid <> 0 then pg_total_relation_size(c.reltoastrelid) end, 0) as heap,
+         pg_indexes_size(c.oid) as idx,
          case when c.reltoastrelid <> 0 then pg_total_relation_size(c.reltoastrelid) end,
          c.reltuples::bigint
   from sys_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace
   where c.relkind in ('r', 'p', 'm')) x
-where total is not null
+where total is not null and heap is not null and idx is not null
 order by 4 desc, 1, 2`
 
 // objectIndexesSQL is object.indexes: every index of the current database

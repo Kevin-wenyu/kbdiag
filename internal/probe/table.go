@@ -2,6 +2,7 @@ package probe
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 
@@ -56,9 +57,13 @@ from sys_stat_user_tables s left join sys_statio_user_tables io on io.relid = s.
 where s.relid = $1::oid`
 
 // tableIndexesSQL is table.indexes (stage 0 capture table_*_indexes,
-// table_*_idxstat). idx_scan is node-local: NULL on a standby.
+// table_*_idxstat). idx_scan is node-local: NULL on a standby. %s is the
+// size: pg_relation_size locks each index, and VACUUM FULL, CLUSTER and
+// TRUNCATE hold them exclusively, so when table.size could not be read
+// the sizes are left NULL and the list still comes back (review
+// 2026-10-07).
 const tableIndexesSQL = `
-select c.relname::text, pg_get_indexdef(i.indexrelid), pg_relation_size(i.indexrelid),
+select c.relname::text, pg_get_indexdef(i.indexrelid), %s,
        i.indisunique, i.indisprimary, i.indisvalid,
        case when not sys_is_in_recovery() then s.idx_scan end
 from sys_index i
@@ -110,8 +115,13 @@ func TableStats(ctx context.Context, x *pgx.Conn, c facts.Context, oid uint32) f
 	return facts.TableStats{Status: st, Reason: reason, Rows: out}
 }
 
-func TableIndexes(ctx context.Context, x *pgx.Conn, oid uint32) facts.TableIndexes {
-	st, reason, out := collectArgs(ctx, x, tableIndexesSQL, []any{oid}, func(r pgx.CollectableRow) (facts.TableIndex, error) {
+// TableIndexes lists the indexes; sizes says whether to read their sizes.
+func TableIndexes(ctx context.Context, x *pgx.Conn, oid uint32, sizes bool) facts.TableIndexes {
+	size := "null::bigint"
+	if sizes {
+		size = "pg_relation_size(i.indexrelid)"
+	}
+	st, reason, out := collectArgs(ctx, x, fmt.Sprintf(tableIndexesSQL, size), []any{oid}, func(r pgx.CollectableRow) (facts.TableIndex, error) {
 		var i facts.TableIndex
 		err := r.Scan(&i.Name, &i.Definition, &i.Bytes, &i.IsUnique, &i.IsPrimary, &i.IsValid, &i.IdxScan)
 		return i, err

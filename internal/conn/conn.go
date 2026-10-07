@@ -90,6 +90,13 @@ func MissingDatabase(err error) bool {
 	return errors.As(err, &pe) && pe.Code == "3D000"
 }
 
+// ServerError says the server answered with an error (it is reachable),
+// as opposed to a network failure.
+func ServerError(err error) bool {
+	var pe *pgconn.PgError
+	return errors.As(err, &pe)
+}
+
 func connConfig(c Config) (*pgx.ConnConfig, error) {
 	cc, err := pgx.ParseConfig(c.dsn())
 	if err != nil {

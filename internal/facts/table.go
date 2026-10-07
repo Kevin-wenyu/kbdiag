@@ -94,7 +94,7 @@ type TableStats struct {
 type TableIndex struct {
 	Name       string
 	Definition string
-	Bytes      int64
+	Bytes      *int64 // NULL when the index is locked (table.size not read)
 	IsUnique   bool
 	IsPrimary  bool
 	IsValid    bool

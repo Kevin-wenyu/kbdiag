@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // v0.2 commands (plan 2026-09-27). Written in the cloud session without a
-// VM: every assertion here is listed in the plan's stage 13 checklist and
-// has not run yet.
+// VM; first run on both nodes in stage 13 (2026-09-28).
 
 var (
 	spaceDiskColumns   = []string{"path_kind", "path", "total_bytes", "used_bytes", "avail_bytes"}
@@ -70,9 +70,13 @@ func TestSpace(t *testing.T) {
 		if ip == "" {
 			t.Skipf("no internal IP known for %s", node)
 		}
-		r, _ := kbdiag(t, roEnv, "space", "--host", ip, "-U", "kbdiag_ro")
+		r, code := kbdiag(t, roEnv, "space", "--host", ip, "-U", "kbdiag_ro")
 		if p := r.Data["space.disk"]; p.Status != "not_applicable" || p.Reason == nil || *p.Reason != "remote connection" {
 			t.Errorf("space.disk = %+v", p)
+		}
+		// the disks were not checked, so space must not say OK
+		if r.Verdict != "UNKNOWN" || code != 3 {
+			t.Errorf("verdict=%s exit=%d", r.Verdict, code)
 		}
 	})
 	t.Run("kbdiag_ro", func(t *testing.T) {
@@ -358,9 +362,10 @@ func TestCluster(t *testing.T) {
 		t.Errorf("local=%d verdict=%s exit=%d findings=%+v", local, r.Verdict, code, r.Findings)
 	}
 
+	// -d names the metadata database; one without it is not "no cluster"
 	t.Run("-d test has no repmgr schema", func(t *testing.T) {
 		r, code := kbdiag(t, nil, "cluster", "-d", "test")
-		if p := r.Data["cluster.nodes"]; p.Status != "not_applicable" || r.Verdict != "OK" || code != 0 {
+		if p := r.Data["cluster.nodes"]; p.Status != "skipped" || r.Verdict != "UNKNOWN" || code != 3 {
 			t.Errorf("nodes=%+v verdict=%s exit=%d", p, r.Verdict, code)
 		}
 	})
@@ -494,6 +499,31 @@ func TestProgress(t *testing.T) {
 	t.Run("kbdiag_ro may read the views", func(t *testing.T) {
 		r, _ := kbdiag(t, roEnv, append([]string{"progress"}, roArgs...)...)
 		okProbe(t, r, "progress.list", progressColumns)
+	})
+	// kbdiag_ro sees another user's CREATE INDEX with command NULL; that
+	// row used to fail the whole probe (review 2026-10-07)
+	t.Run("kbdiag_ro sees a masked CREATE INDEX", func(t *testing.T) {
+		if r, _ := kbdiag(t, nil, "progress"); r.Context.Role != "primary" {
+			t.Skip("CREATE INDEX needs the primary")
+		}
+		build := vm("ksql", "-d", "test", "-U", "system", "-p", "54321", "-c", "create index kbdiag_e2e_idx on public.orders(md5(id::text))")
+		if err := build.Start(); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			_ = build.Wait()
+			ksql(t, "drop index if exists public.kbdiag_e2e_idx")
+		}()
+		for start := time.Now(); ksql(t, "select count(*) from sys_stat_progress_create_index") == "0"; {
+			if time.Since(start) > 20*time.Second {
+				t.Fatal("CREATE INDEX never showed up in sys_stat_progress_create_index")
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		r, _ := kbdiag(t, roEnv, append([]string{"progress"}, roArgs...)...)
+		if okProbe(t, r, "progress.list", progressColumns).row("command", "CREATE INDEX or REINDEX") == nil {
+			t.Errorf("no masked CREATE INDEX row: %+v", r.Data["progress.list"])
+		}
 	})
 }
 

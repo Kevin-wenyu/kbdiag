@@ -17,10 +17,13 @@ import (
 // 动态性能视图 sys_stat_replication; 备份控制函数 sys_current_wal_lsn,
 // sys_last_wal_replay_lsn, sys_wal_lsn_diff). Stage 0 capture
 // (repl_*_stat): the lag intervals are NULL on an idle, caught-up standby;
-// kbdiag_ro sees every column. Not run on a VM yet.
+// kbdiag_ro sees every column. greatest() is not used: in KES oracle mode it
+// is NULL if any argument is (VM 2026-10-07), and receive is NULL on a
+// standby fed only from the archive.
 const replDownstreamsSQL = `
-with cur as (select case when sys_is_in_recovery() then greatest(sys_last_wal_receive_lsn(), sys_last_wal_replay_lsn())
-                         else sys_current_wal_lsn() end as lsn)
+with pos as (select sys_last_wal_receive_lsn() as rcv, sys_last_wal_replay_lsn() as rpl),
+cur as (select case when not sys_is_in_recovery() then sys_current_wal_lsn()
+                    when rcv is null or rcv < rpl then rpl else rcv end as lsn from pos)
 select r.pid, r.application_name::text, host(r.client_addr), r.state::text, r.sync_state::text, r.sync_priority,
        r.sent_lsn::text, r.write_lsn::text, r.flush_lsn::text, r.replay_lsn::text,
        sys_wal_lsn_diff(cur.lsn, r.sent_lsn)::bigint,

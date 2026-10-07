@@ -183,7 +183,7 @@ func (t *tableView) writeIndexes(w io.Writer) error {
 		if len(kind) > 0 {
 			k = strings.Join(kind, ", ")
 		}
-		rows = append(rows, []string{escapeControl(i.Name), size(float64(i.Bytes)), cell(i.IdxScan), k, fitWidth(escapeControl(i.Definition), 120)})
+		rows = append(rows, []string{escapeControl(i.Name), sizeOf(i.Bytes), cell(i.IdxScan), k, fitWidth(escapeControl(i.Definition), 120)})
 	}
 	return writeTable(w, "  ", []string{"name", "size", "scans", "kind", "definition"}, rows)
 }

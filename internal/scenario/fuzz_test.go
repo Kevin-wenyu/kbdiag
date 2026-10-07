@@ -82,7 +82,7 @@ func v02Reports(s string, n int64, f float64, null bool) []*report.Report {
 	tbl, _ := Table(c, facts.TableInfos{Status: ok, Rows: []facts.TableInfo{{Schemaname: s, Relname: s, Relkind: "r", Relpersistence: s, Reltuples: float32(f), Reloptions: []string{s}, XIDAge: pi32(), MXIDAge: pi32()}}},
 		facts.TableSizes{Status: ok, Rows: []facts.TableSize{{TotalBytes: n, ToastBytes: pi()}}},
 		facts.TableStats{Status: ok, Rows: []facts.TableStat{{NDeadTup: n, LastVacuumAgeS: pf(), IdxScan: pi(), HeapBlksRead: pi(), HeapBlksHit: pi()}}},
-		facts.TableIndexes{Status: ok, Rows: []facts.TableIndex{{Name: s, Definition: s, Bytes: n, IdxScan: pi()}}},
+		facts.TableIndexes{Status: ok, Rows: []facts.TableIndex{{Name: s, Definition: s, Bytes: pi(), IdxScan: pi()}}},
 		facts.FreezeLimits{Status: ok, Rows: []facts.FreezeLimit{{FreezeMaxAge: n}}}, facts.VacuumSettings{Status: ok, Rows: []facts.VacuumSetting{{Autovacuum: s, TrackCounts: s, Threshold: n, ScaleFactor: f}}})
 	out = append(out, tbl)
 	out = append(out, Top(c, facts.SQLTop{Status: ok, Track: s, Rows: []facts.Statement{{QueryID: pi(), Username: p(), Datname: p(), Calls: n, TotalExecS: f, MeanExecS: f, Query: p()}}}, TopOptions{By: "time"}))

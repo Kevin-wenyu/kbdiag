@@ -353,22 +353,40 @@ func newCluster(g *globalFlags, stdout io.Writer) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			build := func(x *pgx.Conn, info facts.Context) *report.Report {
-				return scenario.Cluster(info, probe.ClusterNodes(ctx, x, info), probe.ClusterEvents(ctx, x, info), probe.InstDownstreams(ctx, x))
+			// skip, when set, replaces the metadata probes: kbdiag could
+			// not read them, and must not call the cluster OK.
+			build := func(skip string, explicit bool) func(*pgx.Conn, facts.Context) *report.Report {
+				return func(x *pgx.Conn, info facts.Context) *report.Report {
+					n, e := probe.ClusterNodes(ctx, x, info), probe.ClusterEvents(ctx, x, info)
+					if explicit && n.Status == facts.StatusNotApplicable {
+						skip = n.Reason // -d names the metadata database, yet it has none
+					}
+					if skip != "" {
+						n = facts.ClusterNodes{Status: facts.StatusSkipped, Reason: skip}
+						e = facts.ClusterEvents{Status: facts.StatusSkipped, Reason: skip}
+					}
+					return scenario.Cluster(info, n, e, probe.InstDownstreams(ctx, x))
+				}
 			}
 			if f := cmd.Flag("dbname"); f != nil && f.Changed {
-				return diagnose(ctx, g, stdout, build)
+				return diagnose(ctx, g, stdout, build("", true))
 			}
 			// no esrep database: not a KES repmgr cluster; the default
-			// database then says so (no repmgr schema: not_applicable)
+			// database then says so (no repmgr schema: not_applicable).
+			// esrep refusing this user (pg_hba, CONNECT) is not exit 69:
+			// the instance answered, so report from the default database.
 			cg := *g
 			cg.cfg.DBName = repmgrDB
-			if x, err := conn.Open(ctx, cg.cfg); err == nil {
+			x, err := conn.Open(ctx, cg.cfg)
+			switch {
+			case err == nil:
 				x.Close(ctx)
-			} else if conn.MissingDatabase(err) {
-				return diagnose(ctx, g, stdout, build)
+			case conn.MissingDatabase(err):
+				return diagnose(ctx, g, stdout, build("", false))
+			case conn.ServerError(err):
+				return diagnose(ctx, g, stdout, build("cannot connect to database "+repmgrDB+": "+err.Error(), false))
 			}
-			return diagnose(ctx, &cg, stdout, build)
+			return diagnose(ctx, &cg, stdout, build("", false))
 		},
 	}
 }
@@ -409,13 +427,14 @@ func newTable(g *globalFlags, stdout, stderr io.Writer) *cobra.Command {
 				ix := facts.TableIndexes{Status: st, Reason: reason}
 				if i.Status == facts.StatusOK && len(i.Rows) == 1 && scenario.TableKinds[i.Rows[0].Relkind] {
 					oid := i.Rows[0].OID
-					z, s, ix = probe.TableSize(ctx, x, oid), probe.TableStats(ctx, x, info, oid), probe.TableIndexes(ctx, x, oid)
+					z, s = probe.TableSize(ctx, x, oid), probe.TableStats(ctx, x, info, oid)
+					ix = probe.TableIndexes(ctx, x, oid, z.Status == facts.StatusOK)
 				}
 				rep, found := scenario.Table(info, i, z, s, ix, probe.FreezeLimits(ctx, x), probe.VacuumSettings(ctx, x))
 				switch {
 				case found:
 				case len(i.Rows) == 0:
-					fmt.Fprintf(stderr, "kbdiag: no table %q in database %s (unquoted names fold to lower case; quote them as in SQL: '\"Name\"'; use -d for another database)\n", name, info.Database)
+					fmt.Fprintf(stderr, "kbdiag: no table %q in database %q (unquoted names fold to lower case; quote them as in SQL: '\"Name\"'; use -d for another database)\n", name, info.Database)
 				default:
 					fmt.Fprintf(stderr, "kbdiag: %q is not a table (relkind %s)\n", name, i.Rows[0].Relkind)
 				}
