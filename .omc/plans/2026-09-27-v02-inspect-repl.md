@@ -196,6 +196,7 @@
 - 2026-09-27：用户拍板（"A1 选 B，A2 加，其余按建议"，见附录 B.17）：卡住的 walreceiver 报 WARN、`space.disk_full` FAIL 已实现（云会话，`v02: decisions ...`）。下一步：阶段 13（本地 VM）
 - 2026-09-27：用户要求合进 main，云分支已快进合入（阶段 13 之前，VM 未验证）；没打 tag，没动 kbdiag-docs。下一步：阶段 13 在 main 上做
 - 2026-09-27：用户追加范围（top-objects、table、top，阶段 9–11），收口改为阶段 12、本地 VM 收尾改为阶段 13；补采这三条；明确云会话一口气做到阶段 12
+- 2026-10-07：阶段 13 收尾（本地）：#6 停止线反汇编核实；queries.md 验证状态；code-reviewer 代替 Codex 审查 + Jev 分诊，9 条全部修完（`f76d9fe`、`96c874f`），两节点 e2e 通过；kbdiag-docs `v2` 14 条命令页（`5379790` 起）。剩下的只有审批门槛：alpha.3 tag、kbdiag-docs 合 main，等用户
 
 ## 附录 B：场景表（阶段 1 写）
 
