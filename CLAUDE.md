@@ -166,7 +166,7 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 
 场景表：FZ1 离事务号回卷还有多远；FZ2 哪些表最老；FZ3 为什么冻结推不动 → next 指向 `txn`、`slots`；FZ4 别的库 → `kbdiag -d <库> freeze`。不归 freeze：谁压着视界 → `txn`、`slots`；死元组 → `vacuum`；单表 → `table`。
 
-- **两条线都来自服务器，不设 kbdiag 自己的阈值**（修 GAP-6"冻结阈值两处来源不同"）：WARN 是 `autovacuum_freeze_max_age`（到这里 autovacuum 就该强制冻结，平时年龄会被压在线下，超过说明它正在跑或推不动）；FAIL 是停止线（PG12：xid 在回卷线 2^31 − 1 之前 100 万，multixact 之前 100；服务器拒绝分配，写事务失败）。停止线是 PG12 内核的常数（PG14 才改成 300 万，起草时写错过，审查纠正），KES 是否相同没核实，写在 `facts` 一处。
+- **两条线都来自服务器，不设 kbdiag 自己的阈值**（修 GAP-6"冻结阈值两处来源不同"）：WARN 是 `autovacuum_freeze_max_age`（到这里 autovacuum 就该强制冻结，平时年龄会被压在线下，超过说明它正在跑或推不动）；FAIL 是停止线（PG12：xid 在回卷线 2^31 − 1 之前 100 万，multixact 之前 100；服务器拒绝分配，写事务失败）。停止线是 PG12 内核的常数（PG14 才改成 300 万，起草时写错过，审查纠正），KES V8R6 相同（2026-10-07 反汇编 `kingbase` 二进制核实：`TransactionIdLimitSet` 减 `0xf4240`，`MultiTransactionIdLimitSet` 减 `0x64`；在临时实例上靠改年龄实测走不通：KES 不让改目录表，强制 autovacuum 又会把年龄压回去），写在 `facts` 一处。
 - **只按库判，表只展示**：库的年龄就是它最老的表；逐表出 finding 会把同一个问题报几十遍。当前库的表按年龄列出，别的库用 next 的 `kbdiag -d <库> freeze`。
 - **表大小是估算**（`relpages × block_size`）：`pg_total_relation_size` 对每个表加 AccessShareLock，救回卷时常有的 VACUUM FULL、TRUNCATE 会让整条 probe 卡到 lock_timeout 失败。
 - tables 只展示，没采到不影响 verdict；库名要转义或加引号时 next 的 `-d` 同 txn 对 gid 的做法处理。

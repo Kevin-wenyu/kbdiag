@@ -17,8 +17,9 @@ var (
 // transaction IDs: SetTransactionIdLimit puts xidStopLimit 1,000,000 before
 // the wrap limit, oldest datfrozenxid + 2^31 - 1 (PG14 moved it to 3,000,000).
 // MXIDStopAge is the same for multixacts: multiStopLimit is 100 before
-// their wrap limit. KES V8R6 runs a PG12 kernel; that it keeps these limits
-// is not verified on KES yet.
+// their wrap limit. KES V8R6 keeps both: its TransactionIdLimitSet and
+// MultiTransactionIdLimitSet subtract the same constants (disassembled on
+// V008R006C009B0014, 2026-10-07).
 const (
 	XIDStopAge  = 1<<31 - 1 - 1_000_000
 	MXIDStopAge = 1<<31 - 1 - 100
