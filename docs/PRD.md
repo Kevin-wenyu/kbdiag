@@ -1,6 +1,6 @@
 # kbdiag 2.0 需求说明书（PRD）
 
-状态: active | 最后核对: 2026-09-27
+状态: active | 最后核对: 2026-09-29
 
 **职责**：需求、范围、输出契约、版本目标、DS 场景表。查询条目和它们属于哪个版本以 `docs/queries.md` 为准；选型、架构、测试以 `docs/engineering.md` 为准。
 
@@ -137,9 +137,9 @@ Report
 - 阈值默认值来自 `docs/queries.md` 的阈值表，代码里只有一处默认值（`rule.Defaults`），可以用 flag 覆盖（原则 5）。
 
 **其他约定**
-- **evidence 字段名属于契约**：每个 finding.id 的 evidence 字段在 finding 清单里登记，纳入 JSON schema；场景测试的断言只能依赖登记过的字段
+- **evidence 字段名属于契约**：v0.2 的 finding 在 §5.2 登记，由契约测试强制；v0.1 的以 §5.1 示例为准，由 golden 固定。不另出 JSON schema 文件。场景测试的断言只能依赖登记过的字段
 - **退出码**（全命令统一，不允许命令自定义；沿用 Nagios 约定便于接监控）：`0` OK，`1` WARN，`2` FAIL，`3` UNKNOWN（没能下结论），`64` 用法错误（需覆盖 cobra 默认的 1，避免与 WARN 撞码），`69` 连不上数据库
-- **role**：只表示恢复角色，取自 `sys_is_in_recovery()`；不读 repmgr，不判断 standalone。集群拓扑（`topology`）v0.2 以后再做
+- **role**：只表示恢复角色，取自 `sys_is_in_recovery()`；不读 repmgr，不判断 standalone。repmgr 眼里的集群拓扑由 v0.2 的 `cluster` 命令给出，不进 context
 - **stdout/stderr**：结果只进 stdout；日志、进度、调试信息只进 stderr
 - **JSON 稳定性**：字段只增不改；finding.id 和 probe_id 一经发布不改名
 - **输出语言**：工具输出的全部文字（help、finding 的 symptom 和 note、probe 的 reason、文本排版）一律英文，没有 `--lang`（用户 2026-09-26 定）
@@ -529,31 +529,31 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 
 ## 6. 功能性需求（MVP 以外的按版本排）
 
-| 编号 | 需求 | 验收（对应 DS / GAP） |
-|---|---|---|
-| F-01 | 连接：本地 socket（兼容 `.s.KINGBASE.<port>` 命名）/ TCP + SCRAM | 两种方式都能在测试 VM 上连通 |
-| F-02 | 角色识别：primary/standby（`sys_is_in_recovery()`），外加每个下游备库（`inst.downstreams`）和备库的上游（`inst.upstream`） | 备库上不适用的 probe 标 `not_applicable` 而非报错；repmgr 状态 v0.2 起 |
-| F-03 | 连接族 | DS-01~04；DS-04 对照组（持排他锁的 idle-in-txn）**不得**被标记为可安全终止 |
-| F-04 | 锁族：多级阻塞链、按等待时长分级、DDL 专项建议 | DS-05~09；修 GAP-1/2/3 |
-| F-05 | SQL 族：Top N 截断必须提示"还有 M 条未显示" | DS-10/11/15；修 GAP-4 |
-| F-06 | 等待 + 主机负载：区分"累计值"和"当前值"，读 `/proc` 给 CPU/IO 实时指标 | DS-12~14；修 GAP-5/8 |
-| F-07 | vacuum 族：膨胀、停滞原因（关联阻挡 xmin 的会话）、冻结余量 | DS-17~19；修 GAP-6 |
-| F-08 | WAL 族 | DS-16/22 |
-| F-09 | HA 族：延迟、断连原因提示（崩溃 vs 网络）、切换就绪检查 | DS-20~24；修 GAP-7 |
-| F-10 | `diagnose` 跨族关联 | 至少 3 条关联规则：长事务→膨胀/冻结、长事务→锁链、复制槽→WAL 堆积 |
-| F-11 | **（v0.2）**`kill`：终止前复查安全条件（不持排他锁、不阻塞他人），不满足拒绝执行除非 `--force` | DS-04 对照组 |
-| F-12 | 采集快照导出/回放：`--dump-facts` 从真实实例录制原始采集数据，`--from-facts` 离线重跑判定 | **v0.2 再做**（DS-12~14 第一次需要它时）；MVP 场景全部可真实注入，用不到 |
+| 编号 | 需求 | 验收（对应 DS / GAP） | 状态（2026-09-29） |
+|---|---|---|---|
+| F-01 | 连接：本地 socket（兼容 `.s.KINGBASE.<port>` 命名）/ TCP + SCRAM | 两种方式都能在测试 VM 上连通 | 已实现 |
+| F-02 | 角色识别：primary/standby（`sys_is_in_recovery()`），外加每个下游备库（`inst.downstreams`）和备库的上游（`inst.upstream`） | 备库上不适用的 probe 标 `not_applicable` 而非报错；repmgr 状态 v0.2 起 | 已实现（repmgr 状态见 `cluster`） |
+| F-03 | 连接族 | DS-01~04；DS-04 对照组（持排他锁的 idle-in-txn）**不得**被标记为可安全终止 | 部分：`sessions`、`status`；"可安全终止"随 F-11 |
+| F-04 | 锁族：多级阻塞链、按等待时长分级、DDL 专项建议 | DS-05~09；修 GAP-1/2/3 | 部分：等锁 10 秒下限（DS-05 不升级）、挡路者一层；多级链、DDL 建议未做 |
+| F-05 | SQL 族：Top N 截断必须提示"还有 M 条未显示" | DS-10/11/15；修 GAP-4 | 部分：截断提示已做（`truncated`，文本写还剩几条）；临时文件只有 `top --by temp` 的累计值 |
+| F-06 | 等待 + 主机负载：区分"累计值"和"当前值"，读 `/proc` 给 CPU/IO 实时指标 | DS-12~14；修 GAP-5/8 | 部分：`top` 标题写明累计值；当前值（`--interval`）和 `/proc` 未做 |
+| F-07 | vacuum 族：膨胀、停滞原因（关联阻挡 xmin 的会话）、冻结余量 | DS-17~19；修 GAP-6 | 部分：冻结余量（`freeze`）、停滞原因指向 `txn`/`slots`；膨胀未做 |
+| F-08 | WAL 族 | DS-16/22 | 已实现：`wal`、`archive`、`slots`、`space` |
+| F-09 | HA 族：延迟、断连原因提示（崩溃 vs 网络）、切换就绪检查 | DS-20~24；修 GAP-7 | 部分：延迟（`repl`）；崩溃还是网络、切换就绪未做 |
+| F-10 | `diagnose` 跨族关联 | 至少 3 条关联规则：长事务→膨胀/冻结、长事务→锁链、复制槽→WAL 堆积 | 未做（之后） |
+| F-11 | `kill`：终止前复查安全条件（不持排他锁、不阻塞他人），不满足拒绝执行除非 `--force` | DS-04 对照组 | 未做（待排；v0.2 计划明确不在范围） |
+| F-12 | 采集快照导出/回放：`--dump-facts` 从真实实例录制原始采集数据，`--from-facts` 离线重跑判定 | DS-12~14 第一次需要它时再做；现有场景全部可真实注入，用不到 | 未做（待排） |
 
 ## 7. 非功能性需求
 
-| 编号 | 需求 | 指标 |
-|---|---|---|
-| N-01 | 部署 | 单文件静态二进制，linux/amd64 + linux/arm64，不依赖 glibc 版本/libpq |
-| N-02 | 自身开销 | 只占 1 个连接；每条 SQL `statement_timeout` 默认 2s、`lock_timeout` 默认 500ms（VM 实测默认 `lock_timeout=0`：DS-09 有 AccessExclusive 排队时，需要表锁的 probe 会被堵死）；命令总超时 `--timeout` 默认 10s；`check` 在健康实例上 ≤ 3s |
-| N-03 | 满连接下可用 | `system` 超级用户走 `superuser_reserved_connections`（VM 实测 = 3）；连不上时退出码 69 + 明确原因 |
-| N-04 | 只读保证 | 诊断连接 `SET default_transaction_read_only = on`；只有 `kill` 例外 |
-| N-05 | 可测试性 | 判定逻辑不接触数据库，能用纯数据跑单测（见 `docs/engineering.md` 架构） |
-| N-06 | 可观测 | `--debug` 在 stderr 打出每条 probe 的 SQL、耗时、行数 |
+| 编号 | 需求 | 指标 | 状态（2026-09-29） |
+|---|---|---|---|
+| N-01 | 部署 | 单文件静态二进制，linux/amd64 + linux/arm64，不依赖 glibc 版本/libpq | 已实现 |
+| N-02 | 自身开销 | 只占 1 个诊断连接（取消请求另开的短连接不算，2026-09-29 定，要在 KES 上验证它不占后端连接槽）；`lock_timeout` 500ms（VM 实测默认 `lock_timeout=0`：DS-09 有 AccessExclusive 排队时，需要表锁的 probe 会被堵死）；`--timeout` 是整条命令的总期限，默认 30 秒（用户可容忍的最长等待，2026-09-29）；每条 SQL 的上限怎么分待实测（几十万张表的库上各 probe 的耗时）；到期时已采到的照样输出，没采到的记 `skipped`（reason 写 timeout），不假装 OK | 部分：只读连接、`lock_timeout` 已实现；`--timeout` 现在是每条 SQL 的上限，总期限未实现 |
+| N-03 | 满连接下可用 | `system` 超级用户走 `superuser_reserved_connections`（VM 实测 = 3）；连不上时退出码 69 + 明确原因 | 已实现（`e2e/inject/conn.sh`） |
+| N-04 | 只读保证 | 诊断连接 `SET default_transaction_read_only = on`；只有 `kill` 例外 | 已实现 |
+| N-05 | 可测试性 | 判定逻辑不接触数据库，能用纯数据跑单测（见 `docs/engineering.md` 架构） | 已实现 |
+| N-06 | 可观测 | `--debug` 在 stderr 打出每条 probe 的 SQL、耗时、行数 | 未实现 |
 
 ## 8. 非目标（明确不做）
 
@@ -580,59 +580,59 @@ v0.2 的命令不再逐条写 JSON 示例（形状和 5.1 相同），这里登�
 | 版本 | 目标 | 验收 |
 |---|---|---|
 | v0.1 | 出事时的第一问：会话、锁、事务、等待、实例概况、复制槽，全是单次查询，不做跨维度关联 | 每条命令的注入场景、阴性场景、诱饵在主库和备库上都通过；只读账号的降级输出正确；用户本人按验收步骤走一遍。对外 tag `v2.0.0-alpha.1` |
-| v0.2 | 巡检类（参数、空间、对象、维护、归档）和复制延迟、repmgr 集群状态 | 待 v0.1 验收后排定 |
+| v0.2 | 巡检类（参数、空间、对象、维护、归档）和复制延迟、repmgr 集群状态 | 14 条新命令（§4 标了（v0.2）的），两节点 VM 实跑通过（2026-09-28）；场景验收同 v0.1。对外 tag `v2.0.0-alpha.3`（待用户确认；alpha.2 是 v0.1 打磨版） |
 | 之后 | 连环分析：`diagnose` 跨维度关联、事前/事中/事后三种模式（§12） | 待定 |
 
 ## 11. DS 场景表
 
 24 个 DBA 故障场景（25 起是 v0.2 新增，来自计划附录 B）和 8 个旧版能力缺口（GAP），由旧 shell 版逐场景验收整理而来，原文在 tag `shell-final` 里。每条命令都要能追溯到至少一个 DS（原则 1）。
 
-| DS | 场景 | 要点 |
-|---|---|---|
-| 01 | 连接数正常 | 全局阴性对照 |
-| 02 | 连接数接近 WARN | |
-| 03 | 连接数达到 FAIL | 满连接下工具自身仍要能连上（N-03） |
-| 04 | 大量 idle in transaction | 对照组：持排他锁的 idle-in-txn **不得**标为可安全终止 |
-| 05 | 普通锁等待 | 短暂的正常等待不能升级为严重（GAP-2） |
-| 06 | 长事务阻塞 | 锁等待的根因是长事务 |
-| 07 | 多级锁等待 | 中间会话自己也在等，杀它不解决问题（GAP-1） |
-| 08 | 死锁 | 要能定位到 PID/SQL |
-| 09 | DDL 被业务事务阻塞 | 要给 DDL 专项建议（GAP-3） |
-| 10 | 单条慢 SQL | |
-| 11 | 多条慢 SQL 并发 | 截断要提示还剩多少条（GAP-4） |
-| 12 | 缓存命中率异常 | 累计值和当前值要分开（GAP-5） |
-| 13 | IO 等待异常 | 需要 OS 层指标（GAP-8） |
-| 14 | CPU/负载异常但 SQL 不明显 | 需要 OS 层指标（GAP-8） |
-| 15 | 临时文件溢出 | |
-| 16 | WAL 增长异常 | 归档失败/复制槽/大事务 |
-| 17 | 死元组/膨胀 | |
-| 18 | autovacuum 长时间未执行 | 要和 DS-06 的长事务关联起来（GAP-1） |
-| 19 | 冻结年龄风险 | 阈值来源要统一（GAP-6） |
-| 20 | 备库复制延迟 | |
-| 21 | 备库断连 | 要区分进程崩溃还是网络分区（GAP-7） |
-| 22 | 复制槽堵塞 | |
-| 23 | repmgrd 异常 | |
-| 24 | 备库不具备 promote 条件 | |
-| 25 | 磁盘或表空间快满 | v0.2 `space`；快满没有客观线，只展示；数据目录或 WAL 所在盘不够一个 WAL 段时 FAIL（`space.disk_full`，用户 2026-09-27 定）。L6 造不出（要真的填满数据盘），只有 L1/L2 |
-| 26 | 归档失败 | v0.2 `archive`；WAL 堆在主库、备份缺段 |
-| 27 | 参数改了没生效（待重启） | v0.2 `params`；下次重启会突然换成新值 |
-| 28 | 同步备库不够数 | v0.2 `repl`；KES 断开同步备库时提交是否卡住未验证 |
-| 29 | 空间被哪些对象占了 | v0.2 `top-objects` |
-| 30 | 单表体检 | v0.2 `table <t>`；复用 17、19 的判定 |
-| 31 | 长操作进度 | v0.2 `progress`（VACUUM、CREATE INDEX、CLUSTER、CHECKPOINT） |
-| 32 | checkpoint 过频 | v0.2 `checkpoint`；只展示 |
-| 33 | 序列耗尽 | v0.2 `seq`；取不出下一个值时 FAIL |
+| DS | 场景 | 要点 | 覆盖（2026-09-29） |
+|---|---|---|---|
+| 01 | 连接数正常 | 全局阴性对照 | `status`、`sessions` |
+| 02 | 连接数接近 WARN | | 不再判（80% WARN 2026-09-26 删除：快满没有客观线）；`status` 只展示 |
+| 03 | 连接数达到 FAIL | 满连接下工具自身仍要能连上（N-03） | `status`（`inst.connections` FAIL） |
+| 04 | 大量 idle in transaction | 对照组：持排他锁的 idle-in-txn **不得**标为可安全终止 | `sessions`、`txn`；对照组随 F-11，未做 |
+| 05 | 普通锁等待 | 短暂的正常等待不能升级为严重（GAP-2） | `locks`（10 秒下限） |
+| 06 | 长事务阻塞 | 锁等待的根因是长事务 | `locks`、`txn`、`session` |
+| 07 | 多级锁等待 | 中间会话自己也在等，杀它不解决问题（GAP-1） | 部分：`locks` 一层 + `session`；多级链未做 |
+| 08 | 死锁 | 要能定位到 PID/SQL | 未覆盖 |
+| 09 | DDL 被业务事务阻塞 | 要给 DDL 专项建议（GAP-3） | 部分：`locks` 看得到等锁；DDL 专项建议未做 |
+| 10 | 单条慢 SQL | | `sessions`、`top` |
+| 11 | 多条慢 SQL 并发 | 截断要提示还剩多少条（GAP-4） | `sessions`、`top`（截断提示） |
+| 12 | 缓存命中率异常 | 累计值和当前值要分开（GAP-5） | 部分：`table` 单表命中率（累计）；实例级、当前值未做 |
+| 13 | IO 等待异常 | 需要 OS 层指标（GAP-8） | 未覆盖（GAP-8） |
+| 14 | CPU/负载异常但 SQL 不明显 | 需要 OS 层指标（GAP-8） | 未覆盖（GAP-8） |
+| 15 | 临时文件溢出 | | 部分：`top --by temp`（累计） |
+| 16 | WAL 增长异常 | 归档失败/复制槽/大事务 | `wal`、`archive`、`slots`、`space` |
+| 17 | 死元组/膨胀 | | `vacuum`、`table`；膨胀估算未做 |
+| 18 | autovacuum 长时间未执行 | 要和 DS-06 的长事务关联起来（GAP-1） | `vacuum`（next 指向 `txn`、`slots`） |
+| 19 | 冻结年龄风险 | 阈值来源要统一（GAP-6） | `freeze`、`table` |
+| 20 | 备库复制延迟 | | `repl` |
+| 21 | 备库断连 | 要区分进程崩溃还是网络分区（GAP-7） | 部分：`status`、`repl`（`inst.upstream`）；崩溃还是网络未做 |
+| 22 | 复制槽堵塞 | | `slots`、`wal` |
+| 23 | repmgrd 异常 | | 部分：`cluster`（repmgr 元数据）；repmgrd 在不在跑看不到 |
+| 24 | 备库不具备 promote 条件 | | 未覆盖 |
+| 25 | 磁盘或表空间快满 | v0.2 `space`；快满没有客观线，只展示；数据目录或 WAL 所在盘不够一个 WAL 段时 FAIL（`space.disk_full`，用户 2026-09-27 定）。L6 造不出（要真的填满数据盘），只有 L1/L2 | `space` |
+| 26 | 归档失败 | v0.2 `archive`；WAL 堆在主库、备份缺段 | `archive` |
+| 27 | 参数改了没生效（待重启） | v0.2 `params`；下次重启会突然换成新值 | `params` |
+| 28 | 同步备库不够数 | v0.2 `repl`；KES 断开同步备库时提交是否卡住未验证 | `repl` |
+| 29 | 空间被哪些对象占了 | v0.2 `top-objects` | `top-objects` |
+| 30 | 单表体检 | v0.2 `table <t>`；复用 17、19 的判定 | `table` |
+| 31 | 长操作进度 | v0.2 `progress`（VACUUM、CREATE INDEX、CLUSTER、CHECKPOINT） | `progress` |
+| 32 | checkpoint 过频 | v0.2 `checkpoint`；只展示 | `checkpoint` |
+| 33 | 序列耗尽 | v0.2 `seq`；取不出下一个值时 FAIL | `seq` |
 
-| GAP | 旧版缺口 |
-|---|---|
-| 1 | 锁链路不自动拼接，同根同源的 finding 要 DBA 自己关联 |
-| 2 | 锁等待不按时长区分严重程度 |
-| 3 | DDL 被阻塞时没有专门建议 |
-| 4 | Top N 静默截断 |
-| 5 | 缓存命中率是启动以来的累计值，文案不提示 |
-| 6 | 冻结阈值在两个命令里来源不同 |
-| 7 | 备库失联不区分崩溃和网络分区 |
-| 8 | 没有 OS 层实时资源指标 |
+| GAP | 旧版缺口 | 状态（2026-09-29） |
+|---|---|---|
+| 1 | 锁链路不自动拼接，同根同源的 finding 要 DBA 自己关联 | 部分：`locks` 按挡路者聚合一层，vacuum/freeze 的 next 指向 `txn`、`slots`；多级链未做 |
+| 2 | 锁等待不按时长区分严重程度 | 已修：等锁 10 秒下限，短暂等待不报；只有一级 WARN（2026-09-26 定不升 FAIL） |
+| 3 | DDL 被阻塞时没有专门建议 | 未修 |
+| 4 | Top N 静默截断 | 已修：`truncated` 加文本"还有 N 条" |
+| 5 | 缓存命中率是启动以来的累计值，文案不提示 | 部分：`top`、`table` 写明累计；当前值未做 |
+| 6 | 冻结阈值在两个命令里来源不同 | 已修：`freeze` 只用服务器的线 |
+| 7 | 备库失联不区分崩溃和网络分区 | 未修 |
+| 8 | 没有 OS 层实时资源指标 | 未修 |
 
 ## 12. 需求探索结论
 

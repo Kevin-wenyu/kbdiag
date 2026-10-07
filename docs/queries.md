@@ -1,6 +1,6 @@
 # kbdiag 2.0 查询清单
 
-状态: active | 最后核对: 2026-09-27
+状态: active | 最后核对: 2026-09-29
 
 **职责**：所有查询条目、所属版本、probe_id、DS、SQL 出处、开关、验证状态。版本条目以本文的"版本"列为唯一来源；PRD 只写版本目标和验收。
 **参考**：`ora`（`~/Documents/oracle/ora:100-320`）、pgmetrics、pgBadger、pg_profile、pganalyze；digoal/skills（https://github.com/digoal/skills/tree/main/postgresql ，下文简称 **digoal**）；KingbaseES V8 官方文档（https://help.kingbase.com.cn/v8/ ，下文简称 **KES 文档**）
@@ -270,12 +270,15 @@ VM 上还装了这些扩展：
 | 指标 | 关注 | 警告 | 严重 |
 |---|---|---|---|
 | 普通用户连不上（`inst.connections`，已实现） | — | — | 已用 ≥ 可用（`max_connections - superuser_reserved_connections`），不可调 |
-| 备库没在收 WAL（`inst.upstream`，已实现） | — | 没有 WAL 接收进程，或状态不是 `streaming`；不可调 | — |
-| idle in transaction 占连接数比例 | — | > 20% | — |
-| 物理复制回放延迟 | > 1 分钟 / 100MB | > 5 分钟 / 1GB | > 30 分钟 / 10GB |
+| 备库没在收 WAL（`inst.upstream`，已实现） | — | 没有 WAL 接收进程，状态不是 `streaming`，或 last_msg 超过 `wal_receiver_timeout`（为 0 时不判）；不可调 | — |
+| idle in transaction 占连接数比例（未实现，digoal 参考值） | — | > 20% | — |
+| 物理复制回放延迟（未采用：`repl` 只展示延迟，没有服务器端的客观线） | > 1 分钟 / 100MB | > 5 分钟 / 1GB | > 30 分钟 / 10GB |
 | 复制槽未激活（`slot.inactive`，已实现） | — | `active=false`（2026-09-26 从 FAIL 改为 WARN） | — |
-| 库年龄 `age(datfrozenxid)` | > 10 亿 | > 15 亿 | > 20 亿 |
-| 序列剩余可调用次数 | < 10 万 | < 1 万 | < 1000 |
+| 库年龄 `age(datfrozenxid)`（未采用，见下一行） | > 10 亿 | > 15 亿 | > 20 亿 |
+| 库/表的 xid、multixact 年龄（`freeze.database_age`、`freeze.table_age`，已实现） | — | ≥ `autovacuum_freeze_max_age`（multixact 用 `autovacuum_multixact_freeze_max_age`）；服务器参数，不可调 | xid ≥ 2^31−1−100 万，multixact ≥ 2^31−1−100（PG12 停止线；KES 是否相同待核实） |
+| 序列剩余可调用次数（未采用：`seq` 只展示比例） | < 10 万 | < 1 万 | < 1000 |
+| 序列取不出下一个值（`seq.exhausted`，已实现） | — | — | 剩余 0 次且不循环；不可调 |
+| 数据目录或 WAL 所在盘（`space.disk_full`，已实现） | — | — | 可用空间 < 一个 WAL 段；不可调 |
 | 2PC 事务存在时长（`txn.prepared`，已实现） | — | ≥ 900 秒（`--prepared-warn`；2026-09-26 从 FAIL 改为 WARN） | — |
 | 单个会话 idle in transaction 时长（`session.idle_in_txn`，已实现） | — | ≥ 300 秒（`--idle-in-txn-warn`） | — |
 | 单个事务时长（`txn.long`，已实现） | — | ≥ 300 秒（`--xact-warn`） | —（2026-09-26 删掉 1800 秒 FAIL 和 `--xact-fail`） |
@@ -285,7 +288,9 @@ VM 上还装了这些扩展：
 
 最后三行不来自 digoal：idle in transaction 和事务时长的 300 秒沿用 shell 版 `KB_WARN_TXN=300`（`idle in transaction (aborted)` 也算在内）；等锁 10 秒是自定的起点，大规模使用后按实际误报再调（事务 1800 秒 FAIL 已在 2026-09-26 删除）。
 
-归档检查要先排除主动配置，再判断异常：`archive_mode=off`、`archive_command` 为空或是 `/bin/true`、还在 `archive_timeout` 窗口内。这一条直接吸收进 H2。
+归档检查要先排除主动配置，再判断异常。`archive`（H2）实际排除的是：`archive_mode=off`；`archive_mode=on` 的备库（只有 always 才归档）；`archive_command` 为空（KES 此时的行为未实采）。digoal 列的另两条不需要排除：`/bin/true` 总是成功，不会触发 `archive.failing`；`archive_timeout` 窗口只影响"多久没归档"这类判断，`archive` 不做这种判断。
+
+其余 v0.2 finding（`vacuum.*`、`archive.failing`、`params.pending_restart`、`repl.*`、`cluster.*`）是开关或状态，没有数值阈值，级别见 PRD §5.2。
 
 ## digoal 的"诊断输出契约"（留给断层参考）
 
