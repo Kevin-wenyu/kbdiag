@@ -2,7 +2,13 @@ package probe
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/jackc/pgx/v5"
 
@@ -103,4 +109,140 @@ func withGrantHint(st facts.Status, reason string) string {
 		return reason + " (grant USAGE on schema repmgr and SELECT on its tables)"
 	}
 	return reason
+}
+
+// clusterSyncSQL finds this node's repmgr.conf: repmgr keeps each node's
+// sys_bindir in its conf table (lab: the only key there), and repmgrd and
+// kbha run with -f $sys_bindir/../etc/repmgr.conf. The data directory and
+// synchronous_standby_names come along to check the file is this
+// instance's and to compare.
+const clusterSyncSQL = `
+select (select value from repmgr.conf where node_id = $1::int and key = 'sys_bindir'),
+       current_setting('data_directory'),
+       current_setting('synchronous_standby_names')`
+
+// readFile is swapped out in tests.
+var readFile = readConf
+
+// readConf reads a regular file of at most 1 MiB: the path comes from the
+// database, and a FIFO or device there must not hang kbdiag or fill memory.
+func readConf(path string) ([]byte, error) {
+	// open blocks on a FIFO before Stat can see it: check first, and open
+	// non-blocking in case it is swapped in between
+	if st, err := os.Stat(path); err != nil {
+		return nil, err
+	} else if !st.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !st.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
+	const max = 1 << 20
+	b, err := io.ReadAll(io.LimitReader(f, max+1))
+	if err == nil && len(b) > max {
+		return nil, fmt.Errorf("%s is larger than 1 MiB", path)
+	}
+	return b, err
+}
+
+// ClusterSync reads the synchronous mode repmgr is configured to keep from
+// this node's repmgr.conf, on a primary only (where synchronous_standby_names
+// takes effect). Like inst.disk it reads the database host's files, so it
+// runs only locally; a file that is not this node's (node_id or
+// data_directory differ) is not used.
+func ClusterSync(ctx context.Context, x *pgx.Conn, c facts.Context, n facts.ClusterNodes, socket, loopback bool) facts.ClusterSyncs {
+	if n.Status != facts.StatusOK {
+		return facts.ClusterSyncs{Status: n.Status, Reason: "cluster.nodes was not collected"}
+	}
+	if c.Role != "primary" {
+		return facts.ClusterSyncs{Status: facts.StatusNotApplicable, Reason: "standby: synchronous_standby_names takes effect on the primary"}
+	}
+	var local *facts.ClusterNode
+	for i := range n.Rows {
+		if n.Rows[i].IsLocal {
+			local = &n.Rows[i]
+		}
+	}
+	if local == nil {
+		return facts.ClusterSyncs{Status: facts.StatusSkipped, Reason: "this node is not identified in repmgr.nodes, so its repmgr.conf is unknown"}
+	}
+	if !socket && !loopback {
+		return facts.ClusterSyncs{Status: facts.StatusSkipped, Reason: "remote connection: repmgr.conf is read on the database host only"}
+	}
+	var bindir, datadir, names *string
+	if err := x.QueryRow(ctx, clusterSyncSQL, local.NodeID).Scan(&bindir, &datadir, &names); err != nil {
+		st, reason := classify(err)
+		return facts.ClusterSyncs{Status: st, Reason: withGrantHint(st, reason)}
+	}
+	if bindir == nil {
+		return facts.ClusterSyncs{Status: facts.StatusSkipped, Reason: "repmgr.conf table has no sys_bindir for node " + strconv.Itoa(int(local.NodeID))}
+	}
+	return clusterSyncFile(*bindir, local.NodeID, datadir, names)
+}
+
+// clusterSyncFile reads and checks the file found from sys_bindir.
+func clusterSyncFile(bindir string, nodeID int32, datadir, names *string) facts.ClusterSyncs {
+	local := facts.ClusterNode{NodeID: nodeID}
+	// not filepath.Clean: repmgrd's -f $sys_bindir/../etc resolves ".."
+	// through the filesystem, so a symlinked bin must be followed the same way
+	path := strings.TrimRight(bindir, "/") + "/../etc/repmgr.conf"
+	b, err := readFile(path)
+	if err != nil {
+		return facts.ClusterSyncs{Status: facts.StatusSkipped, Reason: err.Error()}
+	}
+	conf := parseRepmgrConf(string(b))
+	if id, ok := conf["node_id"]; ok && id != strconv.Itoa(int(local.NodeID)) {
+		return facts.ClusterSyncs{Status: facts.StatusSkipped, Reason: path + " is for node_id " + id + ", not this node (" + strconv.Itoa(int(local.NodeID)) + ")"}
+	}
+	if d, ok := conf["data_directory"]; ok && datadir != nil && filepath.Clean(d) != filepath.Clean(*datadir) {
+		return facts.ClusterSyncs{Status: facts.StatusSkipped, Reason: path + " is for data_directory " + d + ", not this instance's"}
+	}
+	row := facts.ClusterSync{ConfPath: path, StandbyNames: names}
+	if v, ok := conf["synchronous"]; ok {
+		row.Synchronous = &v
+	}
+	return facts.ClusterSyncs{Status: facts.StatusOK, Rows: []facts.ClusterSync{row}}
+}
+
+// parseRepmgrConf reads repmgr.conf's lines, key=value or key value (its
+// parser takes the = as optional): # starts a comment outside quotes,
+// values may be in single or double quotes; a later line overrides an
+// earlier one, as in repmgr.
+func parseRepmgrConf(s string) map[string]string {
+	out := map[string]string{}
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if i := strings.IndexAny(line, " \t"); i >= 0 && (!ok || i < len(k)) {
+			if pre := strings.TrimSpace(line[i:]); !strings.HasPrefix(pre, "=") {
+				k, v, ok = line[:i], pre, true
+			}
+		}
+		k = strings.TrimSpace(k)
+		if !ok || k == "" {
+			continue
+		}
+		v = strings.TrimSpace(v)
+		if len(v) > 0 && (v[0] == '\'' || v[0] == '"') {
+			if end := strings.IndexByte(v[1:], v[0]); end >= 0 {
+				v = v[1 : end+1]
+			}
+		} else if i := strings.IndexByte(v, '#'); i >= 0 {
+			v = strings.TrimSpace(v[:i])
+		}
+		out[k] = v
+	}
+	return out
 }

@@ -103,6 +103,8 @@ func TestSpace(t *testing.T) {
 	})
 }
 
+var clusterSyncColumns = []string{"conf_path", "synchronous", "synchronous_standby_names"}
+
 var (
 	freezeDBColumns    = []string{"datname", "datfrozenxid", "xid_age", "datminmxid", "mxid_age", "datallowconn"}
 	freezeTableColumns = []string{"relation", "relkind", "relfrozenxid", "xid_age", "relminmxid", "mxid_age", "heap_bytes_est"}
@@ -362,6 +364,32 @@ func TestCluster(t *testing.T) {
 		t.Errorf("local=%d verdict=%s exit=%d findings=%+v", local, r.Verdict, code, r.Findings)
 	}
 
+	// repmgr.conf's synchronous against the primary's list (2026-10-07)
+	sync := r.Data["cluster.sync"]
+	if role != "primary" {
+		if sync.Status != "not_applicable" {
+			t.Errorf("cluster.sync on a standby = %+v", sync)
+		}
+	} else {
+		row := okProbe(t, r, "cluster.sync", clusterSyncColumns).rowsOf()
+		if len(row) != 1 {
+			t.Fatalf("cluster.sync rows = %+v", row)
+		}
+		conf := ""
+		for _, line := range strings.Split(vmOut(t, "cat", str(row[0]["conf_path"])), "\n") {
+			if v, ok := strings.CutPrefix(strings.TrimSpace(line), "synchronous="); ok {
+				conf = strings.Trim(v, `'"`)
+			}
+		}
+		got := row[0]["synchronous_standby_names"]
+		if got == nil {
+			got = ""
+		}
+		if len(row) != 1 || conf == "" || row[0]["synchronous"] != conf || got != ksql(t, "show synchronous_standby_names") {
+			t.Errorf("cluster.sync = %+v, repmgr.conf synchronous=%q, ksql names=%q", row, conf, ksql(t, "show synchronous_standby_names"))
+		}
+	}
+
 	// -d names the metadata database; one without it is not "no cluster"
 	t.Run("-d test has no repmgr schema", func(t *testing.T) {
 		r, code := kbdiag(t, nil, "cluster", "-d", "test")
@@ -379,8 +407,18 @@ func TestCluster(t *testing.T) {
 		t.Run("standby walreceiver paused", func(t *testing.T) {
 			inject(t, "slot")
 			r, code := kbdiag(t, nil, "cluster")
-			if len(r.Findings) != 1 || r.Findings[0].ID != "cluster.detached" || code != 1 {
-				t.Errorf("findings=%+v exit=%d", r.Findings, code)
+			// repmgrd empties synchronous_standby_names about 2 s after the
+			// standby goes; judge by the list kbdiag read, as in TestRepl
+			want := "cluster.detached"
+			if row := r.Data["cluster.sync"].rowsOf(); len(row) == 1 && (row[0]["synchronous_standby_names"] == nil || row[0]["synchronous_standby_names"] == "") {
+				want += ",cluster.sync_degraded"
+			}
+			var ids []string
+			for _, f := range r.Findings {
+				ids = append(ids, f.ID)
+			}
+			if strings.Join(ids, ",") != want || code != 1 {
+				t.Errorf("findings=%v want %s exit=%d", ids, want, code)
 			}
 		})
 	}

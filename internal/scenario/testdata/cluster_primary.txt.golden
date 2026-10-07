@@ -7,6 +7,10 @@ nodes: 2  (repmgr metadata in database esrep)
   this node is node1: repmgr says primary, the database is a primary
   attached here: node2
 
+synchronous
+  repmgr.conf                quorum  (/home/kingbase/cluster/install/kingbase/etc/repmgr.conf)
+  synchronous_standby_names  ANY 1( node2)
+
 events: 20  (the latest, at most 20)
   time                 node   event                  ok   details
   2026-09-27 13:51:14  node1  child_node_reconnect   yes  standby node "node2" (ID: 2) has reconnected after 6 seconds

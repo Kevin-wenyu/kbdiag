@@ -13,7 +13,11 @@ pid=$(sql "select pid from sys_stat_wal_receiver")
 kill -STOP "$pid"
 echo "$pid" >"$PIDDIR/walreceiver.pid"
 EOF
+  # repmgrd empties synchronous_standby_names while the standby is away and
+  # restores it after; remember whether there is one to wait for at down
   remote <<'EOF'
+# length(), not <> '': in oracle mode '' is NULL, so <> '' is always NULL
+sql "select coalesce(length(current_setting('synchronous_standby_names')), 0) > 0" >"$PIDDIR/sync_names_set"
 wait_for 90 "select exists(select 1 from sys_replication_slots where slot_type='physical' and not active and xmin is not null)"
 EOF
   ;;
@@ -26,6 +30,10 @@ fi
 EOF
   remote <<'EOF'
 wait_for 90 "select not exists(select 1 from sys_replication_slots where slot_type='physical' and not active)"
+if [ "$(cat "$PIDDIR/sync_names_set" 2>/dev/null)" = t ]; then
+  wait_for 60 "select coalesce(length(current_setting('synchronous_standby_names')), 0) > 0"
+fi
+rm -f "$PIDDIR/sync_names_set"
 EOF
   ;;
 *) usage ;;

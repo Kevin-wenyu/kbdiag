@@ -365,7 +365,8 @@ func newCluster(g *globalFlags, stdout io.Writer) *cobra.Command {
 						n = facts.ClusterNodes{Status: facts.StatusSkipped, Reason: skip}
 						e = facts.ClusterEvents{Status: facts.StatusSkipped, Reason: skip}
 					}
-					return scenario.Cluster(info, n, e, probe.InstDownstreams(ctx, x))
+					s := probe.ClusterSync(ctx, x, info, n, g.cfg.Local(), g.cfg.Loopback())
+					return scenario.Cluster(info, n, e, probe.InstDownstreams(ctx, x), s)
 				}
 			}
 			if f := cmd.Flag("dbname"); f != nil && f.Changed {

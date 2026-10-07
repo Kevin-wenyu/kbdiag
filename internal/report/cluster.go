@@ -17,10 +17,11 @@ type clusterView struct {
 	n facts.ClusterNodes
 	e facts.ClusterEvents
 	d facts.InstDownstreams
+	s facts.ClusterSyncs
 }
 
-func (r *Report) SetCluster(n facts.ClusterNodes, e facts.ClusterEvents, d facts.InstDownstreams) {
-	v := &clusterView{n: n, e: e, d: d}
+func (r *Report) SetCluster(n facts.ClusterNodes, e facts.ClusterEvents, d facts.InstDownstreams, s facts.ClusterSyncs) {
+	v := &clusterView{n: n, e: e, d: d, s: s}
 	r.layout = func(r *Report, w io.Writer) error { return v.write(r, w) }
 }
 
@@ -34,6 +35,7 @@ func (v *clusterView) write(r *Report, w io.Writer) error {
 	} else if err := v.writeNodes(r, w, names); err != nil {
 		return err
 	}
+	v.writeSync(w)
 	if v.e.Status != facts.StatusOK {
 		writeNotOKAs(w, "events", v.e.Status, v.e.Reason)
 		return nil
@@ -104,4 +106,31 @@ func (v *clusterView) writeNodes(r *Report, w io.Writer, names map[int32]string)
 		fmt.Fprintf(w, "  not attached here: %s\n", strings.Join(out, ", "))
 	}
 	return nil
+}
+
+// writeSync shows repmgr's configured synchronous mode against the
+// primary's list; on a standby, outside repmgr, or when nodes could not be
+// read (which the text already says) there is nothing to show.
+func (v *clusterView) writeSync(w io.Writer) {
+	switch {
+	case v.s.Status == facts.StatusNotApplicable, v.n.Status != facts.StatusOK: // nodes already said why
+		return
+	case v.s.Status != facts.StatusOK || len(v.s.Rows) != 1:
+		writeNotOKAs(w, "synchronous", v.s.Status, v.s.Reason)
+		return
+	}
+	s := v.s.Rows[0]
+	mode := "(not set)"
+	if s.Synchronous != nil {
+		mode = escapeControl(*s.Synchronous)
+	}
+	names := "(empty: asynchronous)"
+	if s.StandbyNames != nil && strings.TrimSpace(*s.StandbyNames) != "" {
+		names = escapeControl(*s.StandbyNames)
+	}
+	fmt.Fprintln(w, "\nsynchronous")
+	_ = writeTable(w, "  ", nil, [][]string{
+		{"repmgr.conf", mode + "  (" + escapeControl(s.ConfPath) + ")"},
+		{"synchronous_standby_names", names},
+	})
 }

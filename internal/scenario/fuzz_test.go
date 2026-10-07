@@ -76,7 +76,12 @@ func v02Reports(s string, n int64, f float64, null bool) []*report.Report {
 		facts.InstUpstream{Status: ok, Rows: []facts.Upstream{{Status: p(), SenderHost: p(), SenderPort: pi32(), SlotName: p(), LastMsgAgeS: pf()}}},
 		facts.ReplReplay{Status: ok, Rows: []facts.Replay{{ReceiveLSN: p(), ReplayLSN: p(), ReplayGapBytes: pi(), LastReplayAgeS: pf(), ReplayPaused: !null}}}))
 	out = append(out, Cluster(c, facts.ClusterNodes{Status: ok, Rows: []facts.ClusterNode{{NodeID: i32, NodeName: s, Type: s, UpstreamNodeID: pi32(), Active: null, Priority: pi32(), Location: p(), SlotName: p(), IsLocal: !null}}},
-		facts.ClusterEvents{Status: ok, Rows: []facts.ClusterEvent{{NodeID: i32, Event: s, Time: now, AgeS: f, Details: p()}}}, facts.InstDownstreams{Status: ok}))
+		facts.ClusterEvents{Status: ok, Rows: []facts.ClusterEvent{{NodeID: i32, Event: s, Time: now, AgeS: f, Details: p()}}}, facts.InstDownstreams{Status: ok},
+		facts.ClusterSyncs{Status: ok, Rows: []facts.ClusterSync{{ConfPath: s, Synchronous: p(), StandbyNames: p()}}}))
+	// a configured synchronous mode with the list empty: the finding quotes the server-side path
+	out = append(out, Cluster(c, facts.ClusterNodes{Status: ok, Rows: []facts.ClusterNode{{NodeID: 1, NodeName: s, Type: "primary", Active: true, IsLocal: true}}},
+		facts.ClusterEvents{Status: ok}, facts.InstDownstreams{Status: ok},
+		facts.ClusterSyncs{Status: ok, Rows: []facts.ClusterSync{{ConfPath: s, Synchronous: str("quorum")}}}))
 	out = append(out, TopObjects(c, facts.ObjectTables{Status: ok, Rows: []facts.ObjectTable{{Schemaname: s, Relname: s, Relkind: s, TotalBytes: n, ToastBytes: pi()}}},
 		facts.ObjectIndexes{Status: ok, Rows: []facts.ObjectIndex{{Schemaname: s, Relname: s, TableName: s, Bytes: n}}}, TopObjectsOptions{}))
 	tbl, _ := Table(c, facts.TableInfos{Status: ok, Rows: []facts.TableInfo{{Schemaname: s, Relname: s, Relkind: "r", Relpersistence: s, Reltuples: float32(f), Reloptions: []string{s}, XIDAge: pi32(), MXIDAge: pi32()}}},

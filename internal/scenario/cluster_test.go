@@ -44,6 +44,15 @@ func clusterFacts(t *testing.T, node string) (facts.ClusterNodes, facts.ClusterE
 	return n, e
 }
 
+// labSync is node1's repmgr.conf (synchronous='quorum', 2026-10-07) with
+// the given synchronous_standby_names.
+func labSync(names *string) facts.ClusterSyncs {
+	return facts.ClusterSyncs{Status: facts.StatusOK, Rows: []facts.ClusterSync{{
+		ConfPath: "/home/kingbase/cluster/install/kingbase/etc/repmgr.conf", Synchronous: str("quorum"), StandbyNames: names}}}
+}
+
+var syncStandby = facts.ClusterSyncs{Status: facts.StatusNotApplicable, Reason: "standby: synchronous_standby_names takes effect on the primary"}
+
 func esrep(role, user, location string) facts.Context {
 	c := v02Context(role, user, location)
 	c.Database = "esrep"
@@ -62,18 +71,25 @@ func TestClusterText(t *testing.T) {
 		n       facts.ClusterNodes
 		e       facts.ClusterEvents
 		d       facts.InstDownstreams
+		s       facts.ClusterSyncs
 		verdict rule.Verdict
 	}{
-		{"cluster_primary", esrep("primary", "system", "local"), n1, e1, attached, rule.VerdictOK},
-		{"cluster_standby", esrep("standby", "system", "local"), n2, e2, na, rule.VerdictOK},
-		// repl_node1_sys_stat_paused: no walsender while node2's walreceiver is paused
-		{"cluster_primary_paused", esrep("primary", "system", "local"), n1, e1, facts.InstDownstreams{Status: facts.StatusOK}, rule.VerdictWARN},
+		{"cluster_primary", esrep("primary", "system", "local"), n1, e1, attached, labSync(str("ANY 1( node2)")), rule.VerdictOK},
+		{"cluster_standby", esrep("standby", "system", "local"), n2, e2, na, syncStandby, rule.VerdictOK},
+		// repl_node1_sys_stat_paused: no walsender while node2's walreceiver
+		// is paused, and repmgrd has emptied the list (hamgr.log 2026-10-07)
+		{"cluster_primary_paused", esrep("primary", "system", "local"), n1, e1, facts.InstDownstreams{Status: facts.StatusOK}, labSync(nil), rule.VerdictWARN},
+		// node2 is back but the list stayed empty: repmgrd did not restore it
+		{"cluster_primary_not_restored", esrep("primary", "system", "local"), n1, e1, attached, labSync(str("")), rule.VerdictWARN},
+		{"cluster_primary_remote", esrep("primary", "system", "remote"), n1, e1, attached,
+			facts.ClusterSyncs{Status: facts.StatusSkipped, Reason: "remote connection: repmgr.conf is read on the database host only"}, rule.VerdictUNKNOWN},
 		{"cluster_ro", esrep("primary", "kbdiag_ro", "remote"),
 			facts.ClusterNodes{Status: facts.StatusSkipped, Reason: "insufficient_privilege 42501: permission denied for schema repmgr (grant USAGE on schema repmgr and SELECT on its tables)"},
-			facts.ClusterEvents{Status: facts.StatusSkipped, Reason: "insufficient_privilege 42501: permission denied for schema repmgr (grant USAGE on schema repmgr and SELECT on its tables)"}, attached, rule.VerdictUNKNOWN},
+			facts.ClusterEvents{Status: facts.StatusSkipped, Reason: "insufficient_privilege 42501: permission denied for schema repmgr (grant USAGE on schema repmgr and SELECT on its tables)"}, attached,
+			facts.ClusterSyncs{Status: facts.StatusSkipped, Reason: "cluster.nodes was not collected"}, rule.VerdictUNKNOWN},
 	} {
 		t.Run(x.golden, func(t *testing.T) {
-			rep := Cluster(x.c, x.n, x.e, x.d)
+			rep := Cluster(x.c, x.n, x.e, x.d, x.s)
 			assertGolden(t, x.golden, rep)
 			if rep.Verdict != x.verdict {
 				t.Errorf("verdict = %s", rep.Verdict)
@@ -96,7 +112,8 @@ func TestClusterTextEdges(t *testing.T) {
 	e := facts.ClusterEvents{Status: facts.StatusOK, Rows: []facts.ClusterEvent{
 		{NodeID: 9, Event: "standby_promote", Successful: false, Time: at.Add(-90e9), AgeS: 90, Details: str("promotion failed:\n" + strings.Repeat("x", 120))},
 	}}
-	rep := Cluster(esrep("primary", "system", "local"), n, e, facts.InstDownstreams{Status: facts.StatusOK})
+	rep := Cluster(esrep("primary", "system", "local"), n, e, facts.InstDownstreams{Status: facts.StatusOK},
+		facts.ClusterSyncs{Status: facts.StatusSkipped, Reason: "this node is not identified in repmgr.nodes, so its repmgr.conf is unknown"})
 	assertGolden(t, "cluster_edges", rep)
 	if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 2 {
 		t.Errorf("verdict=%s findings=%+v", rep.Verdict, rep.Findings)
@@ -104,7 +121,8 @@ func TestClusterTextEdges(t *testing.T) {
 	c := esrep("primary", "system", "local")
 	c.Database = "test"
 	reason := "no repmgr schema in database test: not a repmgr cluster, or its metadata is in another database (use -d)"
-	rep = Cluster(c, facts.ClusterNodes{Status: facts.StatusNotApplicable, Reason: reason}, facts.ClusterEvents{Status: facts.StatusNotApplicable, Reason: reason}, facts.InstDownstreams{Status: facts.StatusOK})
+	rep = Cluster(c, facts.ClusterNodes{Status: facts.StatusNotApplicable, Reason: reason}, facts.ClusterEvents{Status: facts.StatusNotApplicable, Reason: reason}, facts.InstDownstreams{Status: facts.StatusOK},
+		facts.ClusterSyncs{Status: facts.StatusNotApplicable, Reason: "cluster.nodes was not collected"})
 	assertGolden(t, "cluster_norepmgr", rep)
 	if rep.Verdict != rule.VerdictOK {
 		t.Errorf("verdict=%s", rep.Verdict)
@@ -119,7 +137,7 @@ func TestClusterRoleMismatch(t *testing.T) {
 		{NodeID: 1, NodeName: "node1", Type: "primary", Active: true, SlotName: str("repmgr_slot_1"), IsLocal: true},
 		{NodeID: 2, NodeName: "node2", Type: "standby", UpstreamNodeID: &one, Active: true, SlotName: str("repmgr_slot_2")},
 	}}
-	rep := Cluster(esrep("standby", "system", "local"), n, facts.ClusterEvents{Status: facts.StatusOK}, facts.InstDownstreams{Status: facts.StatusOK})
+	rep := Cluster(esrep("standby", "system", "local"), n, facts.ClusterEvents{Status: facts.StatusOK}, facts.InstDownstreams{Status: facts.StatusOK}, syncStandby)
 	assertGolden(t, "cluster_role_mismatch", rep)
 	if rep.Verdict != rule.VerdictWARN || len(rep.Findings) != 1 || rep.Findings[0].ID != "cluster.role_mismatch" {
 		t.Errorf("verdict=%s findings=%+v", rep.Verdict, rep.Findings)

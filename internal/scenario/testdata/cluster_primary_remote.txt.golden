@@ -1,22 +1,13 @@
-cluster  WARN  (KingbaseES V008R006C009B0014, primary, system@local, 2026-09-27T21:20:09+08:00)
-
-[WARN] cluster.detached  repmgr lists node2 as an active standby of this node (node1), but no walsender here has that application_name: it is not attached (repmgr cluster show would report it so), unless its conninfo sets another application_name
-  verify: kbdiag status  # run on node2: is it up, is it receiving WAL
-  verify: kbdiag slots  # whether its slot here is inactive
-
-[WARN] cluster.sync_degraded  repmgr is configured for quorum replication (/home/kingbase/cluster/install/kingbase/etc/repmgr.conf), but synchronous_standby_names is empty: commits do not wait for any standby, so a failover now can lose committed transactions; repmgrd switched to asynchronous because node2 is not attached; it switches back when it returns
-  verify: kbdiag repl  # which standbys stream and what synchronous_standby_names says
+cluster  UNKNOWN  (KingbaseES V008R006C009B0014, primary, system@remote, 2026-09-27T21:20:09+08:00)
 
 nodes: 2  (repmgr metadata in database esrep)
   id  name   type     upstream  active  priority  location  slot
   1   node1  primary  -         yes     100       default   repmgr_slot_1
   2   node2  standby  node1     yes     100       default   repmgr_slot_2
   this node is node1: repmgr says primary, the database is a primary
-  not attached here: node2
+  attached here: node2
 
-synchronous
-  repmgr.conf                quorum  (/home/kingbase/cluster/install/kingbase/etc/repmgr.conf)
-  synchronous_standby_names  (empty: asynchronous)
+synchronous: skipped  (remote connection: repmgr.conf is read on the database host only)
 
 events: 20  (the latest, at most 20)
   time                 node   event                  ok   details

@@ -13,6 +13,8 @@ nodes: 3  (repmgr metadata in database esrep)
   3   node\x1b[2J3  standby  node1     no      -         -         -
   this node: not identified (no repmgr node's slot is this instance's primary_slot_name)
 
+synchronous: skipped  (this node is not identified in repmgr.nodes, so its repmgr.conf is unknown)
+
 events: 1  (the latest, at most 20)
   time                 node  event            ok  details
   2026-09-27 21:18:39  9     standby_promote  no  promotion failed: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...

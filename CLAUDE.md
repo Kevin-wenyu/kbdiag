@@ -233,6 +233,12 @@ test "$(find docs -name '*.md' -not -path 'docs/agents/*' | wc -l)" -eq 3 && tes
 - **没给 `-d` 时连 `esrep`**：元数据在那个库，而 kbdiag 只占一个连接（N-02），不同时开两个连接。没有 `esrep` 库（3D000）时退回默认库，不给 69（69 只表示连不上实例）；当前库没有 repmgr schema 时 `not_applicable`（不是 repmgr 集群，或者元数据在别的库）。**`esrep` 拒绝这个用户（pg_hba、CONNECT 权限，任何服务器返回的错误）时也退回默认库**，但两个元数据 probe 记 skipped、写明 esrep 的错误，verdict UNKNOWN：实例是通的，不能给 69（审查 2026-10-07）。**显式给了 `-d` 而那个库没有 repmgr schema 时是 skipped（UNKNOWN），不是 not_applicable**：用户指名了元数据库，没找到就是没看到，不能说集群 OK；只有默认路径（没有 `esrep` 库）才能推断"不是 repmgr 集群"。
 - **不调 repmgr 二进制**（和不调 ksql 同一个理由），所以 `repmgr cluster show` 的 Status 列（逐个连节点）做不了，文本和 next 指到各节点跑 `kbdiag status`。
 - conninfo 不采：可能带密码。
+- **`cluster.sync_degraded`：读 repmgr.conf，判"同步复制被降成了异步"**（用户 2026-10-07 选 A）。VM 实采：repmgr.conf 写 `synchronous='quorum'`，repmgrd 在同步备库离开时用 ALTER SYSTEM 把 `synchronous_standby_names` 清空，备库回来的同一秒再改回去（hamgr.log 里每次都成对出现）。所以 `repl.sync_short` 在这种集群上几乎看不到，常态是"已经是异步了"。而"本来应该是同步"只写在文件里，esrep 的表里没有（`repmgr.conf` 表只存了 `sys_bindir`，events 里也没有改设置的事件），所以只能读文件：用本节点的 `sys_bindir` 找到 `$sys_bindir/../etc/repmgr.conf`（repmgrd 和 kbha 都用 `-f` 指向它），用文件里的 `node_id`、`data_directory` 核对是不是这个实例的。这是 statfs 之外第一个读文件的例外，本机判断和 `inst.disk` 相同。
+  - 只在主库判：名单只在主库上生效。`synchronous` 是 sync、quorum、all 而名单是空的就报 WARN（提交不等任何备库，此刻切换会丢已提交的事务；业务还没受影响，所以不是 FAIL）。async 不判；custom 的名单归用户管，也不判。
+  - symptom 按原因分两种写：有备库没挂上来，就写是它离开导致的降级（和 `cluster.detached` 一起出现，先报原因、再报后果）；备库都挂着、名单还是空的，就是 repmgrd 没切回来，next 指向 `ps -C repmgrd`。备库刚回来的几秒里 repmgrd 还没察觉，也会落到第二种，所以措辞写"还没切回来，再跑一次还是这样再查 repmgrd"，不设等待阈值（没有客观来源）。
+  - **远程运行、文件读不到、对不上本节点时是 skipped**，主库上 verdict 是 UNKNOWN（和 space 远程运行同样的道理：判定没做就不能说 OK）。所以远程跑 cluster 在主库上不再是 OK，repmgr 配成 async 也一样：读不到文件，就不知道它配的是什么（审查指出这改变了 alpha.3 的行为，用户 2026-10-07 定保持 UNKNOWN；远程监控想拿到确定结论，就到主库本机上跑）。读文件只读 1 MiB 以内的普通文件，先 stat 再非阻塞打开（路径来自数据库，FIFO 会让 open 卡住，单元测试复现过）；路径不用 `filepath.Clean`：repmgrd 的 `-f $sys_bindir/../etc` 里的 `..` 是文件系统解析的，bin 是符号链接时字面清理会读错文件。解析按 repmgr 的规则，`=` 可以省略。
+  - KES 的 `current_setting('synchronous_standby_names')` 在被清空后返回空串，不是 NULL（VM 实测）；两种都算空。
+  - "repmgrd 没切回来"这一支只有 L1/L2：要造出来得停掉主库上的 repmgrd，会动集群守护进程，没做。
 
 ### top-objects（2026-09-27）
 
